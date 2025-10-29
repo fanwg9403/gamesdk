@@ -37,7 +37,7 @@ public class FSBannerAdapter extends BannerAdapter<FSHomeBanner, FSBannerAdapter
 
     @Override
     public void onBindView(VH holder, FSHomeBanner data, int position, int size) {
-        FoxSdkViewExt.setOnClickListener(holder.binding.fsBannerImage, v -> FSWebActivity.startWithUrl(v.getContext(), data.getLink() != null ? data.getLink() : ""))
+        FoxSdkViewExt.setOnClickListener(holder.binding.fsBannerImage, v -> FSWebActivity.startWithUrl(v.getContext(), data.getLink() != null ? data.getLink() : ""));
 
         Glide.with(holder.binding.fsBannerImage.getContext())
                 .load(data.getImage())

@@ -105,25 +105,23 @@ public class FSWinFoxCoinActivity extends FoxSdkBaseMviActivity<FSWinFoxCoinView
         binding.fsRecyclerView.setAdapter(winFoxCoinAdapter);
         winFoxCoinAdapter.addChildClickViewIds(R.id.fs_shp_tv_on);
         winFoxCoinAdapter.setOnItemChildClickListener((adapter, view, position) -> {
-            FoxSdkViewExt.setOnClickListener(view, v -> {
-                FSWinFoxCoin item = winFoxCoinAdapter.getItem(position);
-                if (item != null) {
-                    Gson gson = new Gson();
-                    FSGameSchemeData gameSchemeData = new FSGameSchemeData(
-                            "wish_game",
-                            item.getTask_number(),
-                            item.getType_name(),
-                            true,
-                            ""
-                    );
-                    String json = gson.toJson(gameSchemeData);
-                    FoxSdkAppJumpUtils.launchByDeepLink(
-                            FSWinFoxCoinActivity.this,
-                            "sohugloba://app/game_sdk?gameData=" + json,
-                            item.getH5_url()
-                    );
-                }
-            });
+            FSWinFoxCoin item = winFoxCoinAdapter.getItem(position);
+            if (item != null) {
+                Gson gson = new Gson();
+                FSGameSchemeData gameSchemeData = new FSGameSchemeData(
+                        "wish_game",
+                        item.getTask_number(),
+                        item.getType_name(),
+                        true,
+                        ""
+                );
+                String json = gson.toJson(gameSchemeData);
+                FoxSdkAppJumpUtils.launchByDeepLink(
+                        FSWinFoxCoinActivity.this,
+                        "sohugloba://app/game_sdk?gameData=" + json,
+                        item.getH5_url()
+                );
+            }
         });
     }
 

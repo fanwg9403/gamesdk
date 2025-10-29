@@ -75,13 +75,11 @@ public class FSMessageActivity extends FoxSdkBaseMviActivity<FSMessageViewState,
 
         mAdapter = new FSMessageListAdapter(new ArrayList<>());
         mAdapter.setOnItemClickListener((adapter, view, position) -> {
-            FoxSdkViewExt.setOnClickListener(view, v -> {
-                FSMessage item = (FSMessage) adapter.getItem(position);
-                showDetail(item);
-                if (item != null && !item.isRead()) {
-                    dispatch(new FSMessageIntent.Read(item.getMailId()));
-                }
-            });
+            FSMessage item = (FSMessage) adapter.getItem(position);
+            showDetail(item);
+            if (item != null && !item.isRead()) {
+                dispatch(new FSMessageIntent.Read(item.getMailId()));
+            }
         });
         binding.fsRv.setAdapter(mAdapter);
     }

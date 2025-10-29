@@ -107,18 +107,16 @@ public class FSStarterPackActivity extends FoxSdkBaseMviActivity<FSStarterPackVi
         binding.fsRecyclerView.setAdapter(starterPackAdapter);
         starterPackAdapter.addChildClickViewIds(R.id.fs_shp_tv_on);
         starterPackAdapter.setOnItemChildClickListener((adapter, view, position) -> {
-            FoxSdkViewExt.setOnClickListener(view, v -> {
-                viewModel.setClickPosition(position);
-                FSStarterPack item = starterPackAdapter.getItem(position);
-                if (item != null) {
-                    if (item.getStatus() == null || item.getStatus() != 1) {
-                        FoxSdkUtils.copyText(FSStarterPackActivity.this, item.getCode());
-                        Toaster.show(getString(R.string.fs_str_redemption_successful));
-                    } else {
-                        dispatch(new FSStarterPackIntent.ReceiveStarterPack(item.getId().toString()));
-                    }
+            viewModel.setClickPosition(position);
+            FSStarterPack item = starterPackAdapter.getItem(position);
+            if (item != null) {
+                if (item.getStatus() == null || item.getStatus() != 1) {
+                    FoxSdkUtils.copyText(FSStarterPackActivity.this, item.getCode());
+                    Toaster.show(getString(R.string.fs_str_redemption_successful));
+                } else {
+                    dispatch(new FSStarterPackIntent.ReceiveStarterPack(item.getId().toString()));
                 }
-            });
+            }
         });
     }
 
