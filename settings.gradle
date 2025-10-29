@@ -1,0 +1,3 @@
+include ':foxsdk'
+include ':app'
+rootProject.name = "WishFoxSdk"

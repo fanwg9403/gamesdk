@@ -1,0 +1,309 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/fs_primary_login"
+        android:layout_width="@dimen/dp_310"
+        android:layout_height="wrap_content"
+        android:background="@drawable/fs_dialog_bg"
+        android:paddingHorizontal="@dimen/dp_16"
+        android:paddingBottom="@dimen/dp_12"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/fs_iv_back"
+            android:layout_width="@dimen/dp_24"
+            android:layout_height="@dimen/dp_24"
+            android:importantForAccessibility="no"
+            android:src="@drawable/fs_right_back"
+            app:layout_constraintBottom_toBottomOf="@id/fs_tv_verify_code_login"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@id/fs_tv_verify_code_login" />
+
+        <TextView
+            android:id="@+id/fs_tv_verify_code_login"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:paddingVertical="@dimen/dp_16"
+            android:text="@string/fs_verify_code_login"
+            android:textColor="@color/white"
+            android:textSize="@dimen/size_16"
+            app:layout_constraintEnd_toStartOf="@id/fs_tv_password_login"
+            app:layout_constraintStart_toEndOf="@id/fs_iv_back"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/fs_tv_password_login"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:alpha="0.5"
+            android:gravity="center"
+            android:paddingVertical="@dimen/dp_16"
+            android:text="@string/fs_password_login"
+            android:textColor="@color/white"
+            android:textSize="@dimen/size_16"
+            app:layout_constraintEnd_toStartOf="@id/fs_v_right"
+            app:layout_constraintStart_toEndOf="@id/fs_tv_verify_code_login"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <View
+            android:id="@+id/fs_v_right"
+            android:layout_width="@dimen/dp_24"
+            android:layout_height="@dimen/dp_24"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <com.hjq.shape.layout.ShapeLinearLayout
+            android:id="@+id/fs_sll_phone"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/dp_48"
+            android:gravity="center_vertical"
+            app:layout_constraintTop_toBottomOf="@id/fs_tv_verify_code_login"
+            app:shape_radius="@dimen/dp_10"
+            app:shape_solidColor="#0fFFFFFF">
+
+            <EditText
+                android:id="@+id/fs_et_phone"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:autofillHints="phone"
+                android:background="@color/transparent"
+                android:drawableStart="@drawable/fs_ic_username"
+                android:drawablePadding="@dimen/dp_8"
+                android:gravity="start|center_vertical"
+                android:hint="@string/enter_phone_please"
+                android:inputType="phone"
+                android:maxLength="11"
+                android:paddingHorizontal="@dimen/dp_16"
+                android:textColor="@color/white"
+                android:textColorHint="@color/white_transparent_40"
+                android:textSize="@dimen/size_14" />
+
+        </com.hjq.shape.layout.ShapeLinearLayout>
+
+        <com.hjq.shape.layout.ShapeLinearLayout
+            android:id="@+id/fs_sll_verify_code"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/dp_48"
+            android:layout_marginTop="@dimen/dp_16"
+            android:gravity="center_vertical"
+            app:layout_constraintTop_toBottomOf="@id/fs_sll_phone"
+            app:shape_radius="@dimen/dp_10"
+            app:shape_solidColor="#0fFFFFFF">
+
+            <LinearLayout
+                android:id="@+id/fs_ll_verify_code"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent">
+
+                <EditText
+                    android:id="@+id/fs_et_verify_code"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:autofillHints="phone"
+                    android:background="@color/transparent"
+                    android:drawableStart="@drawable/fs_ic_verify_code"
+                    android:drawablePadding="@dimen/dp_8"
+                    android:gravity="start|center_vertical"
+                    android:hint="@string/enter_verify_code_please"
+                    android:inputType="phone"
+                    android:maxLength="6"
+                    android:paddingHorizontal="@dimen/dp_16"
+                    android:textColor="@color/white"
+                    android:textColorHint="@color/white_transparent_40"
+                    android:textSize="@dimen/size_14" />
+
+                <TextView
+                    android:id="@+id/fs_tv_send_verify_code"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@color/transparent"
+                    android:maxLength="6"
+                    android:paddingHorizontal="16dp"
+                    android:paddingVertical="10dp"
+                    android:text="@string/fs_send_verify_code"
+                    android:textColor="@color/fs_primary" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/fs_ll_password"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:visibility="gone">
+
+                <EditText
+                    android:id="@+id/fs_et_password"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:autofillHints="@null"
+                    android:background="@color/transparent"
+                    android:drawableStart="@drawable/fs_ic_password"
+                    android:drawablePadding="@dimen/dp_8"
+                    android:gravity="start|center_vertical"
+                    android:hint="@string/enter_password_please"
+                    android:inputType="textPassword"
+                    android:maxLength="32"
+                    android:paddingHorizontal="@dimen/dp_16"
+                    android:textColor="@color/white"
+                    android:textColorHint="@color/white_transparent_40"
+                    android:textSize="@dimen/size_14" />
+            </LinearLayout>
+        </com.hjq.shape.layout.ShapeLinearLayout>
+
+        <TextView
+            android:id="@+id/fs_tv_login"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/dp_30"
+            android:alpha="0.5"
+            android:background="@drawable/fs_primary_button"
+            android:gravity="center"
+            android:paddingVertical="@dimen/dp_10"
+            android:text="@string/fs_register_and_login"
+            android:textColor="@color/white"
+            android:textStyle="bold"
+            app:layout_constraintTop_toBottomOf="@id/fs_sll_verify_code" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            app:layout_constraintTop_toBottomOf="@id/fs_tv_login">
+
+            <FrameLayout
+                android:id="@+id/fs_fl_agree"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="@dimen/dp_4"
+                android:paddingVertical="@dimen/dp_10">
+
+                <CheckedTextView
+                    android:id="@+id/fs_ctv_agree"
+                    android:layout_width="@dimen/dp_10"
+                    android:layout_height="@dimen/dp_10"
+                    android:background="@drawable/fs_check_box_selector"
+                    tools:ignore="ContentDescription" />
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/fs_tv_agreement"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/fs_i_read_and_agree"
+                android:textColor="@color/white_transparent_60"
+                android:textSize="@dimen/size_11" />
+
+            <TextView
+                android:id="@+id/fs_tv_user_agreement"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="@string/fs_user_agreement"
+                android:textColor="@color/fs_primary"
+                android:textSize="@dimen/size_11" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/fs_and"
+                android:textColor="@color/white_transparent_60"
+                android:textSize="@dimen/size_11" />
+
+            <TextView
+                android:id="@+id/fs_tv_privacy_agreement"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="@string/fs_privacy_agreement"
+                android:textColor="@color/fs_primary"
+                android:textSize="@dimen/size_11" />
+        </LinearLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/fs_auth_login"
+        android:layout_width="@dimen/dp_310"
+        android:layout_height="wrap_content"
+        android:background="@drawable/fs_dialog_bg"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:paddingHorizontal="@dimen/dp_16">
+
+        <TextView
+            android:id="@+id/fs_tv_auth_login_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:paddingVertical="@dimen/dp_16"
+            android:text="@string/fs_auth_login"
+            android:textColor="@color/white"
+            android:textSize="@dimen/size_16"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <ImageView
+            android:id="@+id/fs_iv_wish_fox_logo"
+            android:layout_width="@dimen/dp_60"
+            android:layout_height="@dimen/dp_60"
+            android:importantForAccessibility="no"
+            android:src="@mipmap/fs_wish_fox_logo_round"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/fs_tv_auth_login_title" />
+
+        <TextView
+            android:id="@+id/fs_tv_wish_fox_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/dp_10"
+            android:text="@string/fs_wish_fox"
+            android:textColor="@color/white"
+            android:textSize="@dimen/size_20"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/fs_iv_wish_fox_logo" />
+
+        <TextView
+            android:id="@+id/fs_tv_auth_login"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/dp_30"
+            android:background="@drawable/fs_primary_button"
+            android:gravity="center"
+            android:paddingVertical="@dimen/dp_10"
+            android:text="@string/fs_authed_and_login"
+            android:textColor="@color/white"
+            android:textStyle="bold"
+            app:layout_constraintTop_toBottomOf="@id/fs_tv_wish_fox_name" />
+
+        <TextView
+            android:id="@+id/fs_tv_other_login"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:clickable="true"
+            android:focusable="true"
+            android:paddingVertical="@dimen/dp_12"
+            android:text="@string/fs_other_login"
+            android:textColor="@color/white_transparent_40"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/fs_tv_auth_login" />
+
+        <ImageView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:importantForAccessibility="no"
+            android:src="@drawable/fs_icon_right_arrow"
+            app:layout_constraintBottom_toBottomOf="@id/fs_tv_other_login"
+            app:layout_constraintStart_toEndOf="@id/fs_tv_other_login"
+            app:layout_constraintTop_toTopOf="@id/fs_tv_other_login" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</FrameLayout>

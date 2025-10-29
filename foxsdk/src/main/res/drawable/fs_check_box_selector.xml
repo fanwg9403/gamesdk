@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_checked="false">
+        <shape>
+            <size android:width="@dimen/dp_10" android:height="@dimen/dp_10" />
+            <stroke android:width="@dimen/dp_1" android:color="@color/white_transparent_40" />
+            <corners android:radius="@dimen/dp_10" />
+        </shape>
+    </item>
+    <item android:state_checked="true">
+        <vector
+            android:width="13.988dp"
+            android:height="13.988dp"
+            android:viewportWidth="13.988"
+            android:viewportHeight="13.988">
+            <path
+                android:pathData="M6.994,0C3.131,0 0,3.131 0,6.994C0,10.856 3.131,13.988 6.994,13.988C10.856,13.988 13.988,10.856 13.988,6.994C13.988,3.131 10.856,0 6.994,0ZM11.076,5.099L6.289,9.742C6.207,9.821 6.102,9.86 5.997,9.86C5.889,9.86 5.782,9.819 5.7,9.737L3.835,7.872C3.671,7.708 3.671,7.411 3.835,7.247C3.998,7.083 4.264,7.051 4.428,7.215L6.001,8.788L10.492,4.433C10.658,4.272 10.924,4.307 11.086,4.474C11.247,4.64 11.243,4.938 11.076,5.099Z"
+                android:fillColor="@color/fs_primary"/>
+        </vector>
+    </item>
+</selector>

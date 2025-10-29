@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+    <View
+        android:id="@+id/fs_v_start_safe_area"
+        android:layout_width="@dimen/dp_45"
+        android:layout_height="match_parent"
+        android:background="@color/fs_activity_bg"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <LinearLayout
+        android:id="@+id/fs_ll_all"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:background="@color/color_222222"
+        android:orientation="vertical"
+        app:layout_constraintEnd_toStartOf="@id/fs_right_view"
+        app:layout_constraintHorizontal_weight="73"
+        app:layout_constraintStart_toEndOf="@id/fs_v_start_safe_area"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <View
+            android:id="@+id/fs_top_view"
+            android:layout_width="match_parent"
+            android:layout_height="0dp" />
+
+        <LinearLayout
+            android:id="@+id/fs_ll_back"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingVertical="@dimen/dp_6"
+            android:paddingEnd="@dimen/dp_12">
+
+            <ImageView
+                android:layout_width="@dimen/dp_20"
+                android:layout_height="@dimen/dp_20"
+                android:src="@drawable/fs_right_back" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/fs_str_game_record"
+                android:textSize="@dimen/size_16"
+                android:textColor="@color/white"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/fs_str_game_record_50"
+                android:textSize="@dimen/size_12"
+                android:textColor="@color/color_ffb6b6b6"/>
+        </LinearLayout>
+
+        <com.scwang.smart.refresh.layout.SmartRefreshLayout
+            android:id="@+id/fs_refresh"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_marginEnd="@dimen/dp_12"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/fs_tv_title"
+            app:srlEnableLoadMore="true"
+            app:srlEnableOverScrollBounce="true"
+            app:srlEnableOverScrollDrag="true">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/fs_recycler_view"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:overScrollMode="never"
+                android:scrollbars="none"
+                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+                tools:listitem="@layout/fs_item_game_record" />
+        </com.scwang.smart.refresh.layout.SmartRefreshLayout>
+    </LinearLayout>
+
+    <View
+        android:id="@+id/fs_right_view"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_weight="90"
+        app:layout_constraintStart_toEndOf="@id/fs_ll_all" />
+</androidx.constraintlayout.widget.ConstraintLayout>

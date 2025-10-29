@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/fs_cl_top_bar"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingHorizontal="@dimen/dp_15"
+    android:paddingTop="@dimen/dp_14"
+    android:paddingBottom="@dimen/dp_16"
+    app:layout_constraintTop_toTopOf="parent"
+    tools:background="@color/fs_activity_bg">
+
+    <com.makeramen.roundedimageview.RoundedImageView
+        android:id="@+id/fs_riv_avatar"
+        android:layout_width="@dimen/dp_42"
+        android:layout_height="@dimen/dp_42"
+        android:src="@mipmap/fs_default_avatar_round"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:riv_corner_radius="@dimen/dp_40" />
+
+    <TextView
+        android:id="@+id/fs_tv_username"
+        android:layout_width="0dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/dp_10"
+        android:textColor="@color/white"
+        android:textSize="@dimen/size_16"
+        app:layout_constraintBottom_toTopOf="@id/fs_stv_coin"
+        app:layout_constraintStart_toEndOf="@id/fs_riv_avatar"
+        app:layout_constraintTop_toTopOf="@id/fs_riv_avatar"
+        tools:text="130****0001" />
+
+    <com.hjq.shape.view.ShapeTextView
+        android:layout_marginTop="@dimen/dp_4"
+        android:id="@+id/fs_stv_coin"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/dp_10"
+        android:drawableStart="@mipmap/fs_icon_gold_coin"
+        android:drawablePadding="@dimen/dp_4"
+        android:paddingStart="@dimen/dp_3"
+        android:paddingEnd="@dimen/dp_5"
+        android:textColor="@color/fs_coin"
+        android:textSize="@dimen/size_11"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/fs_riv_avatar"
+        app:layout_constraintStart_toEndOf="@id/fs_riv_avatar"
+        app:layout_constraintTop_toBottomOf="@id/fs_tv_username"
+        app:shape_radius="@dimen/dp_10"
+        app:shape_solidGradientEndColor="#1aFFF6E0"
+        app:shape_solidGradientStartColor="#1aFFEDC2"
+        tools:text="@string/fs_fox_coin"
+        tools:visibility="visible" />
+</androidx.constraintlayout.widget.ConstraintLayout>

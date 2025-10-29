@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <external-path
+        name="pictures"
+        path="Android/data/com.wishfox.foxsdk/files/pictures" />
+    <external-path
+        name="musics"
+        path="Android/data/com.wishfox.foxsdk//files/Music" />
+
+    <files-path
+        name="im"
+        path="im/"/>
+
+    <external-path
+        name="external_download"
+        path="Download/" />
+    <!-- 添加更多路径以适应Android 14+的限制 -->
+    <external-files-path
+        name="external_files"
+        path="." />
+    <cache-path
+        name="cache"
+        path="." />
+    <!-- Android 10+ 推荐使用 -->
+    <files-path
+        name="files"
+        path="." />
+</paths>

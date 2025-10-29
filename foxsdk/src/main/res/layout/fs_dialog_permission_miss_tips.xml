@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.hjq.shape.layout.ShapeLinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:orientation="vertical"
+    android:id="@+id/ll_layout"
+    android:paddingTop="@dimen/dp_15"
+    app:shape_radius="@dimen/dp_8"
+    app:shape_solidColor="@color/white"
+    android:layout_height="wrap_content">
+
+    <com.hjq.shape.layout.ShapeLinearLayout
+        android:paddingBottom="@dimen/dp_8"
+        android:paddingHorizontal="@dimen/dp_15"
+        android:layout_width="match_parent"
+        android:orientation="vertical"
+        app:shape_radius="@dimen/dp_8"
+        app:shape_solidColor="@color/white"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:id="@+id/fs_tv_title"
+            android:layout_width="match_parent"
+            android:text="@string/fs_str_tip"
+            android:textStyle="bold"
+            android:textSize="17sp"
+            android:textColor="@color/color_333333"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/fs_tv_text"
+            android:layout_width="match_parent"
+            android:textSize="14sp"
+            android:layout_marginTop="10dp"
+            android:textColor="@color/color_999999"
+            android:layout_height="wrap_content" />
+
+    </com.hjq.shape.layout.ShapeLinearLayout>
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <View
+            android:layout_weight="1"
+            android:layout_width="0dp"
+            android:layout_height="1dp"/>
+
+        <TextView
+            android:id="@+id/fs_tv_cancel"
+            android:padding="@dimen/dp_15"
+            android:text="@string/fs_str_cancel"
+            android:textColor="@color/color_999999"
+            android:textSize="@dimen/size_14"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"/>
+
+        <TextView
+            android:id="@+id/fs_tv_ok"
+            android:padding="@dimen/dp_15"
+            android:text="@string/fs_go_set"
+            android:textColor="@color/color_ffFF6C27"
+            android:textSize="@dimen/size_14"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"/>
+
+    </LinearLayout>
+
+
+</com.hjq.shape.layout.ShapeLinearLayout>

@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.hjq.shape.layout.ShapeConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingBottom="@dimen/dp_12"
+    app:shape_radius="@dimen/dp_10"
+    android:layout_marginBottom="@dimen/dp_10"
+    app:shape_solidColor="@color/color_0fffffff">
+
+    <com.makeramen.roundedimageview.RoundedImageView
+        android:id="@+id/fs_rounded_image"
+        android:layout_width="@dimen/dp_32"
+        android:layout_height="@dimen/dp_32"
+        android:layout_marginStart="@dimen/dp_12"
+        android:layout_marginTop="@dimen/dp_12"
+        android:padding="@dimen/dp_1"
+        android:scaleType="centerCrop"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:riv_corner_radius="@dimen/dp_8"
+        tools:src="@mipmap/ic_launcher" />
+
+    <TextView
+        android:id="@+id/fs_tv_title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/dp_8"
+        android:layout_marginEnd="@dimen/dp_12"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/white"
+        android:textSize="@dimen/size_15"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toBottomOf="@+id/fs_rounded_image"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/fs_rounded_image"
+        app:layout_constraintTop_toTopOf="@+id/fs_rounded_image"
+        tools:text="@string/fs_starter_pack" />
+
+    <com.hjq.shape.view.ShapeTextView
+        android:id="@+id/fs_tv_content"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="@dimen/dp_12"
+        android:layout_marginTop="@dimen/dp_10"
+        android:maxLines="2"
+        android:paddingHorizontal="@dimen/dp_7"
+        android:paddingVertical="@dimen/dp_4"
+        android:textColor="@color/color_ffb6b6b6"
+        android:textSize="@dimen/size_12"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/fs_rounded_image"
+        app:shape_radius="@dimen/dp_8"
+        app:shape_solidColor="@color/color_14ffffff"
+        tools:text="@string/fs_starter_pack" />
+
+    <com.hjq.shape.view.ShapeTextView
+        android:id="@+id/fs_shp_tv_on"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="@dimen/dp_22"
+        android:layout_marginTop="@dimen/dp_10"
+        android:gravity="center"
+        android:paddingVertical="8dp"
+        android:text="@string/fs_str_claim_and_copy"
+        android:textColor="@color/white"
+        android:textSize="@dimen/size_14"
+        android:textStyle="bold"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/fs_tv_content"
+        app:shape_radius="@dimen/dp_20"
+        app:shape_solidColor="@color/color_ff009e5c" />
+
+    <com.hjq.shape.view.ShapeTextView
+        android:id="@+id/fs_shp_tv_type"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="@dimen/dp_8"
+        android:paddingVertical="@dimen/dp_2"
+        android:text="@string/fs_str_claim"
+        android:textColor="@color/color_ffcbffe9"
+        android:textSize="@dimen/size_12"
+        android:textStyle="bold"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:shape_radiusInBottomStart="@dimen/dp_10"
+        app:shape_radiusInTopEnd="@dimen/dp_10"
+        app:shape_solidGradientCenterColor="@color/color_427deabd"
+        app:shape_solidGradientEndColor="@color/color_0027b178"
+        app:shape_solidGradientStartColor="@color/color_0527b178"
+        app:shape_strokeSize="@dimen/dp_1"
+        tools:visibility="visible" />
+</com.hjq.shape.layout.ShapeConstraintLayout>

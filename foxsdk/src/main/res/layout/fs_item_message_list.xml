@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    tools:background="@color/fs_activity_bg">
+
+    <com.hjq.shape.layout.ShapeConstraintLayout
+        android:id="@+id/fs_message_root"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="@dimen/dp_12"
+        android:layout_marginTop="@dimen/dp_10"
+        android:paddingHorizontal="@dimen/dp_12"
+        app:shape_radius="@dimen/dp_10"
+        app:shape_solidColor="@color/white_transparent_06">
+
+        <com.hjq.shape.view.ShapeImageView
+            android:id="@+id/fs_message_icon"
+            android:layout_width="@dimen/dp_20"
+            android:layout_height="@dimen/dp_20"
+            android:layout_marginTop="@dimen/dp_12"
+            android:src="@drawable/fs_icon_bell"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:shape_radius="@dimen/dp_4"
+            app:shape_solidGradientEndColor="#E29625"
+            app:shape_solidGradientOrientation="topToBottom"
+            app:shape_solidGradientStartColor="#FFC506" />
+
+        <ImageView
+            android:id="@+id/fs_iv_unread"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="-2dp"
+            android:layout_marginEnd="-2dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/fs_icon_unread_tip"
+            app:layout_constraintEnd_toEndOf="@id/fs_message_icon"
+            app:layout_constraintTop_toTopOf="@id/fs_message_icon" />
+
+        <TextView
+            android:id="@+id/fs_tv_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/dp_7"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/white"
+            android:textSize="@dimen/size_15"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toBottomOf="@id/fs_message_icon"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@id/fs_message_icon"
+            tools:text="消息" />
+
+        <TextView
+            android:id="@+id/fs_tv_content"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/dp_7"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:textColor="@color/fs_subtitle"
+            android:textSize="@dimen/size_12"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/fs_message_icon"
+            tools:text="一、全新玩法「星界裂隙」上线\n• 探索未知：开放全新地图“破碎星域”，包含3个主要区域和多个隐藏秘境等待探索。\n• 团队挑战：新增8人团队副本“虚空堡垒”，击败最终首领可获得专属背部装饰“虚空之翼”。" />
+
+        <View
+            android:id="@+id/fs_v_line"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/dp_1"
+            android:layout_marginTop="@dimen/dp_12"
+            android:background="@color/white_transparent_06"
+            app:layout_constraintTop_toBottomOf="@id/fs_tv_content" />
+
+        <TextView
+            android:id="@+id/fs_tv_time"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingVertical="@dimen/dp_6"
+            android:textColor="@color/fs_subtitle"
+            android:textSize="@dimen/size_12"
+            app:layout_constraintTop_toBottomOf="@id/fs_v_line"
+            tools:text="2025-10-17 14:06:55" />
+    </com.hjq.shape.layout.ShapeConstraintLayout>
+</FrameLayout>

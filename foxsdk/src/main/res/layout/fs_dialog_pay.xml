@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center">
+
+    <LinearLayout
+        android:layout_width="@dimen/dp_310"
+        android:layout_height="wrap_content"
+        android:background="@drawable/fs_dialog_bg"
+        android:orientation="vertical"
+        android:paddingHorizontal="@dimen/dp_16"
+        tools:ignore="UselessParent">
+
+        <TextView
+            android:id="@+id/fs_tv_verify_code_login"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:paddingVertical="@dimen/dp_16"
+            android:text="@string/fs_confirm_order"
+            android:textColor="@color/white"
+            android:textSize="@dimen/size_18"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:id="@+id/fs_sll_phone"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/fs_tv_name"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="@dimen/dp_30"
+                android:layout_weight="1"
+                android:maxLines="1"
+                android:textColor="@color/white"
+                android:textStyle="bold"
+                tools:text="狐币充值活动" />
+
+            <TextView
+                android:id="@+id/fs_tv_info"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/fs_money"
+                android:textStyle="bold"
+                tools:text="10元/1200狐币" />
+        </LinearLayout>
+
+        <View
+            android:id="@+id/fs_v_line"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/dp_1"
+            android:layout_marginTop="@dimen/dp_12"
+            android:background="@color/white_transparent_06" />
+
+        <com.wishfox.foxsdk.ui.view.widgets.FSIconRadioGroupLayout
+            android:id="@+id/fs_check_radio_group"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/dp_8">
+
+            <com.wishfox.foxsdk.ui.view.widgets.FSIconRadioTextView
+                android:id="@+id/fs_check_radio_fox_coin"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:checked="true"
+                android:icon="@mipmap/fs_ic_fox_coin_pay"
+                android:text="@string/fs_fox_coin_pay" />
+
+            <com.wishfox.foxsdk.ui.view.widgets.FSIconRadioTextView
+                android:id="@+id/fs_check_radio_ali"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:icon="@mipmap/fs_ic_ali_pay"
+                android:text="@string/fs_ali_pay" />
+
+            <com.wishfox.foxsdk.ui.view.widgets.FSIconRadioTextView
+                android:id="@+id/fs_check_radio_wechat"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:icon="@mipmap/fs_ic_wechat_pay"
+                android:text="@string/fs_wechat_pay" />
+        </com.wishfox.foxsdk.ui.view.widgets.FSIconRadioGroupLayout>
+
+        <TextView
+            android:id="@+id/fs_tv_confirm"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/dp_8"
+            android:alpha="0.5"
+            android:background="@drawable/fs_primary_button"
+            android:gravity="center"
+            android:paddingVertical="@dimen/dp_10"
+            android:text="@string/fs_confirm_pay"
+            android:textColor="@color/white"
+            android:textStyle="bold" />
+
+        <LinearLayout
+            android:visibility="invisible"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center">
+
+            <FrameLayout
+                android:id="@+id/fs_fl_agree"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingVertical="@dimen/dp_12"
+                android:paddingStart="@dimen/dp_12"
+                android:paddingEnd="@dimen/dp_4">
+
+                <CheckedTextView
+                    android:id="@+id/fs_ctv_agree"
+                    android:layout_width="@dimen/dp_10"
+                    android:layout_height="@dimen/dp_10"
+                    android:background="@drawable/fs_check_box_selector"
+                    tools:ignore="ContentDescription" />
+            </FrameLayout>
+
+            <TextView
+                android:id="@+id/fs_tv_agreement"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/fs_i_read_and_agree"
+                android:textColor="@color/white_transparent_60"
+                android:textSize="@dimen/size_11" />
+
+            <TextView
+                android:id="@+id/fs_tv_user_agreement"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="@string/fs_pay_agreement"
+                android:textColor="@color/fs_primary"
+                android:textSize="@dimen/size_11" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

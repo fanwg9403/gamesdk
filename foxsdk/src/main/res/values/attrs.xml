@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="FSIconRadioTextView">
+        <attr name="android:checked" />
+        <attr name="android:enabled" />
+        <attr name="android:icon" />
+        <attr name="android:text" />
+        <attr name="android:textColor" />
+        <attr name="radioColor" format="color" />
+        <attr name="checkedRadioColor" format="color" />
+    </declare-styleable>
+</resources>
