@@ -1,5 +1,6 @@
 package com.wishfox.foxsdk.data.repository;
 
+import com.wishfox.foxsdk.core.WishFoxSdk;
 import com.wishfox.foxsdk.data.model.entity.FSPageContainer;
 import com.wishfox.foxsdk.data.model.entity.FSRechargeRecord;
 import com.wishfox.foxsdk.data.model.network.FoxSdkNetworkResult;
@@ -30,6 +31,6 @@ public class FSRechargeRecordRepository extends FoxSdkBaseRepository {
      * 获取充值记录列表
      */
     public Single<FoxSdkNetworkResult<FSPageContainer<FSRechargeRecord>>> getRechargeRecords(int page, int size) {
-        return executeCall(() -> getApiService().getRechargeRecords(page, size).blockingGet());
+        return executeCall(() -> getApiService().getRechargeRecords(WishFoxSdk.getConfig().getChannelId(), WishFoxSdk.getConfig().getAppId(), page, size).blockingGet());
     }
 }

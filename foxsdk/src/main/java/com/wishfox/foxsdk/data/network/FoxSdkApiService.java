@@ -80,8 +80,10 @@ public interface FoxSdkApiService {
     /**
      * 获取充值记录列表（分页）
      */
-    @GET("/admin/game_data/recharge_list")
+    @GET("/api/user/order_list")
     Single<FoxSdkBaseResponse<FSPageContainer<FSRechargeRecord>>> getRechargeRecords(
+            @Query("channel_id") String channel_id,
+            @Query("app_id") String app_id,
             @Query("page_num") int page,
             @Query("page_size") int pageSize
     );
