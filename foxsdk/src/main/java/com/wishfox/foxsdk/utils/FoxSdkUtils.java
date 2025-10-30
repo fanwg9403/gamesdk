@@ -5,6 +5,11 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.util.Pair;
+
+import com.hjq.toast.Toaster;
+import com.wishfox.foxsdk.data.model.entity.FSLoginResult;
+import com.wishfox.foxsdk.data.model.entity.FSUserInfo;
 
 import java.util.concurrent.TimeUnit;
 
@@ -27,6 +32,15 @@ public class FoxSdkUtils {
 
     public static String getTestMsg() {
         return "欢迎使用许愿狐SDK！";
+    }
+
+    public static Pair<String, String> getFSUInfo() {
+        if (FSUserInfo.getInstance() == null) {
+            Toaster.show("请先登录");
+            return null;
+        } else {
+            return Pair.create(FSUserInfo.getInstance().getUserId(), FSLoginResult.getTokenEd());
+        }
     }
 
     // RxJava 风格的节流

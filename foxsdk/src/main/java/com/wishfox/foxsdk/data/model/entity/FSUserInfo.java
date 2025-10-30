@@ -1,5 +1,7 @@
 package com.wishfox.foxsdk.data.model.entity;
 
+import com.google.gson.annotations.SerializedName;
+
 /**
  * 主要功能:
  *
@@ -9,13 +11,15 @@ package com.wishfox.foxsdk.data.model.entity;
  */
 public class FSUserInfo {
 
+    @SerializedName("id")
     private String userId;
     private String userName;
     private String avatar;
     private String mobile;
     private Integer foxCoin;
 
-    public FSUserInfo() {}
+    public FSUserInfo() {
+    }
 
     public FSUserInfo(String userId, String userName, String avatar, String mobile, Integer foxCoin) {
         this.userId = userId;
@@ -26,20 +30,45 @@ public class FSUserInfo {
     }
 
     // Getter和Setter方法
-    public String getUserId() { return userId; }
-    public void setUserId(String userId) { this.userId = userId; }
+    public String getUserId() {
+        return userId;
+    }
 
-    public String getUserName() { return userName; }
-    public void setUserName(String userName) { this.userName = userName; }
+    public void setUserId(String userId) {
+        this.userId = userId;
+    }
 
-    public String getAvatar() { return avatar; }
-    public void setAvatar(String avatar) { this.avatar = avatar; }
+    public String getUserName() {
+        return userName;
+    }
 
-    public String getMobile() { return mobile; }
-    public void setMobile(String mobile) { this.mobile = mobile; }
+    public void setUserName(String userName) {
+        this.userName = userName;
+    }
 
-    public Integer getFoxCoin() { return foxCoin; }
-    public void setFoxCoin(Integer foxCoin) { this.foxCoin = foxCoin; }
+    public String getAvatar() {
+        return avatar;
+    }
+
+    public void setAvatar(String avatar) {
+        this.avatar = avatar;
+    }
+
+    public String getMobile() {
+        return mobile;
+    }
+
+    public void setMobile(String mobile) {
+        this.mobile = mobile;
+    }
+
+    public Integer getFoxCoin() {
+        return foxCoin;
+    }
+
+    public void setFoxCoin(Integer foxCoin) {
+        this.foxCoin = foxCoin;
+    }
 
     /**
      * 获取单例实例

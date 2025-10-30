@@ -68,19 +68,4 @@ public class CustomTextWatcher implements TextWatcher {
         void beforeTextChanged(String text, int start, int count, int after);
         void onTextChanged(String text, int start, int before, int count);
     }
-
-    /**
-     * 简单的文本变化监听适配器
-     */
-    public static abstract class SimpleTextChangedListener implements OnTextChangedListener {
-        @Override
-        public void beforeTextChanged(String text, int start, int count, int after) {
-            // 默认空实现
-        }
-
-        @Override
-        public void onTextChanged(String text, int start, int before, int count) {
-            // 默认空实现
-        }
-    }
 }

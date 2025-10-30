@@ -22,6 +22,7 @@ import com.wishfox.foxsdk.ui.view.activity.FSWebActivity;
 import com.wishfox.foxsdk.ui.view.widgets.FSLoadingDialog;
 import com.wishfox.foxsdk.utils.FoxSdkUtils;
 import com.wishfox.foxsdk.utils.FoxSdkViewExt;
+import com.wishfox.foxsdk.utils.custom.CustomTextWatcher;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -175,7 +176,7 @@ public class FSLoginDialog extends Dialog {
     }
 
     private void setupTextWatchers() {
-        binding.fsEtPhone.addTextChangedListener(new SimpleTextWatcher() {
+        binding.fsEtPhone.addTextChangedListener(new CustomTextWatcher() {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 phoneValue = s.toString();
@@ -183,7 +184,7 @@ public class FSLoginDialog extends Dialog {
             }
         });
 
-        binding.fsEtVerifyCode.addTextChangedListener(new SimpleTextWatcher() {
+        binding.fsEtVerifyCode.addTextChangedListener(new CustomTextWatcher() {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 verifyCodeValue = s.toString();
@@ -191,7 +192,7 @@ public class FSLoginDialog extends Dialog {
             }
         });
 
-        binding.fsEtPassword.addTextChangedListener(new SimpleTextWatcher() {
+        binding.fsEtPassword.addTextChangedListener(new CustomTextWatcher() {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 passwordValue = s.toString();
@@ -311,19 +312,6 @@ public class FSLoginDialog extends Dialog {
     public static void dismissLoading() {
         if (_instance != null && _instance.loading != null) {
             _instance.loading.dismiss();
-        }
-    }
-
-    /**
-     * 简单的TextWatcher实现
-     */
-    private abstract static class SimpleTextWatcher implements TextWatcher {
-        @Override
-        public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-        }
-
-        @Override
-        public void afterTextChanged(android.text.Editable s) {
         }
     }
 }

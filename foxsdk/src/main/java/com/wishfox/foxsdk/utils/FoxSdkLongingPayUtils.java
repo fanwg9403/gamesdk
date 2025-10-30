@@ -62,7 +62,8 @@ public class FoxSdkLongingPayUtils {
             String price,
             String priceContent,
             long orderTime,
-            String cpOrderId
+            String cpOrderId,
+            OnLoginListener onLoginListener
     ) {
         mallIdFS = mallId;
         mallNameFS = mallName;
@@ -82,6 +83,7 @@ public class FoxSdkLongingPayUtils {
                         .observeOn(AndroidSchedulers.mainThread())
                         .subscribe(success -> {
                             if (success) {
+                                onLoginListener.onLogin(FSUserInfo.getInstance().getUserId(), FSLoginResult.getTokenEd());
                                 loginDialog.dismiss();
                                 loading.dismiss();
                                 payDialog(mActivity, mallId, mallName, price, priceContent,
@@ -99,6 +101,7 @@ public class FoxSdkLongingPayUtils {
             });
             loginDialog.show();
         } else { // 已登录调用支付
+            onLoginListener.onLogin(FSUserInfo.getInstance().getUserId(), FSLoginResult.getTokenEd());
             payDialog(mActivity, mallId, mallName, price, priceContent, orderTime, cpOrderId,
                     payResult -> {
                     });
@@ -384,5 +387,9 @@ public class FoxSdkLongingPayUtils {
     // 支付监听器接口
     public interface PayListener {
         void onPayResult(FSPayResult payResult);
+    }
+
+    public interface OnLoginListener {
+        void onLogin(String userId, String token);
     }
 }
