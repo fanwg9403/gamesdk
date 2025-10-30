@@ -16,6 +16,8 @@ import com.wishfox.foxsdk.R;
 import com.wishfox.foxsdk.core.FoxSdkConfig;
 import com.wishfox.foxsdk.core.WishFoxEntryActivity;
 import com.wishfox.foxsdk.core.WishFoxSdk;
+import com.wishfox.foxsdk.data.model.entity.FSCreateOrder;
+import com.wishfox.foxsdk.data.network.FoxSdkNetworkExecutor;
 import com.wishfox.foxsdk.data.network.FoxSdkRetrofitManager;
 import com.wishfox.foxsdk.databinding.FsDialogLoginBinding;
 import com.wishfox.foxsdk.ui.view.activity.FSWebActivity;
@@ -24,6 +26,8 @@ import com.wishfox.foxsdk.utils.FoxSdkUtils;
 import com.wishfox.foxsdk.utils.FoxSdkViewExt;
 import com.wishfox.foxsdk.utils.custom.CustomTextWatcher;
 
+import java.io.IOException;
+import java.net.SocketTimeoutException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Timer;
@@ -34,6 +38,7 @@ import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.annotations.NonNull;
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.schedulers.Schedulers;
+import retrofit2.adapter.rxjava3.HttpException;
 
 /**
  * 主要功能:
@@ -207,20 +212,44 @@ public class FSLoginDialog extends Dialog {
         params.put("app_id", WishFoxSdk.getConfig().getAppId());
         params.put("user_name", userName);
 
-        Single.fromCallable(() -> FoxSdkRetrofitManager.getApiService().sendSmsCode(params))
+        FoxSdkNetworkExecutor.execute(() ->
+                FoxSdkRetrofitManager.getApiService().sendSmsCode(params).blockingGet()
+        )
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(response -> {
-                    loading.dismiss();
-                    if (response.blockingGet().getCode() == 200) {
-                        Toaster.show("验证码发送成功");
-                        startTimeout();
-                    } else {
-                        Toaster.show(response.blockingGet().getMsg() != null ? response.blockingGet().getMsg() : "验证码发送失败");
+                .subscribe(result -> {
+                    if (result.isSuccess()) {
+                        loading.dismiss();
+                        if (result.getCode() == 200){
+                            Toaster.show("验证码发送成功");
+                            startTimeout();
+                        }else {
+                            Toaster.show(!TextUtils.isEmpty(result.getMessage()) ? result.getMessage() : "验证码发送失败");
+                        }
+                    } else if (result.isError()) {
+                        loading.dismiss();
+                        String errorMsg = result.getError() != null ? result.getError() : "验证码发送失败";
+                        Toaster.show(errorMsg);
+                    } else if (result.isEmpty()) {
+                        loading.dismiss();
+                        if (result.getCode() == 200){
+                            Toaster.show("验证码发送成功");
+                            startTimeout();
+                        }else {
+                            Toaster.show(!TextUtils.isEmpty(result.getMessage()) ? result.getMessage() : "验证码发送失败");
+                        }
                     }
                 }, throwable -> {
                     loading.dismiss();
-                    Toaster.show(throwable.getMessage() != null ? throwable.getMessage() : "验证码发送失败");
+                    String errorMsg = "网络请求失败";
+                    if (throwable instanceof IOException) {
+                        errorMsg = "网络连接失败，请检查网络";
+                    } else if (throwable instanceof SocketTimeoutException) {
+                        errorMsg = "网络连接超时，请重试";
+                    } else if (throwable instanceof HttpException) {
+                        errorMsg = "服务器错误，请稍后重试";
+                    }
+                    Toaster.show(errorMsg);
                 });
     }
 

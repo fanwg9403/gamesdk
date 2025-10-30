@@ -13,7 +13,7 @@ import java.util.concurrent.TimeoutException;
 
 import io.reactivex.rxjava3.core.Observable;
 import io.reactivex.rxjava3.core.Single;
-import retrofit2.HttpException;
+import retrofit2.adapter.rxjava3.HttpException;
 
 /**
  * 主要功能:
@@ -33,7 +33,7 @@ public class FoxSdkNetworkExecutor {
                 if (response.isSuccess() && response.getData() != null) {
                     return FoxSdkNetworkResult.success(response.getData(), response.getMsg());
                 } else if (response.isSuccess() && response.getData() == null) {
-                    return FoxSdkNetworkResult.empty(response.getMsg() != null ? response.getMsg() : "数据为空");
+                    return FoxSdkNetworkResult.empty(response.getMsg() != null ? response.getMsg() : "数据为空", response.getCode());
                 } else {
                     return FoxSdkNetworkResult.error(
                             response.getMsg() != null ? response.getMsg() : "请求失败",

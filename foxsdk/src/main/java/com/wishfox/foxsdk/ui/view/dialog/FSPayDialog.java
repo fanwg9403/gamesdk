@@ -12,6 +12,7 @@ import com.wishfox.foxsdk.data.model.entity.FSCoinInfo;
 import com.wishfox.foxsdk.data.model.entity.FSCreateOrder;
 import com.wishfox.foxsdk.data.model.entity.FSPayResult;
 import com.wishfox.foxsdk.data.model.FoxSdkBaseResponse;
+import com.wishfox.foxsdk.data.network.FoxSdkNetworkExecutor;
 import com.wishfox.foxsdk.data.network.FoxSdkRetrofitManager;
 import com.wishfox.foxsdk.databinding.FsDialogPayBinding;
 import com.wishfox.foxsdk.ui.view.widgets.FSLoadingDialog;
@@ -21,12 +22,15 @@ import com.wishfox.foxsdk.utils.pay.FoxSdkAliPay;
 import com.wishfox.foxsdk.utils.pay.FoxSdkWechatService;
 import com.wishfox.foxsdk.utils.pay.FoxSdkWxPay;
 
+import java.io.IOException;
+import java.net.SocketTimeoutException;
 import java.util.HashMap;
 import java.util.Map;
 
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.schedulers.Schedulers;
+import retrofit2.adapter.rxjava3.HttpException;
 
 /**
  * 主要功能:
@@ -158,14 +162,34 @@ public class FSPayDialog extends Dialog {
     private void pay(FoxSdkPayEnum payType) {
         Map<String, Object> params = createPayParams(payType);
 
-        Single.fromCallable(() -> FoxSdkRetrofitManager.getApiService().createOrder(params))
+        FoxSdkNetworkExecutor.execute(() ->
+                FoxSdkRetrofitManager.getApiService().createOrder(params).blockingGet()
+        )
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(response -> {
-                    handlePayResponse(response.blockingGet(), payType);
+                .subscribe(result -> {
+                    if (result.isSuccess()) {
+                        FSCreateOrder data = result.getData();
+                        handlePayResponse(createSuccessResponse(data), payType);
+                    } else if (result.isError()) {
+                        loading.dismiss();
+                        String errorMsg = result.getError() != null ? result.getError() : "支付失败";
+                        Toaster.show(errorMsg);
+                    } else if (result.isEmpty()) {
+                        loading.dismiss();
+                        Toaster.show("支付结果为空");
+                    }
                 }, throwable -> {
                     loading.dismiss();
-                    Toaster.show(throwable.getMessage() != null ? throwable.getMessage() : "支付失败");
+                    String errorMsg = "网络请求失败";
+                    if (throwable instanceof IOException) {
+                        errorMsg = "网络连接失败，请检查网络";
+                    } else if (throwable instanceof SocketTimeoutException) {
+                        errorMsg = "网络连接超时，请重试";
+                    } else if (throwable instanceof HttpException) {
+                        errorMsg = "服务器错误，请稍后重试";
+                    }
+                    Toaster.show(errorMsg);
                 });
     }
 
@@ -192,6 +216,14 @@ public class FSPayDialog extends Dialog {
         }
 
         return params;
+    }
+
+    private FoxSdkBaseResponse<FSCreateOrder> createSuccessResponse(FSCreateOrder data) {
+        FoxSdkBaseResponse<FSCreateOrder> response = new FoxSdkBaseResponse<>();
+        response.setCode(200);
+        response.setMsg("成功");
+        response.setData(data);
+        return response;
     }
 
     private void handlePayResponse(FoxSdkBaseResponse<FSCreateOrder> response,

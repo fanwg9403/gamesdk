@@ -53,6 +53,39 @@ public class FoxSdkLongingPayUtils {
     private String cpOrderIdFS = "";
 
     /**
+     * 登录弹窗
+     *
+     * @param mActivity
+     * @param onLoginListener
+     */
+    public void loginWishFox(Activity mActivity, OnLoginListener onLoginListener) {
+        loginDialog = new FSLoginDialog(mActivity);
+        loginDialog.setOnLoginClickListener((arg1, arg2, type) -> {
+            loading = new FSLoadingDialog(mActivity);
+            loading.show();
+
+            Disposable loginDisposable = login(arg1, arg2, type)
+                    .subscribeOn(Schedulers.io())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(success -> {
+                        if (success) {
+                            onLoginListener.onLogin(FSUserInfo.getInstance().getUserId(), FSLoginResult.getTokenEd());
+                            loginDialog.dismiss();
+                            loading.dismiss();
+                        } else {
+                            loading.dismiss();
+                        }
+                    }, throwable -> {
+                        loading.dismiss();
+                        Toaster.show(throwable.getMessage());
+                    });
+
+            disposables.add(loginDisposable);
+        });
+        loginDialog.show();
+    }
+
+    /**
      * 登录支付
      */
     public void loginPay(

@@ -51,6 +51,10 @@ public class FoxSdkNetworkResult<T> {
         return new FoxSdkNetworkResult<>(ResultType.EMPTY, null, message, null, 0, null, 0, false, false, null);
     }
 
+    public static <T> FoxSdkNetworkResult<T> empty(String message, int code) {
+        return new FoxSdkNetworkResult<>(ResultType.EMPTY, null, message, null, code, null, 0, false, false, null);
+    }
+
     public static <T> FoxSdkNetworkResult<T> pageLoading(boolean isInitial, int page) {
         return new FoxSdkNetworkResult<>(ResultType.PAGE_LOADING, null, null, null, 0, null, page, false, isInitial, null);
     }

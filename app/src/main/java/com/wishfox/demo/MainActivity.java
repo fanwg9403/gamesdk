@@ -1,7 +1,6 @@
 package com.wishfox.demo;
 
 import android.os.Bundle;
-import android.view.View;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -17,12 +16,12 @@ public class MainActivity extends AppCompatActivity {
 
         findViewById(R.id.tv_pay).setOnClickListener(v -> new FoxSdkLongingPayUtils().loginPay(
                 MainActivity.this,
-                "1",
-                "10元档充值",
-                "10",
-                "10元",
-                1761730488,
-                "BR202510211421531814414782437",
+                "xmzsgxm_money_1",
+                "元宝",
+                "1.0",
+                "元宝",
+                System.currentTimeMillis(),
+                "284020251030173253530079483",
                 (userId, token) -> {
                     ((TextView) findViewById(R.id.tv_info)).setText("userId: " + userId + "\ntoken: " + token);
                 }));
