@@ -170,7 +170,7 @@ public class FSPayDialog extends Dialog {
                 .subscribe(result -> {
                     if (result.isSuccess()) {
                         FSCreateOrder data = result.getData();
-                        handlePayResponse(createSuccessResponse(data), payType);
+                        handlePayResponse(createSuccessResponse(data), payType, (String) params.get("price"));
                     } else if (result.isError()) {
                         loading.dismiss();
                         String errorMsg = result.getError() != null ? result.getError() : "支付失败";
@@ -211,7 +211,7 @@ public class FSPayDialog extends Dialog {
                 params.put("pay_type", 1);
                 break;
             case WECHAT:
-                params.put("pay_type", 3);
+                params.put("pay_type", 20);
                 break;
         }
 
@@ -227,7 +227,8 @@ public class FSPayDialog extends Dialog {
     }
 
     private void handlePayResponse(FoxSdkBaseResponse<FSCreateOrder> response,
-                                   FoxSdkPayEnum payType) {
+                                   FoxSdkPayEnum payType,
+                                   String price) {
         if (response.getCode() == 200 && response.getData() != null) {
             switch (payType) {
                 case FOX_COIN:
@@ -237,7 +238,7 @@ public class FSPayDialog extends Dialog {
                     handleAliPayment(response.getData());
                     break;
                 case WECHAT:
-                    handleWechatPayment(response.getData());
+                    handleWechatPayment(response.getData(), price);
                     break;
             }
         } else {
@@ -269,9 +270,9 @@ public class FSPayDialog extends Dialog {
         loading.dismiss();
     }
 
-    private void handleWechatPayment(FSCreateOrder data) {
+    private void handleWechatPayment(FSCreateOrder data, String price) {
         FoxSdkWechatService.init(getContext());
-        Map<String, Object> wxParams = createWechatParams();
+        Map<String, Object> wxParams = createWechatParams(data, price);
 
         boolean success = FoxSdkWxPay.wXMiniProgramPayment(getContext(), wxParams).blockingLast();
         if (success && onPayCreate != null) {
@@ -281,16 +282,12 @@ public class FSPayDialog extends Dialog {
         loading.dismiss();
     }
 
-    private Map<String, Object> createWechatParams() {
+    private Map<String, Object> createWechatParams(FSCreateOrder data, String price) {
         Map<String, Object> params = new HashMap<>();
-        params.put("app_id", appId);
-        params.put("mall_id", mallId);
-        params.put("mall_name", mallName);
-        params.put("price", price);
-        params.put("pay_type", 1);
-        params.put("channel_id", channelId);
-        params.put("cp_order_id", cpOrderId);
+        params.put("payType", "yi-ma");
         params.put("paySource", 23);
+        params.put("masterOrderNo", data.getPos_seq());
+        params.put("amount", price);
         return params;
     }
 
