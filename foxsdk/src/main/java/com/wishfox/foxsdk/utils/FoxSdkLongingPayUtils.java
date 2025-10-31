@@ -1,5 +1,6 @@
 package com.wishfox.foxsdk.utils;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.Application;
 import android.content.DialogInterface;
@@ -11,11 +12,15 @@ import android.view.KeyEvent;
 import com.hjq.toast.Toaster;
 import com.wishfox.foxsdk.R;
 import com.wishfox.foxsdk.data.model.entity.FSCoinInfo;
+import com.wishfox.foxsdk.data.model.entity.FSCreateOrder;
 import com.wishfox.foxsdk.data.model.entity.FSLoginResult;
 import com.wishfox.foxsdk.data.model.entity.FSPayResult;
+import com.wishfox.foxsdk.data.model.entity.FSSdkConfig;
 import com.wishfox.foxsdk.data.model.entity.FSUserInfo;
 import com.wishfox.foxsdk.data.model.entity.FSUserProfile;
 import com.wishfox.foxsdk.data.model.network.FoxSdkNetworkResult;
+import com.wishfox.foxsdk.data.network.FoxSdkNetworkExecutor;
+import com.wishfox.foxsdk.data.network.FoxSdkRetrofitManager;
 import com.wishfox.foxsdk.data.repository.FSHomeRepository;
 import com.wishfox.foxsdk.ui.view.dialog.FSAlertDialog;
 import com.wishfox.foxsdk.ui.view.dialog.FSLoginDialog;
@@ -23,6 +28,8 @@ import com.wishfox.foxsdk.ui.view.dialog.FSPayDialog;
 import com.wishfox.foxsdk.ui.view.widgets.FSLoadingDialog;
 import com.wishfox.foxsdk.utils.pay.FoxSdkPayResult;
 
+import java.io.IOException;
+import java.net.SocketTimeoutException;
 import java.util.concurrent.TimeUnit;
 
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
@@ -31,6 +38,7 @@ import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.reactivex.rxjava3.schedulers.Schedulers;
+import retrofit2.adapter.rxjava3.HttpException;
 
 /**
  * 主要功能:
@@ -119,9 +127,8 @@ public class FoxSdkLongingPayUtils {
                                 onLoginListener.onLogin(FSUserInfo.getInstance().getUserId(), FSLoginResult.getTokenEd());
                                 loginDialog.dismiss();
                                 loading.dismiss();
-                                payDialog(mActivity, mallId, mallName, price, priceContent,
-                                        orderTime, cpOrderId, payResult -> {
-                                        });
+                                getSdkConfig(mActivity, mallId, mallName, price, priceContent,
+                                        orderTime, cpOrderId);
                             } else {
                                 loading.dismiss();
                             }
@@ -135,10 +142,55 @@ public class FoxSdkLongingPayUtils {
             loginDialog.show();
         } else { // 已登录调用支付
             onLoginListener.onLogin(FSUserInfo.getInstance().getUserId(), FSLoginResult.getTokenEd());
-            payDialog(mActivity, mallId, mallName, price, priceContent, orderTime, cpOrderId,
-                    payResult -> {
-                    });
+            getSdkConfig(mActivity, mallId, mallName, price, priceContent,
+                    orderTime, cpOrderId);
         }
+    }
+
+
+    @SuppressLint("CheckResult")
+    private void getSdkConfig(Activity mActivity,
+                              String mallId,
+                              String mallName,
+                              String price,
+                              String priceContent,
+                              long orderTime,
+                              String cpOrderId) {
+        loading = new FSLoadingDialog(mActivity);
+        loading.show();
+        FoxSdkNetworkExecutor.execute(() ->
+                        FoxSdkRetrofitManager.getApiService().getSdkConfig().blockingGet()
+                )
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(result -> {
+                    loading.dismiss();
+                    if (result.isSuccess()) {
+                        FSSdkConfig data = result.getData();
+                        payDialog(mActivity, mallId, mallName, price, priceContent, orderTime, cpOrderId,data,
+                                payResult -> {
+                                });
+
+                    } else if (result.isError()) {
+                        loading.dismiss();
+                        String errorMsg = result.getError() != null ? result.getError() : "支付失败";
+                        Toaster.show(errorMsg);
+                    } else if (result.isEmpty()) {
+                        loading.dismiss();
+                        Toaster.show("支付结果为空");
+                    }
+                }, throwable -> {
+                    loading.dismiss();
+                    String errorMsg = "网络请求失败";
+                    if (throwable instanceof IOException) {
+                        errorMsg = "网络连接失败，请检查网络";
+                    } else if (throwable instanceof SocketTimeoutException) {
+                        errorMsg = "网络连接超时，请重试";
+                    } else if (throwable instanceof HttpException) {
+                        errorMsg = "服务器错误，请稍后重试";
+                    }
+                    Toaster.show(errorMsg);
+                });
     }
 
     /**
@@ -242,12 +294,14 @@ public class FoxSdkLongingPayUtils {
             String priceContent,
             long orderTime,
             String cpOrderId,
+            FSSdkConfig sdkConfig,
             PayListener payListener
     ) {
         FSPayDialog payDialog = new FSPayDialog(context)
                 .setPayName(mallName)
                 .setPayInfo(priceContent)
                 .setPayType(FoxSdkPayEnum.FOX_COIN)
+                .setFSSdkConfig(sdkConfig)
                 .setPayParams(mallId, mallName, price, orderTime, cpOrderId)
                 .setOnPayCreateListener(new FSPayDialog.OnPayCreateListener() {
                     @Override
@@ -343,9 +397,8 @@ public class FoxSdkLongingPayUtils {
         FSAlertDialog.Builder builder = new FSAlertDialog.Builder(context)
                 .setContentView(R.layout.fs_layout_pay_failed)
                 .setPositive("重新购买", () -> {
-                    payDialog(context, mallIdFS, mallNameFS, priceFS, priceContentFS,
-                            orderTimeFS, cpOrderIdFS, payResult -> {
-                            });
+                    getSdkConfig(context, mallIdFS, mallNameFS, priceFS, priceContentFS,
+                            orderTimeFS, cpOrderIdFS);
                 })
                 .setOnDismissListener(() -> {
                     if (fsPayResult != null && fsPayResult.getPayType() == FoxSdkPayEnum.FOX_COIN) {

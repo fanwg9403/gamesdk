@@ -18,7 +18,7 @@ public class MainActivity extends AppCompatActivity {
                 MainActivity.this,
                 "xmzsgxm_money_1",
                 "元宝",
-                "1.0",
+                "0.01",
                 "元宝",
                 System.currentTimeMillis(),
                 "284020251030173253530079483",

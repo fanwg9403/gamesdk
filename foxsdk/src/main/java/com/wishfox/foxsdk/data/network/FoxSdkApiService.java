@@ -9,6 +9,7 @@ import com.wishfox.foxsdk.data.model.entity.FSLoginResult;
 import com.wishfox.foxsdk.data.model.entity.FSMessage;
 import com.wishfox.foxsdk.data.model.entity.FSPageContainer;
 import com.wishfox.foxsdk.data.model.entity.FSRechargeRecord;
+import com.wishfox.foxsdk.data.model.entity.FSSdkConfig;
 import com.wishfox.foxsdk.data.model.entity.FSStarterPack;
 import com.wishfox.foxsdk.data.model.entity.FSUserProfile;
 import com.wishfox.foxsdk.data.model.entity.FSWinFoxCoin;
@@ -173,4 +174,10 @@ public interface FoxSdkApiService {
     Single<FoxSdkBaseResponse<Object>> sendSmsCode(
             @QueryMap Map<String, String> params
     );
+
+    /**
+     * 获取sdk配置信息
+     */
+    @GET("/api/user/sdk_config")
+    Single<FoxSdkBaseResponse<FSSdkConfig>> getSdkConfig();
 }

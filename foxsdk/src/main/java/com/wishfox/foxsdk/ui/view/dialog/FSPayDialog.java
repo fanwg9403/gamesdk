@@ -4,6 +4,7 @@ import android.app.Dialog;
 import android.content.Context;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.view.View;
 
 import com.hjq.toast.Toaster;
 import com.wishfox.foxsdk.R;
@@ -12,6 +13,7 @@ import com.wishfox.foxsdk.data.model.entity.FSCoinInfo;
 import com.wishfox.foxsdk.data.model.entity.FSCreateOrder;
 import com.wishfox.foxsdk.data.model.entity.FSPayResult;
 import com.wishfox.foxsdk.data.model.FoxSdkBaseResponse;
+import com.wishfox.foxsdk.data.model.entity.FSSdkConfig;
 import com.wishfox.foxsdk.data.network.FoxSdkNetworkExecutor;
 import com.wishfox.foxsdk.data.network.FoxSdkRetrofitManager;
 import com.wishfox.foxsdk.databinding.FsDialogPayBinding;
@@ -56,6 +58,7 @@ public class FSPayDialog extends Dialog {
     // 用于存储设置的值，在 onCreate 中设置
     private String payName;
     private String payInfo;
+    private FSSdkConfig sdkConfig;
     private FoxSdkPayEnum payType;
     private boolean disableFoxCoinPay = false;
 
@@ -71,7 +74,13 @@ public class FSPayDialog extends Dialog {
         super.onCreate(savedInstanceState);
         binding = FsDialogPayBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
-
+        if (sdkConfig != null) {
+            if(sdkConfig.getWechat_pay_open_status()==0){//未开启
+                if(sdkConfig.getPay_type() == 1){//微信支付
+                    binding.fsCheckRadioWechat.setVisibility(View.GONE);
+                }
+            }
+        }
         binding.fsCheckRadioFoxCoin.setIcon(R.mipmap.fs_ic_fox_coin_pay);
         binding.fsCheckRadioFoxCoin.setText(getContext().getString(R.string.fs_fox_coin_pay));
         binding.fsCheckRadioAli.setIcon(R.mipmap.fs_ic_ali_pay);
@@ -332,6 +341,11 @@ public class FSPayDialog extends Dialog {
         if (binding != null) {
             binding.fsTvInfo.setText(text);
         }
+        return this;
+    }
+    // 设置支付信息
+    public FSPayDialog setFSSdkConfig(FSSdkConfig sdkConfig) {
+        this.sdkConfig = sdkConfig;
         return this;
     }
 
