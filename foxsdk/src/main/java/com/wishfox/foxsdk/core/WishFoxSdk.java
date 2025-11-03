@@ -5,11 +5,15 @@ import android.app.Application;
 import android.content.Context;
 import android.content.Intent;
 import android.util.Log;
+import android.view.View;
 
 import com.hjq.toast.Toaster;
 import com.petterp.floatingx.FloatingX;
+import com.petterp.floatingx.assist.FxDisplayMode;
 import com.petterp.floatingx.assist.FxScopeType;
 import com.petterp.floatingx.assist.helper.FxAppHelper;
+import com.petterp.floatingx.listener.control.IFxAppControl;
+import com.petterp.floatingx.listener.control.IFxConfigControl;
 import com.tencent.bugly.crashreport.CrashReport;
 import com.wishfox.foxsdk.ui.base.FoxSdkBaseMviActivity;
 import com.wishfox.foxsdk.data.network.FoxSdkRetrofitManager;
@@ -17,6 +21,7 @@ import com.wishfox.foxsdk.R;
 import com.wishfox.foxsdk.ui.view.activity.FSHomeActivity;
 import com.wishfox.foxsdk.utils.FoxSdkCommonExt;
 import com.wishfox.foxsdk.utils.FoxSdkUtils;
+import com.wishfox.foxsdk.utils.FoxSdkViewExt;
 import com.wishfox.foxsdk.utils.customerservice.QiyukfHelper;
 
 /**
@@ -33,6 +38,12 @@ public class WishFoxSdk {
     private static boolean isInitialized = false;
     private static FoxSdkConfig config;
     private static Context context;
+
+    private static boolean floatActive = true;
+
+    public static void setFloatActive(boolean floatActive) {
+        WishFoxSdk.floatActive = floatActive;
+    }
 
     /**
      * 初始化SDK
@@ -77,10 +88,12 @@ public class WishFoxSdk {
      */
     private static void initFloatingWindow(Context context) {
         FxAppHelper helper = new FxAppHelper.Builder()
+                .setTag(FoxSdkUtils.FloatXTag)
                 .setContext(context)
                 .setLayout(R.layout.fs_floating_view)
-                .setOffsetXY(0, FoxSdkCommonExt.dp2px(context, 100))
+                .setOffsetXY(0, FoxSdkCommonExt.dp2px(context, config.getFloatXxOffset()))
                 .setScopeType(FxScopeType.APP)
+                .setDisplayMode(FxDisplayMode.ClickOnly)
                 .setEnableAnimation(true)
                 .addInstallBlackClass(
                         "com.wishfox.foxsdk.ui.view.activity.FSHomeActivity",
@@ -94,9 +107,41 @@ public class WishFoxSdk {
                 )
                 .setOnClickListener(v -> {
                     if (v != null && v.getContext() != null) {
-                        Intent intent = new Intent(v.getContext(), FSHomeActivity.class);
-                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                        context.startActivity(intent);
+                        FoxSdkViewExt.setOnClickListener(v, (cv) -> {
+                            if (floatActive) {
+                                Intent intent = new Intent(v.getContext(), FSHomeActivity.class);
+                                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                context.startActivity(intent);
+
+                                if (FloatingX.control(FoxSdkUtils.FloatXTag).getView() != null) {
+                                    FloatingX.control(FoxSdkUtils.FloatXTag).getView().postDelayed(() -> {
+                                        FloatingX.configControl(FoxSdkUtils.FloatXTag).setEnableHalfHide(true, getConfig().getFloatXScale());
+                                        if (FloatingX.control(FoxSdkUtils.FloatXTag).getView() != null)
+                                            FloatingX.control(FoxSdkUtils.FloatXTag).getView().setAlpha(0.5f);
+                                        floatActive = false;
+                                    }, 1500);
+                                }
+                            } else {
+                                FloatingX.configControl(FoxSdkUtils.FloatXTag).setEnableHalfHide(false);
+                                if (FloatingX.control(FoxSdkUtils.FloatXTag).getView() != null)
+                                    FloatingX.control(FoxSdkUtils.FloatXTag).getView().setAlpha(1f);
+                                if (FloatingX.control(FoxSdkUtils.FloatXTag).getView() != null) {
+                                    FloatingX.control(FoxSdkUtils.FloatXTag).getView().postDelayed(() -> {
+                                        floatActive = true;
+                                        if (FloatingX.control(FoxSdkUtils.FloatXTag).getView() != null) {
+                                            FloatingX.control(FoxSdkUtils.FloatXTag).getView().postDelayed(() -> {
+                                                FloatingX.configControl(FoxSdkUtils.FloatXTag).setEnableHalfHide(true, getConfig().getFloatXScale());
+                                                if (FloatingX.control(FoxSdkUtils.FloatXTag).getView() != null)
+                                                    FloatingX.control(FoxSdkUtils.FloatXTag).getView().setAlpha(0.5f);
+                                                floatActive = false;
+                                            }, 1500);
+                                        }
+                                    }, 150);
+                                } else {
+                                    floatActive = true;
+                                }
+                            }
+                        });
                     }
                 })
                 .build();

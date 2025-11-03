@@ -6,6 +6,7 @@ import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.wishfox.foxsdk.utils.FoxSdkLongingPayUtils;
+import com.wishfox.foxsdk.utils.FoxSdkUtils;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -25,5 +26,7 @@ public class MainActivity extends AppCompatActivity {
                 (userId, token) -> {
                     ((TextView) findViewById(R.id.tv_info)).setText("userId: " + userId + "\ntoken: " + token);
                 }));
+
+        findViewById(R.id.tv_pay).postDelayed(FoxSdkUtils::hideFloatX, 1000);
     }
 }

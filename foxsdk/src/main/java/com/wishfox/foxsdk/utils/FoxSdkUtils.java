@@ -8,6 +8,8 @@ import android.content.pm.PackageManager;
 import android.util.Pair;
 
 import com.hjq.toast.Toaster;
+import com.petterp.floatingx.FloatingX;
+import com.wishfox.foxsdk.core.WishFoxSdk;
 import com.wishfox.foxsdk.data.model.entity.FSLoginResult;
 import com.wishfox.foxsdk.data.model.entity.FSUserInfo;
 
@@ -27,11 +29,19 @@ public class FoxSdkUtils {
 
     public static final String BUGLY_APPID = "0ddd1ab1b4";
     public static final String WISH_FOX_PACKAGE_NAME = "com.sohuglobal.world";
+    public static final String FloatXTag = "WishFoxSdk";
 
     private static long _lastTime = 0L;
 
     public static String getTestMsg() {
         return "欢迎使用许愿狐SDK！";
+    }
+
+    public static void hideFloatX() {
+        FloatingX.configControl(FoxSdkUtils.FloatXTag).setEnableHalfHide(true, WishFoxSdk.getConfig().getFloatXScale());
+        if (FloatingX.control(FoxSdkUtils.FloatXTag).getView() != null)
+            FloatingX.control(FoxSdkUtils.FloatXTag).getView().setAlpha(0.5f);
+        WishFoxSdk.setFloatActive(false);
     }
 
     public static Pair<String, String> getFSUInfo() {

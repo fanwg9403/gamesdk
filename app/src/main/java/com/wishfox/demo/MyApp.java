@@ -27,6 +27,8 @@ public class MyApp extends Application {
                         .setBaseUrl("http://192.168.150.240:9113")
                         .setEnableLog(true)
                         .setScreenOrientation(FoxSdkConfig.ORIENTATION_LANDSCAPE)
+                        .setFloatXScale(0.6f)
+                        .setFloatXxOffset(100)
                         .build()
         );
     }

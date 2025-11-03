@@ -2,6 +2,8 @@ package com.wishfox.foxsdk.core;
 
 import android.content.pm.ActivityInfo;
 
+import com.wishfox.foxsdk.utils.FoxSdkUtils;
+
 /**
  * 主要功能:
  *
@@ -22,6 +24,10 @@ public class FoxSdkConfig {
     private long timeout = 30000L;
     // 屏幕方向
     private int screenOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE;
+    // 悬浮球收起隐藏的比例
+    private float floatXScale = 0.5f;
+    // 悬浮球y轴偏移量，单位px
+    private int floatXxOffset = 100;
 
     // 方向常量
     public static final int ORIENTATION_PORTRAIT = 1;
@@ -42,6 +48,8 @@ public class FoxSdkConfig {
         this.enableLog = builder.enableLog;
         this.timeout = builder.timeout;
         this.screenOrientation = builder.screenOrientation;
+        this.floatXScale = builder.floatXScale;
+        this.floatXxOffset = builder.floatXxOffset;
     }
 
     // Getters
@@ -69,6 +77,14 @@ public class FoxSdkConfig {
         return screenOrientation;
     }
 
+    public float getFloatXScale() {
+        return floatXScale;
+    }
+
+    public int getFloatXxOffset() {
+        return floatXxOffset;
+    }
+
     /**
      * Builder模式用于创建FoxSdkConfig实例
      */
@@ -82,10 +98,13 @@ public class FoxSdkConfig {
         private boolean enableLog = false;
         private long timeout = 30000L;
         private int screenOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
+        private float floatXScale = 0.5f;
+        private int floatXxOffset = 100;
 
         /**
          * 构造Builder，必需参数
-         * @param appId 游戏id
+         *
+         * @param appId     游戏id
          * @param channelId 游戏key
          */
         public Builder(String appId, String channelId) {
@@ -95,6 +114,7 @@ public class FoxSdkConfig {
 
         /**
          * 设置接口域名
+         *
          * @param baseUrl 接口域名
          * @return Builder实例
          */
@@ -105,6 +125,7 @@ public class FoxSdkConfig {
 
         /**
          * 设置是否开启log日志
+         *
          * @param enableLog 是否开启log
          * @return Builder实例
          */
@@ -115,6 +136,7 @@ public class FoxSdkConfig {
 
         /**
          * 设置网络请求超时时间
+         *
          * @param timeout 超时时间（毫秒）
          * @return Builder实例
          */
@@ -125,6 +147,7 @@ public class FoxSdkConfig {
 
         /**
          * 设置屏幕方向
+         *
          * @param screenOrientation 屏幕方向
          * @return Builder实例
          */
@@ -133,8 +156,19 @@ public class FoxSdkConfig {
             return this;
         }
 
+        public Builder setFloatXScale(float floatXScale) {
+            this.floatXScale = floatXScale;
+            return this;
+        }
+
+        public Builder setFloatXxOffset(int floatXxOffset) {
+            this.floatXxOffset = floatXxOffset;
+            return this;
+        }
+
         /**
          * 构建FoxSdkConfig实例
+         *
          * @return FoxSdkConfig实例
          */
         public FoxSdkConfig build() {
