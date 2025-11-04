@@ -159,15 +159,15 @@ public class FoxSdkLongingPayUtils {
         loading = new FSLoadingDialog(mActivity);
         loading.show();
         FoxSdkNetworkExecutor.execute(() ->
-                        FoxSdkRetrofitManager.getApiService().getSdkConfig().blockingGet()
-                )
+                FoxSdkRetrofitManager.getApiService().getSdkConfig().blockingGet()
+        )
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(result -> {
                     loading.dismiss();
                     if (result.isSuccess()) {
                         FSSdkConfig data = result.getData();
-                        payDialog(mActivity, mallId, mallName, price, priceContent, orderTime, cpOrderId,data,
+                        payDialog(mActivity, mallId, mallName, price, priceContent, orderTime, cpOrderId, data,
                                 payResult -> {
                                 });
 
@@ -379,7 +379,8 @@ public class FoxSdkLongingPayUtils {
     }
 
     private void showPaySuccessDialog(Activity context) {
-        loginDialog.dismiss();
+        if (loading != null)
+            loading.dismiss();
         FSAlertDialog.Builder builder = new FSAlertDialog.Builder(context)
                 .setContentView(R.layout.fs_layout_pay_success)
                 .setPositive("继续游戏", null)
@@ -395,7 +396,8 @@ public class FoxSdkLongingPayUtils {
     }
 
     private void showPayFailedDialog(Activity context) {
-        loginDialog.dismiss();
+        if (loading != null)
+            loading.dismiss();
         FSAlertDialog.Builder builder = new FSAlertDialog.Builder(context)
                 .setContentView(R.layout.fs_layout_pay_failed)
                 .setPositive("重新购买", () -> {
