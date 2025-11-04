@@ -379,6 +379,7 @@ public class FoxSdkLongingPayUtils {
     }
 
     private void showPaySuccessDialog(Activity context) {
+        loginDialog.dismiss();
         FSAlertDialog.Builder builder = new FSAlertDialog.Builder(context)
                 .setContentView(R.layout.fs_layout_pay_success)
                 .setPositive("继续游戏", null)
@@ -394,6 +395,7 @@ public class FoxSdkLongingPayUtils {
     }
 
     private void showPayFailedDialog(Activity context) {
+        loginDialog.dismiss();
         FSAlertDialog.Builder builder = new FSAlertDialog.Builder(context)
                 .setContentView(R.layout.fs_layout_pay_failed)
                 .setPositive("重新购买", () -> {
