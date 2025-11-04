@@ -56,7 +56,7 @@ public class FoxSdkWxPay {
             }
 
             req.path = pathBuilder.toString();
-            req.miniprogramType = WXLaunchMiniProgram.Req.MINIPTOGRAM_TYPE_RELEASE;
+            req.miniprogramType = WXLaunchMiniProgram.Req.MINIPROGRAM_TYPE_PREVIEW;
 
             return api.sendReq(req);
         });
