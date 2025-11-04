@@ -1,12 +1,14 @@
 package com.wishfox.foxsdk.utils.pay;
 
 import android.content.Context;
+import android.text.TextUtils;
 
 import com.hjq.toast.Toaster;
 import com.tencent.mm.opensdk.modelbiz.WXLaunchMiniProgram;
 import com.tencent.mm.opensdk.openapi.IWXAPI;
 import com.tencent.mm.opensdk.openapi.WXAPIFactory;
 import com.wishfox.foxsdk.R;
+import com.wishfox.foxsdk.core.WishFoxSdk;
 import com.wishfox.foxsdk.utils.FoxSdkConstant;
 import com.wishfox.foxsdk.utils.FoxSdkSPUtils;
 
@@ -31,7 +33,7 @@ public class FoxSdkWxPay {
             }
 
             FoxSdkSPUtils storage = FoxSdkSPUtils.getInstance();
-            IWXAPI api = WXAPIFactory.createWXAPI(context, FoxSdkPayConfig.APP_ID);
+            IWXAPI api = WXAPIFactory.createWXAPI(context, TextUtils.isEmpty(WishFoxSdk.getConfig().getWechatAppId()) ? FoxSdkPayConfig.APP_ID : WishFoxSdk.getConfig().getWechatAppId());
             WXLaunchMiniProgram.Req req = new WXLaunchMiniProgram.Req();
             req.userName = FoxSdkPayConfig.MINI_PROGRAM_ID;
 

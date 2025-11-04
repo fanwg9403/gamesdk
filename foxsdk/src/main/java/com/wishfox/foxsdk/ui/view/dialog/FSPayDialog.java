@@ -30,7 +30,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
-import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import retrofit2.adapter.rxjava3.HttpException;
 
@@ -75,10 +74,16 @@ public class FSPayDialog extends Dialog {
         binding = FsDialogPayBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         if (sdkConfig != null) {
-            if(sdkConfig.getWechat_pay_open_status()==0){//未开启
-                if(sdkConfig.getPay_type() == 1){//微信支付
-                    binding.fsCheckRadioWechat.setVisibility(View.GONE);
-                }
+            if (sdkConfig.getWechat_pay_open_status() == 0 || TextUtils.isEmpty(WishFoxSdk.getConfig().getWechatAppId())) {//未开启
+                binding.fsCheckRadioWechat.setVisibility(View.GONE);
+            } else {
+                binding.fsCheckRadioWechat.setVisibility(View.VISIBLE);
+            }
+
+            if (sdkConfig.getAli_pay_open_status() == 0) {
+                binding.fsCheckRadioAli.setVisibility(View.GONE);
+            } else {
+                binding.fsCheckRadioAli.setVisibility(View.VISIBLE);
             }
         }
         binding.fsCheckRadioFoxCoin.setIcon(R.mipmap.fs_ic_fox_coin_pay);
@@ -123,6 +128,11 @@ public class FSPayDialog extends Dialog {
             FoxSdkPayEnum payType = getPayTypeFromPosition(selectedPosition);
 
             if (payType != null) {
+                if (payType == FoxSdkPayEnum.WECHAT && TextUtils.isEmpty(WishFoxSdk.getConfig().getWechatAppId())) {
+                    loading.dismiss();
+                    Toaster.show("请先配置微信appid");
+                    return;
+                }
                 pay(payType);
             } else {
                 Toaster.show("请选择支付方式");
@@ -343,6 +353,7 @@ public class FSPayDialog extends Dialog {
         }
         return this;
     }
+
     // 设置支付信息
     public FSPayDialog setFSSdkConfig(FSSdkConfig sdkConfig) {
         this.sdkConfig = sdkConfig;

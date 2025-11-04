@@ -17,7 +17,7 @@ public class MainActivity extends AppCompatActivity {
 
         findViewById(R.id.tv_pay).setOnClickListener(v -> new FoxSdkLongingPayUtils().loginPay(
                 MainActivity.this,
-                "xmzsgxm_money_1",
+                "1",
                 "元宝",
                 "0.01",
                 "元宝",

@@ -5,10 +5,12 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Build;
+import android.text.TextUtils;
 
 import com.tencent.mm.opensdk.constants.ConstantsAPI;
 import com.tencent.mm.opensdk.openapi.IWXAPI;
 import com.tencent.mm.opensdk.openapi.WXAPIFactory;
+import com.wishfox.foxsdk.core.WishFoxSdk;
 
 import io.reactivex.rxjava3.core.Observable;
 
@@ -25,14 +27,14 @@ public class FoxSdkWechatService {
     private static IWXAPI iwxapi;
 
     public static void init(Context context) {
-        iwxapi = WXAPIFactory.createWXAPI(context, FoxSdkPayConfig.APP_ID, true);
-        iwxapi.registerApp(FoxSdkPayConfig.APP_ID);
+        iwxapi = WXAPIFactory.createWXAPI(context, TextUtils.isEmpty(WishFoxSdk.getConfig().getWechatAppId()) ? FoxSdkPayConfig.APP_ID : WishFoxSdk.getConfig().getWechatAppId(), true);
+        iwxapi.registerApp(TextUtils.isEmpty(WishFoxSdk.getConfig().getWechatAppId()) ? FoxSdkPayConfig.APP_ID : WishFoxSdk.getConfig().getWechatAppId());
 
         IntentFilter filter = new IntentFilter(ConstantsAPI.ACTION_REFRESH_WXAPP);
         BroadcastReceiver receiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                iwxapi.registerApp(FoxSdkPayConfig.APP_ID);
+                iwxapi.registerApp(TextUtils.isEmpty(WishFoxSdk.getConfig().getWechatAppId())?FoxSdkPayConfig.APP_ID:WishFoxSdk.getConfig().getWechatAppId());
             }
         };
 
