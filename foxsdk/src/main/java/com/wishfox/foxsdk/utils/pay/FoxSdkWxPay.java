@@ -56,7 +56,8 @@ public class FoxSdkWxPay {
             }
 
             req.path = pathBuilder.toString();
-            req.miniprogramType = WXLaunchMiniProgram.Req.MINIPROGRAM_TYPE_PREVIEW;
+            req.miniprogramType = WishFoxSdk.getConfig().isWechatTest() ? WXLaunchMiniProgram.Req.MINIPROGRAM_TYPE_PREVIEW :
+                    WXLaunchMiniProgram.Req.MINIPTOGRAM_TYPE_RELEASE;
 
             return api.sendReq(req);
         });

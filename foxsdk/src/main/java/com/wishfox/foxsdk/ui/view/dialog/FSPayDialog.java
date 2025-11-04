@@ -304,7 +304,7 @@ public class FSPayDialog extends Dialog {
     private Map<String, Object> createWechatParams(FSCreateOrder data, String price) {
         Map<String, Object> params = new HashMap<>();
         params.put("payType", "yi-ma");
-        params.put("paySource", 23);
+        params.put("paySource", 30);
         params.put("masterOrderNo", data.getPos_seq());
         params.put("amount", price);
         return params;

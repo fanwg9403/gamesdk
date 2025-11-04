@@ -29,6 +29,7 @@ public class FoxSdkConfig {
     // 悬浮球y轴偏移量，单位px
     private int floatXxOffset = 100;
     private String wechatAppId;
+    private boolean wechatTest = false;
 
     // 方向常量
     public static final int ORIENTATION_PORTRAIT = 1;
@@ -52,6 +53,7 @@ public class FoxSdkConfig {
         this.floatXScale = builder.floatXScale;
         this.floatXxOffset = builder.floatXxOffset;
         this.wechatAppId = builder.wechatAppId;
+        this.wechatTest = builder.wechatTest;
     }
 
     // Getters
@@ -91,6 +93,10 @@ public class FoxSdkConfig {
         return wechatAppId;
     }
 
+    public boolean isWechatTest() {
+        return wechatTest;
+    }
+
     /**
      * Builder模式用于创建FoxSdkConfig实例
      */
@@ -107,6 +113,7 @@ public class FoxSdkConfig {
         private float floatXScale = 0.5f;
         private int floatXxOffset = 100;
         private String wechatAppId;
+        private boolean wechatTest = false;
 
         /**
          * 构造Builder，必需参数
@@ -175,6 +182,11 @@ public class FoxSdkConfig {
 
         public Builder setWechatAppId(String wechatAppId) {
             this.wechatAppId = wechatAppId;
+            return this;
+        }
+
+        public Builder setWechatTest(boolean wechatTest) {
+            this.wechatTest = wechatTest;
             return this;
         }
 
