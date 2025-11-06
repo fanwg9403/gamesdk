@@ -3,7 +3,6 @@ package com.wishfox.foxsdk.utils;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.util.Log;
 
 import com.hjq.toast.Toaster;
 
@@ -25,7 +24,7 @@ public class FoxSdkAppJumpUtils {
             context.startActivity(intent);
         } catch (Exception e) {
             byWebOpenH5(context, h5Url);
-            Log.e("AppJump", "Error launching by deep link: " + e.getMessage());
+            FoxSdkLogger.e("AppJump", "Error launching by deep link: " + e.getMessage());
         }
     }
 

@@ -4,12 +4,12 @@ import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
 import android.text.TextUtils;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
 import com.wishfox.foxsdk.R;
+import com.wishfox.foxsdk.utils.FoxSdkLogger;
 
 import io.reactivex.rxjava3.annotations.NonNull;
 import io.reactivex.rxjava3.annotations.Nullable;
@@ -75,14 +75,14 @@ public class FSLoadingDialog extends Dialog {
                 try {
                     super.show();
                 } catch (Exception e) {
-                    Log.e(TAG, "LoadingDialog 展示失败", e);
+                    FoxSdkLogger.e(TAG, "LoadingDialog 展示失败", e);
                 }
             }
         } else {
             try {
                 super.show();
             } catch (Exception e) {
-                Log.e(TAG, "LoadingDialog 展示失败", e);
+                FoxSdkLogger.e(TAG, "LoadingDialog 展示失败", e);
             }
         }
     }
@@ -95,7 +95,7 @@ public class FSLoadingDialog extends Dialog {
         try {
             super.dismiss();
         } catch (Exception e) {
-            Log.e(TAG, "LoadingDialog 隐藏失败", e);
+            FoxSdkLogger.e(TAG, "LoadingDialog 隐藏失败", e);
         }
     }
 }

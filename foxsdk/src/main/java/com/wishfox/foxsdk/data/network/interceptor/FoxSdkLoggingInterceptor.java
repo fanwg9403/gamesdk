@@ -1,8 +1,7 @@
 package com.wishfox.foxsdk.data.network.interceptor;
 
-import android.util.Log;
-
 import com.wishfox.foxsdk.core.FoxSdkConfig;
+import com.wishfox.foxsdk.utils.FoxSdkLogger;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -129,7 +128,7 @@ public class FoxSdkLoggingInterceptor implements Interceptor {
 
             logChunked(TAG, logBuilder.toString());
         } catch (Exception e) {
-            Log.e(TAG, "Failed to log request", e);
+            FoxSdkLogger.e(TAG, "Failed to log request", e);
         }
     }
 
@@ -218,7 +217,7 @@ public class FoxSdkLoggingInterceptor implements Interceptor {
 
             logChunked(TAG, logBuilder.toString());
         } catch (Exception e) {
-            Log.e(TAG, "Failed to log response", e);
+            FoxSdkLogger.e(TAG, "Failed to log response", e);
         }
     }
 
@@ -312,7 +311,7 @@ public class FoxSdkLoggingInterceptor implements Interceptor {
      */
     private void logChunked(String tag, String message) {
         if (message.length() <= MAX_LOG_LENGTH) {
-            Log.d(tag, message);
+            FoxSdkLogger.d(tag, message);
             return;
         }
 
@@ -334,7 +333,7 @@ public class FoxSdkLoggingInterceptor implements Interceptor {
                 }
             }
 
-            Log.d(tag, chunk);
+            FoxSdkLogger.d(tag, chunk);
             start = end;
         }
     }

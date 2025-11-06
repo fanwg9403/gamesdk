@@ -3,7 +3,6 @@ package com.wishfox.foxsdk.wxapi;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
-import android.util.Log;
 
 
 import com.google.gson.Gson;
@@ -11,6 +10,7 @@ import com.tencent.mm.opensdk.modelbase.BaseReq;
 import com.tencent.mm.opensdk.modelbase.BaseResp;
 import com.tencent.mm.opensdk.openapi.IWXAPI;
 import com.tencent.mm.opensdk.openapi.IWXAPIEventHandler;
+import com.wishfox.foxsdk.utils.FoxSdkLogger;
 import com.wishfox.foxsdk.utils.pay.FoxSdkWechatService;
 
 import io.reactivex.rxjava3.annotations.Nullable;
@@ -34,7 +34,7 @@ public class WXEntryActivity extends Activity implements IWXAPIEventHandler {
 
     @Override
     public void onReq(BaseReq baseReq) {
-        Log.d(TAG, "onReq: " + baseReq);
+        FoxSdkLogger.d(TAG, "onReq: " + baseReq);
     }
 
     @Override

@@ -2,9 +2,10 @@ package com.wishfox.foxsdk.ui.view.widgets;
 
 import android.content.Context;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.View;
 import android.widget.LinearLayout;
+
+import com.wishfox.foxsdk.utils.FoxSdkLogger;
 
 /**
  * 主要功能:
@@ -35,7 +36,7 @@ public class FSIconRadioGroupLayout extends LinearLayout {
             View child = getChildAt(i);
             if (!(child instanceof FSIconRadioTextView)) {
                 removeView(child);
-                Log.w(
+                FoxSdkLogger.w(
                         "FSIconRadioGroupLayout",
                         "child must be FSIconRadioTextView, not " + child.getClass().getName()
                 );

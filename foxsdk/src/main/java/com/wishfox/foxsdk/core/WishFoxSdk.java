@@ -4,22 +4,19 @@ import android.annotation.SuppressLint;
 import android.app.Application;
 import android.content.Context;
 import android.content.Intent;
-import android.util.Log;
-import android.view.View;
 
 import com.hjq.toast.Toaster;
 import com.petterp.floatingx.FloatingX;
 import com.petterp.floatingx.assist.FxDisplayMode;
 import com.petterp.floatingx.assist.FxScopeType;
 import com.petterp.floatingx.assist.helper.FxAppHelper;
-import com.petterp.floatingx.listener.control.IFxAppControl;
-import com.petterp.floatingx.listener.control.IFxConfigControl;
 import com.tencent.bugly.crashreport.CrashReport;
 import com.wishfox.foxsdk.ui.base.FoxSdkBaseMviActivity;
 import com.wishfox.foxsdk.data.network.FoxSdkRetrofitManager;
 import com.wishfox.foxsdk.R;
 import com.wishfox.foxsdk.ui.view.activity.FSHomeActivity;
 import com.wishfox.foxsdk.utils.FoxSdkCommonExt;
+import com.wishfox.foxsdk.utils.FoxSdkLogger;
 import com.wishfox.foxsdk.utils.FoxSdkUtils;
 import com.wishfox.foxsdk.utils.FoxSdkViewExt;
 import com.wishfox.foxsdk.utils.customerservice.QiyukfHelper;
@@ -58,6 +55,8 @@ public class WishFoxSdk {
         WishFoxSdk.config = config;
         WishFoxSdk.isInitialized = true;
 
+        FoxSdkLogger.setDebug(config.isEnableLog());
+
         // 初始化网络组件
         FoxSdkRetrofitManager.initialize(config);
 
@@ -79,7 +78,7 @@ public class WishFoxSdk {
         initFloatingWindow(context);
 
         if (config.isEnableLog()) {
-            Log.d(TAG, "WishFoxSDK 初始化成功！");
+            FoxSdkLogger.d(TAG, "WishFoxSDK 初始化成功！");
         }
     }
 

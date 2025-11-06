@@ -1,12 +1,11 @@
 package com.wishfox.foxsdk.data.network;
 
-import android.util.Log;
-
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.wishfox.foxsdk.data.network.interceptor.FoxSdkHeaderInterceptor;
 import com.wishfox.foxsdk.data.network.interceptor.FoxSdkLoggingInterceptor;
 import com.wishfox.foxsdk.core.FoxSdkConfig;
+import com.wishfox.foxsdk.utils.FoxSdkLogger;
 
 import java.util.concurrent.TimeUnit;
 
@@ -50,7 +49,7 @@ public class FoxSdkRetrofitManager {
         apiService = retrofit.create(FoxSdkApiService.class);
 
         if (config.isEnableLog()) {
-            Log.d(TAG, "RetrofitManager 初始化完成");
+            FoxSdkLogger.d(TAG, "RetrofitManager 初始化完成");
         }
     }
 

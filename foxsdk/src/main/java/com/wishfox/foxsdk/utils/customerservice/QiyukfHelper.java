@@ -26,6 +26,7 @@ import com.qiyukf.unicorn.api.event.UnicornEventBase;
 import com.qiyukf.unicorn.api.pop.Session;
 import com.wishfox.foxsdk.R;
 import com.wishfox.foxsdk.data.model.entity.FSUserProfile;
+import com.wishfox.foxsdk.utils.FoxSdkLogger;
 
 import java.util.List;
 
@@ -200,12 +201,12 @@ public class QiyukfHelper {
             @Override
             public void onFailed(int errorCode) {
                 // 错误码处理
-                android.util.Log.e("QiyukfHelper", "设置用户信息失败，错误码: " + errorCode);
+                FoxSdkLogger.e("QiyukfHelper", "设置用户信息失败，错误码: " + errorCode);
             }
 
             @Override
             public void onException(Throwable exception) {
-                android.util.Log.e("QiyukfHelper", "设置用户信息异常", exception);
+                FoxSdkLogger.e("QiyukfHelper", "设置用户信息异常", exception);
             }
         });
     }

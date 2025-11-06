@@ -6,13 +6,11 @@ import android.app.Application;
 import android.content.DialogInterface;
 import android.os.Build;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.KeyEvent;
 
 import com.hjq.toast.Toaster;
 import com.wishfox.foxsdk.R;
 import com.wishfox.foxsdk.data.model.entity.FSCoinInfo;
-import com.wishfox.foxsdk.data.model.entity.FSCreateOrder;
 import com.wishfox.foxsdk.data.model.entity.FSLoginResult;
 import com.wishfox.foxsdk.data.model.entity.FSPayResult;
 import com.wishfox.foxsdk.data.model.entity.FSSdkConfig;
@@ -267,7 +265,7 @@ public class FoxSdkLongingPayUtils {
                         FSCoinInfo.save(coinInfo);
                     } else {
                         // 虚拟信息获取失败，记录日志但不影响登录流程
-                        Log.w("FoxSdkLongingPayUtils", "获取用户虚拟信息失败: " +
+                        FoxSdkLogger.w("FoxSdkLongingPayUtils", "获取用户虚拟信息失败: " +
                                 (virtualInfoResult.getError() != null ? virtualInfoResult.getError() : "未知错误"));
                     }
                     // 虚拟信息获取成功或失败都不影响登录流程
@@ -276,7 +274,7 @@ public class FoxSdkLongingPayUtils {
                 })
                 .onErrorReturn(throwable -> {
                     // 虚拟信息获取失败不影响登录成功
-                    Log.w("FoxSdkLongingPayUtils", "获取用户虚拟信息异常: " + throwable.getMessage());
+                    FoxSdkLogger.w("FoxSdkLongingPayUtils", "获取用户虚拟信息异常: " + throwable.getMessage());
                     Toaster.show("登录成功");
                     return true;
                 });
@@ -455,7 +453,6 @@ public class FoxSdkLongingPayUtils {
 
                 @Override
                 public void onActivityResumed(Activity activity) {
-                    Log.e("onActivityResumed", "2222222222222222");
                     if (fsPayResult != null && fsPayResult.isCheckPay()) {
                         startPollingPaymentResult(activity, fsPayResult);
                     }

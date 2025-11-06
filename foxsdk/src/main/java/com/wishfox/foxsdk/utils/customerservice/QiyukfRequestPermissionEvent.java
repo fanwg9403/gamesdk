@@ -5,7 +5,6 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
 import android.text.TextUtils;
-import android.util.Log;
 
 import com.hjq.permissions.OnPermissionCallback;
 import com.hjq.permissions.XXPermissions;
@@ -16,6 +15,7 @@ import com.qiyukf.unicorn.api.event.UnicornEventBase;
 import com.qiyukf.unicorn.api.event.entry.RequestPermissionEventEntry;
 import com.wishfox.foxsdk.ui.view.dialog.FSPermissionMissTipsDialog;
 import com.wishfox.foxsdk.ui.view.dialog.FSPrivacyFloatingTipsDialog;
+import com.wishfox.foxsdk.utils.FoxSdkLogger;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -222,7 +222,7 @@ public class QiyukfRequestPermissionEvent implements UnicornEventBase<RequestPer
                             @SuppressLint("LongLogTag")
                             @Override
                             public void onDenied(List<String> permissions, boolean doNotAskAgain) {
-                                Log.d("QiyukfRequestPermissionEvent",
+                                FoxSdkLogger.d("QiyukfRequestPermissionEvent",
                                         "doNotAskAgain--" + doNotAskAgain);
                                 permissionCallback.onPermissionComplete(false);
                                 showDialog(activity, mPermission, typeName,
