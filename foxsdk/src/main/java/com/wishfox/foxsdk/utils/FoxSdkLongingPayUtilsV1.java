@@ -318,11 +318,19 @@ public class FoxSdkLongingPayUtilsV1 {
     }
 
     private static Disposable pollingDisposable;
+    private static FSLoadingDialog loadings;
 
+    private static boolean isCheckPay = false;
     public static void startPollingPaymentResult(Activity context, FSPayResult payResult, OnPayResultOperationListener mOnPayResultOperationListener) {
         if (payResult != null && payResult.isCheckPay()) {
-            FSLoadingDialog loadings = new FSLoadingDialog(context);
-            loadings.show();
+            if(isCheckPay){
+                return;
+            }
+            isCheckPay = true;
+            if(loadings==null){
+                loadings = new FSLoadingDialog(context);
+                loadings.show();
+            }
             // 禁止点击外部关闭
             loadings.setCanceledOnTouchOutside(false);
             // 禁止返回键关闭
@@ -354,6 +362,8 @@ public class FoxSdkLongingPayUtilsV1 {
                     .subscribe(success -> {
                         if (success) {
                             loadings.dismiss();
+                            loadings=null;
+                            isCheckPay = false;
                             showPaySuccessDialog(context,mOnPayResultOperationListener);
                             if (pollingDisposable != null && !pollingDisposable.isDisposed()) {
                                 pollingDisposable.dispose();
@@ -362,11 +372,15 @@ public class FoxSdkLongingPayUtilsV1 {
                     }, throwable -> {
                         // 处理错误
                         loadings.dismiss();
+                        loadings=null;
+                        isCheckPay = false;
                         showPayFailedDialog(context, mOnPayResultOperationListener);
                     }, () -> {
                         // 完成时调用（10次尝试后）
-                        //if (loadings == null || !loadings.isShowing()) return; // 如果已经关闭就不重复处理
+                        if (loadings == null || !loadings.isShowing()) return; // 如果已经关闭就不重复处理
                         loadings.dismiss();
+                        loadings=null;
+                        isCheckPay = false;
                         showPayFailedDialog(context, mOnPayResultOperationListener);
                     });
         }
