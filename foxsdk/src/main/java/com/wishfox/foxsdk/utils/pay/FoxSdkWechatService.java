@@ -36,15 +36,17 @@ public class FoxSdkWechatService {
         iwxapi = WXAPIFactory.createWXAPI(context, TextUtils.isEmpty(WishFoxSdk.getConfig().getWechatAppId()) ? FoxSdkPayConfig.APP_ID : WishFoxSdk.getConfig().getWechatAppId(), true);
         iwxapi.registerApp(TextUtils.isEmpty(WishFoxSdk.getConfig().getWechatAppId()) ? FoxSdkPayConfig.APP_ID : WishFoxSdk.getConfig().getWechatAppId());
 
-        IntentFilter filter = new IntentFilter(ConstantsAPI.ACTION_REFRESH_WXAPP);
-        BroadcastReceiver receiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                iwxapi.registerApp(TextUtils.isEmpty(WishFoxSdk.getConfig().getWechatAppId())?FoxSdkPayConfig.APP_ID:WishFoxSdk.getConfig().getWechatAppId());
-            }
-        };
+//        IntentFilter filter = new IntentFilter(ConstantsAPI.ACTION_REFRESH_WXAPP);
+//        BroadcastReceiver receiver = new BroadcastReceiver() {
+//            @Override
+//            public void onReceive(Context context, Intent intent) {
+//                iwxapi.registerApp(TextUtils.isEmpty(WishFoxSdk.getConfig().getWechatAppId())?FoxSdkPayConfig.APP_ID:WishFoxSdk.getConfig().getWechatAppId());
+//            }
+//        };
+//
+//        context.registerReceiver(receiver, filter);
 
-        context.registerReceiver(receiver, filter);
+        registerWechatRefreshReceiver(context);
 
         isInitialized = true;
     }
