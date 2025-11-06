@@ -47,7 +47,7 @@ public class FSHomeUserInfoAdapter extends BaseQuickAdapter<FSUserInfo, BaseView
         FoxSdkViewExt.setOnClickListener(baseViewHolder.getView(R.id.fs_cl_top_bar), v -> {
             if (fsUserInfo == null) {
                 new FSLoginDialog(getContext())
-                        .setOnLoginClickListener((phone, codeOrPassword, loginType) ->
+                        .setOnLoginClickListener((phone, codeOrPassword, loginType,loadingDialog) ->
                                 fsHomeViewModel.dispatch(
                                         new FSHomeIntent.Login(
                                                 phone,

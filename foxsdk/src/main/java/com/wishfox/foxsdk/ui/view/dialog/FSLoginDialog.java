@@ -130,11 +130,11 @@ public class FSLoginDialog extends Dialog {
 
             if (binding.fsLlVerifyCode.getVisibility() == View.VISIBLE) {
                 if (mListener != null) {
-                    mListener.onLoginClick(phoneValue, verifyCodeValue, 2);
+                    mListener.onLoginClick(phoneValue, verifyCodeValue, 2,loading);
                 }
             } else {
                 if (mListener != null) {
-                    mListener.onLoginClick(phoneValue, passwordValue, 1);
+                    mListener.onLoginClick(phoneValue, passwordValue, 1,loading);
                 }
             }
         });
@@ -329,7 +329,7 @@ public class FSLoginDialog extends Dialog {
     }
 
     public interface OnLoginClickListener {
-        void onLoginClick(String phone, String codeOrPassword, int loginType);
+        void onLoginClick(String phone, String codeOrPassword, int loginType,FSLoadingDialog mFSLoadingDialog);
     }
 
     public static void dismissInstance() {

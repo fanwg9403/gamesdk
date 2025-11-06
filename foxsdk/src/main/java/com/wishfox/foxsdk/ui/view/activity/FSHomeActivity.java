@@ -89,7 +89,7 @@ public class FSHomeActivity extends FoxSdkBaseMviActivity<FSHomeViewState, FSHom
         FoxSdkViewExt.setOnClickListener(((ConstraintLayout) userHead.findViewById(R.id.fs_cl_top_bar)), v -> {
             if (((TextView) userHead.findViewById(R.id.fs_stv_coin)).getVisibility() == View.GONE) {
                 new FSLoginDialog(this)
-                        .setOnLoginClickListener((phone, codeOrPassword, loginType) ->
+                        .setOnLoginClickListener((phone, codeOrPassword, loginType,loadingDialog) ->
                                 viewModel.dispatch(
                                         new FSHomeIntent.Login(
                                                 phone,
@@ -104,7 +104,7 @@ public class FSHomeActivity extends FoxSdkBaseMviActivity<FSHomeViewState, FSHom
         FoxSdkViewExt.setOnClickListener(((ImageView) regionHead.findViewById(R.id.fs_iv_coin)), v -> {
             if (FSUserInfo.getInstance() == null) {
                 new FSLoginDialog(this)
-                        .setOnLoginClickListener((phone, codeOrPassword, loginType) -> {
+                        .setOnLoginClickListener((phone, codeOrPassword, loginType,loadingDialog) -> {
                             viewModel.dispatch(
                                     new FSHomeIntent.Login(
                                             phone,
@@ -122,7 +122,7 @@ public class FSHomeActivity extends FoxSdkBaseMviActivity<FSHomeViewState, FSHom
         FoxSdkViewExt.setOnClickListener(((ImageView) regionHead.findViewById(R.id.fs_iv_gift)), v -> {
             if (FSUserInfo.getInstance() == null) {
                 new FSLoginDialog(this)
-                        .setOnLoginClickListener((phone, codeOrPassword, loginType) -> {
+                        .setOnLoginClickListener((phone, codeOrPassword, loginType,loadingDialog) -> {
                             viewModel.dispatch(
                                     new FSHomeIntent.Login(
                                             phone,
@@ -140,7 +140,7 @@ public class FSHomeActivity extends FoxSdkBaseMviActivity<FSHomeViewState, FSHom
         FoxSdkViewExt.setOnClickListener(((ImageView) regionHead.findViewById(R.id.fs_iv_service)), v -> {
             if (FSUserInfo.getInstance() == null) {
                 new FSLoginDialog(this)
-                        .setOnLoginClickListener((phone, codeOrPassword, loginType) -> {
+                        .setOnLoginClickListener((phone, codeOrPassword, loginType,loadingDialog) -> {
                             viewModel.dispatch(
                                     new FSHomeIntent.Login(
                                             phone,

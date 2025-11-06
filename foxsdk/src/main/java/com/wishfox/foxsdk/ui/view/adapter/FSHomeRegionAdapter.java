@@ -38,7 +38,7 @@ public class FSHomeRegionAdapter extends BaseQuickAdapter<String, BaseViewHolder
         FoxSdkViewExt.setOnClickListener(baseViewHolder.getView(R.id.fs_iv_coin), v -> {
             if (FSUserInfo.getInstance() == null) {
                 new FSLoginDialog(getContext())
-                        .setOnLoginClickListener((phone, codeOrPassword, loginType) -> {
+                        .setOnLoginClickListener((phone, codeOrPassword, loginType,loadingDialog) -> {
                             fsHomeViewModel.dispatch(
                                     new FSHomeIntent.Login(
                                             phone,
@@ -56,7 +56,7 @@ public class FSHomeRegionAdapter extends BaseQuickAdapter<String, BaseViewHolder
         FoxSdkViewExt.setOnClickListener(baseViewHolder.getView(R.id.fs_iv_gift), v -> {
             if (FSUserInfo.getInstance() == null) {
                 new FSLoginDialog(getContext())
-                        .setOnLoginClickListener((phone, codeOrPassword, loginType) -> {
+                        .setOnLoginClickListener((phone, codeOrPassword, loginType,loadingDialog) -> {
                             fsHomeViewModel.dispatch(
                                     new FSHomeIntent.Login(
                                             phone,
@@ -74,7 +74,7 @@ public class FSHomeRegionAdapter extends BaseQuickAdapter<String, BaseViewHolder
         FoxSdkViewExt.setOnClickListener(baseViewHolder.getView(R.id.fs_iv_service), v -> {
             if (FSUserInfo.getInstance() == null) {
                 new FSLoginDialog(getContext())
-                        .setOnLoginClickListener((phone, codeOrPassword, loginType) -> {
+                        .setOnLoginClickListener((phone, codeOrPassword, loginType,loadingDialog) -> {
                             fsHomeViewModel.dispatch(
                                     new FSHomeIntent.Login(
                                             phone,

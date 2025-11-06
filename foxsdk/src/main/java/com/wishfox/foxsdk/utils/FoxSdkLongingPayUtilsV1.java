@@ -67,9 +67,9 @@ public class FoxSdkLongingPayUtilsV1 {
      */
     public void loginWishFox(Activity mActivity, OnLoginListener onLoginListener) {
         loginDialog = new FSLoginDialog(mActivity);
-        loginDialog.setOnLoginClickListener((arg1, arg2, type) -> {
-            loading = new FSLoadingDialog(mActivity);
-            loading.show();
+        loginDialog.setOnLoginClickListener((arg1, arg2, type,loadingDialog) -> {
+//            loading = new FSLoadingDialog(mActivity);
+//            loading.show();
 
             Disposable loginDisposable = login(arg1, arg2, type)
                     .subscribeOn(Schedulers.io())
@@ -78,12 +78,15 @@ public class FoxSdkLongingPayUtilsV1 {
                         if (success) {
                             onLoginListener.onLogin(FSUserInfo.getInstance().getUserId(), FSLoginResult.getTokenEd());
                             loginDialog.dismiss();
-                            loading.dismiss();
+//                            loading.dismiss();
+                            loadingDialog.dismiss();
                         } else {
-                            loading.dismiss();
+//                            loading.dismiss();
+                            loadingDialog.dismiss();
                         }
                     }, throwable -> {
-                        loading.dismiss();
+//                        loading.dismiss();
+                        loadingDialog.dismiss();
                         Toaster.show(throwable.getMessage());
                     });
 
@@ -115,9 +118,9 @@ public class FoxSdkLongingPayUtilsV1 {
 
         if (FSUserInfo.getInstance() == null) { // 未登录
             loginDialog = new FSLoginDialog(mActivity);
-            loginDialog.setOnLoginClickListener((arg1, arg2, type) -> {
-                loading = new FSLoadingDialog(mActivity);
-                loading.show();
+            loginDialog.setOnLoginClickListener((arg1, arg2, type,loadingDialog) -> {
+//                loading = new FSLoadingDialog(mActivity);
+//                loading.show();
 
                 Disposable loginDisposable = login(arg1, arg2, type)
                         .subscribeOn(Schedulers.io())
@@ -126,14 +129,17 @@ public class FoxSdkLongingPayUtilsV1 {
                             if (success) {
                                 onLoginListener.onLogin(FSUserInfo.getInstance().getUserId(), FSLoginResult.getTokenEd());
                                 loginDialog.dismiss();
-                                loading.dismiss();
+//                                loading.dismiss();
+                                loadingDialog.dismiss();
                                 getSdkConfig(mActivity, mallId, mallName, price, priceContent,
                                         orderTime, cpOrderId, payListener);
                             } else {
-                                loading.dismiss();
+//                                loading.dismiss();
+                                loadingDialog.dismiss();
                             }
                         }, throwable -> {
-                            loading.dismiss();
+//                            loading.dismiss();
+                            loadingDialog.dismiss();
                             Toaster.show(throwable.getMessage());
                         });
 
@@ -315,13 +321,13 @@ public class FoxSdkLongingPayUtilsV1 {
 
     public static void startPollingPaymentResult(Activity context, FSPayResult payResult, OnPayResultOperationListener mOnPayResultOperationListener) {
         if (payResult != null && payResult.isCheckPay()) {
-            loading = new FSLoadingDialog(context);
-            loading.show();
+            FSLoadingDialog loadings = new FSLoadingDialog(context);
+            loadings.show();
             // 禁止点击外部关闭
-            loading.setCanceledOnTouchOutside(false);
+            loadings.setCanceledOnTouchOutside(false);
             // 禁止返回键关闭
-            loading.setCancelable(false);
-            loading.setOnKeyListener(new DialogInterface.OnKeyListener() {
+            loadings.setCancelable(false);
+            loadings.setOnKeyListener(new DialogInterface.OnKeyListener() {
                 @Override
                 public boolean onKey(DialogInterface dialog, int keyCode, KeyEvent event) {
                     if (keyCode == KeyEvent.KEYCODE_BACK) {
@@ -347,7 +353,7 @@ public class FoxSdkLongingPayUtilsV1 {
                     .observeOn(AndroidSchedulers.mainThread())
                     .subscribe(success -> {
                         if (success) {
-                            loading.dismiss();
+                            loadings.dismiss();
                             showPaySuccessDialog(context,mOnPayResultOperationListener);
                             if (pollingDisposable != null && !pollingDisposable.isDisposed()) {
                                 pollingDisposable.dispose();
@@ -355,12 +361,12 @@ public class FoxSdkLongingPayUtilsV1 {
                         }
                     }, throwable -> {
                         // 处理错误
-                        loading.dismiss();
+                        loadings.dismiss();
                         showPayFailedDialog(context, mOnPayResultOperationListener);
                     }, () -> {
                         // 完成时调用（10次尝试后）
-                        if (loading == null || !loading.isShowing()) return; // 如果已经关闭就不重复处理
-                        loading.dismiss();
+                        //if (loadings == null || !loadings.isShowing()) return; // 如果已经关闭就不重复处理
+                        loadings.dismiss();
                         showPayFailedDialog(context, mOnPayResultOperationListener);
                     });
         }

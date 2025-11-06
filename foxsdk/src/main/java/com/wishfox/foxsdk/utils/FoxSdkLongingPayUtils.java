@@ -66,9 +66,9 @@ public class FoxSdkLongingPayUtils {
      */
     public void loginWishFox(Activity mActivity, OnLoginListener onLoginListener) {
         loginDialog = new FSLoginDialog(mActivity);
-        loginDialog.setOnLoginClickListener((arg1, arg2, type) -> {
-            loading = new FSLoadingDialog(mActivity);
-            loading.show();
+        loginDialog.setOnLoginClickListener((arg1, arg2, type,loadingDialog) -> {
+//            loading = new FSLoadingDialog(mActivity);
+//            loading.show();
 
             Disposable loginDisposable = login(arg1, arg2, type)
                     .subscribeOn(Schedulers.io())
@@ -77,12 +77,15 @@ public class FoxSdkLongingPayUtils {
                         if (success) {
                             onLoginListener.onLogin(FSUserInfo.getInstance().getUserId(), FSLoginResult.getTokenEd());
                             loginDialog.dismiss();
-                            loading.dismiss();
+//                            loading.dismiss();
+                            loadingDialog.dismiss();
                         } else {
-                            loading.dismiss();
+//                            loading.dismiss();
+                            loadingDialog.dismiss();
                         }
                     }, throwable -> {
-                        loading.dismiss();
+//                        loading.dismiss();
+                        loadingDialog.dismiss();
                         Toaster.show(throwable.getMessage());
                     });
 
@@ -113,9 +116,9 @@ public class FoxSdkLongingPayUtils {
 
         if (FSUserInfo.getInstance() == null) { // 未登录
             loginDialog = new FSLoginDialog(mActivity);
-            loginDialog.setOnLoginClickListener((arg1, arg2, type) -> {
-                loading = new FSLoadingDialog(mActivity);
-                loading.show();
+            loginDialog.setOnLoginClickListener((arg1, arg2, type,loadingDialog) -> {
+//                loading = new FSLoadingDialog(mActivity);
+//                loading.show();
 
                 Disposable loginDisposable = login(arg1, arg2, type)
                         .subscribeOn(Schedulers.io())
@@ -124,14 +127,17 @@ public class FoxSdkLongingPayUtils {
                             if (success) {
                                 onLoginListener.onLogin(FSUserInfo.getInstance().getUserId(), FSLoginResult.getTokenEd());
                                 loginDialog.dismiss();
-                                loading.dismiss();
+//                                loading.dismiss();
+                                loadingDialog.dismiss();
                                 getSdkConfig(mActivity, mallId, mallName, price, priceContent,
                                         orderTime, cpOrderId);
                             } else {
-                                loading.dismiss();
+//                                loading.dismiss();
+                                loadingDialog.dismiss();
                             }
                         }, throwable -> {
-                            loading.dismiss();
+                            loadingDialog.dismiss();
+//                            loading.dismiss();
                             Toaster.show(throwable.getMessage());
                         });
 
