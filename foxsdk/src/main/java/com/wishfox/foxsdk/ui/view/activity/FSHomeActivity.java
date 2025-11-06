@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.util.Pair;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -264,6 +265,9 @@ public class FSHomeActivity extends FoxSdkBaseMviActivity<FSHomeViewState, FSHom
         if (state.getBannerList() != null && !state.getBannerList().isEmpty()) {
             fsBannerAdapter.setDatas(state.getBannerList());
             if (!hasBanner)
+                if(bannerHead.getParent() != null){
+                    ((ViewGroup) bannerHead.getParent()).removeView(bannerHead);
+                }
                 actionAdapter.addHeaderView(bannerHead, 1);
         } else if (hasBanner)
             actionAdapter.removeHeaderView(bannerHead);
