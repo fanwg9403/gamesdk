@@ -75,6 +75,8 @@ public class FSLoginDialog extends Dialog {
         binding = FsDialogLoginBinding.inflate(LayoutInflater.from(ctx));
         setContentView(binding.getRoot());
 
+        setCancelable(false);
+        setCanceledOnTouchOutside(false);
         initViews();
         setupClickListeners();
         setupTextWatchers();
@@ -93,10 +95,12 @@ public class FSLoginDialog extends Dialog {
         binding.fsAuthLogin.setVisibility(View.GONE);
         binding.fsPrimaryLogin.setVisibility(View.VISIBLE);
         binding.fsIvBack.setVisibility(View.GONE);
-        binding.fsVRight.setVisibility(View.GONE);
+        binding.fsVRight.setVisibility(View.VISIBLE);
     }
 
     private void setupClickListeners() {
+        FoxSdkViewExt.setOnClickListener(binding.fsVRight, v -> dismiss());
+
         // 验证码登录
         FoxSdkViewExt.setOnClickListener(binding.fsTvVerifyCodeLogin, v -> {
             if (binding.fsTvVerifyCodeLogin.getAlpha() == 0.5f) {
@@ -130,11 +134,11 @@ public class FSLoginDialog extends Dialog {
 
             if (binding.fsLlVerifyCode.getVisibility() == View.VISIBLE) {
                 if (mListener != null) {
-                    mListener.onLoginClick(phoneValue, verifyCodeValue, 2,loading);
+                    mListener.onLoginClick(phoneValue, verifyCodeValue, 2, loading);
                 }
             } else {
                 if (mListener != null) {
-                    mListener.onLoginClick(phoneValue, passwordValue, 1,loading);
+                    mListener.onLoginClick(phoneValue, passwordValue, 1, loading);
                 }
             }
         });
@@ -220,10 +224,10 @@ public class FSLoginDialog extends Dialog {
                 .subscribe(result -> {
                     if (result.isSuccess()) {
                         loading.dismiss();
-                        if (result.getCode() == 200){
+                        if (result.getCode() == 200) {
                             Toaster.show("验证码发送成功");
                             startTimeout();
-                        }else {
+                        } else {
                             Toaster.show(!TextUtils.isEmpty(result.getMessage()) ? result.getMessage() : "验证码发送失败");
                         }
                     } else if (result.isError()) {
@@ -232,10 +236,10 @@ public class FSLoginDialog extends Dialog {
                         Toaster.show(errorMsg);
                     } else if (result.isEmpty()) {
                         loading.dismiss();
-                        if (result.getCode() == 200){
+                        if (result.getCode() == 200) {
                             Toaster.show("验证码发送成功");
                             startTimeout();
-                        }else {
+                        } else {
                             Toaster.show(!TextUtils.isEmpty(result.getMessage()) ? result.getMessage() : "验证码发送失败");
                         }
                     }
@@ -329,7 +333,7 @@ public class FSLoginDialog extends Dialog {
     }
 
     public interface OnLoginClickListener {
-        void onLoginClick(String phone, String codeOrPassword, int loginType,FSLoadingDialog mFSLoadingDialog);
+        void onLoginClick(String phone, String codeOrPassword, int loginType, FSLoadingDialog mFSLoadingDialog);
     }
 
     public static void dismissInstance() {

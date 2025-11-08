@@ -12,8 +12,7 @@
         android:layout_height="wrap_content"
         android:background="@drawable/fs_dialog_bg"
         android:paddingHorizontal="@dimen/dp_16"
-        android:paddingBottom="@dimen/dp_12"
-        android:visibility="gone">
+        android:paddingBottom="@dimen/dp_12">
 
         <ImageView
             android:id="@+id/fs_iv_back"
@@ -52,10 +51,15 @@
             app:layout_constraintStart_toEndOf="@id/fs_tv_verify_code_login"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <View
+        <com.hjq.shape.view.ShapeImageView
             android:id="@+id/fs_v_right"
             android:layout_width="@dimen/dp_24"
             android:layout_height="@dimen/dp_24"
+            android:src="@mipmap/fs_icon_login_close"
+            android:padding="@dimen/dp_4"
+            app:shape_radius="@dimen/dp_24"
+            android:layout_marginTop="@dimen/dp_12"
+            app:shape_solidColor="#33999999"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
@@ -233,6 +237,7 @@
         android:layout_width="@dimen/dp_310"
         android:layout_height="wrap_content"
         android:background="@drawable/fs_dialog_bg"
+        android:visibility="gone"
         android:gravity="center_horizontal"
         android:orientation="vertical"
         android:paddingHorizontal="@dimen/dp_16">
