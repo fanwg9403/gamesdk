@@ -21,9 +21,21 @@ android {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             consumerProguardFile('consumer-rules.pro')
+            /***
+             *   1.当app已经集成了微信支付时，kqFusedApplicationId的值设为com.bill99
+             *   2.当app未集成微信支付时，kqFusedApplicationId的值置位空，或者app包名
+             */
+            manifestPlaceholders.put("kqFusedApplicationId","com.bill99")
+            manifestPlaceholders.put("kqFusedApplicationScheme","billcomwishfoxdemoe")
         }
         debug {
             minifyEnabled false
+            /***
+             *   1.当app已经集成了微信支付时，kqFusedApplicationId的值设为com.bill99
+             *   2.当app未集成微信支付时，kqFusedApplicationId的值置位空，或者app包名
+             */
+            manifestPlaceholders.put("kqFusedApplicationId","com.bill99")
+            manifestPlaceholders.put("kqFusedApplicationScheme","billcomwishfoxdemoe")
         }
     }
     compileOptions {

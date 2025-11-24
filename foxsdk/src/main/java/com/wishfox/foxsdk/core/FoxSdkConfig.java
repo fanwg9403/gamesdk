@@ -31,6 +31,9 @@ public class FoxSdkConfig {
     private String wechatAppId;
     private boolean wechatTest = false;
 
+    //快钱支付宝支付配置
+    private String kqFusedApplicationScheme;
+
     // 方向常量
     public static final int ORIENTATION_PORTRAIT = 1;
     public static final int ORIENTATION_LANDSCAPE = 2;
@@ -54,6 +57,7 @@ public class FoxSdkConfig {
         this.floatXxOffset = builder.floatXxOffset;
         this.wechatAppId = builder.wechatAppId;
         this.wechatTest = builder.wechatTest;
+        this.kqFusedApplicationScheme = builder.kqFusedApplicationScheme;
     }
 
     // Getters
@@ -92,6 +96,9 @@ public class FoxSdkConfig {
     public String getWechatAppId() {
         return wechatAppId;
     }
+    public String getKqFusedApplicationScheme() {
+        return kqFusedApplicationScheme;
+    }
 
     public boolean isWechatTest() {
         return wechatTest;
@@ -113,6 +120,7 @@ public class FoxSdkConfig {
         private float floatXScale = 0.5f;
         private int floatXxOffset = 100;
         private String wechatAppId;
+        private String kqFusedApplicationScheme;
         private boolean wechatTest = false;
 
         /**
@@ -120,10 +128,12 @@ public class FoxSdkConfig {
          *
          * @param appId     游戏id
          * @param channelId 游戏key
+         * @param kqFusedApplicationScheme  支付宝支付配置
          */
-        public Builder(String appId, String channelId) {
+        public Builder(String appId, String channelId,String kqFusedApplicationScheme) {
             this.appId = appId;
             this.channelId = channelId;
+            this.kqFusedApplicationScheme = kqFusedApplicationScheme;
         }
 
         /**
@@ -236,6 +246,7 @@ public class FoxSdkConfig {
         if (screenOrientation != that.screenOrientation) return false;
         if (!appId.equals(that.appId)) return false;
         if (!channelId.equals(that.channelId)) return false;
+        if (!kqFusedApplicationScheme.equals(that.kqFusedApplicationScheme)) return false;
         return baseUrl.equals(that.baseUrl);
     }
 

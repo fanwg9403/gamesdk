@@ -6,11 +6,15 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.View;
 
+import com.google.gson.Gson;
 import com.hjq.toast.Toaster;
 import com.wishfox.foxsdk.R;
+import com.wishfox.foxsdk.core.FoxSdkConfig;
 import com.wishfox.foxsdk.core.WishFoxSdk;
+import com.wishfox.foxsdk.data.model.entity.FSAliPay;
 import com.wishfox.foxsdk.data.model.entity.FSCoinInfo;
 import com.wishfox.foxsdk.data.model.entity.FSCreateOrder;
+import com.wishfox.foxsdk.data.model.entity.FSMpayInfo;
 import com.wishfox.foxsdk.data.model.entity.FSPayResult;
 import com.wishfox.foxsdk.data.model.FoxSdkBaseResponse;
 import com.wishfox.foxsdk.data.model.entity.FSSdkConfig;
@@ -18,9 +22,11 @@ import com.wishfox.foxsdk.data.network.FoxSdkNetworkExecutor;
 import com.wishfox.foxsdk.data.network.FoxSdkRetrofitManager;
 import com.wishfox.foxsdk.databinding.FsDialogPayBinding;
 import com.wishfox.foxsdk.ui.view.widgets.FSLoadingDialog;
+import com.wishfox.foxsdk.utils.FoxSdkLogger;
 import com.wishfox.foxsdk.utils.FoxSdkPayEnum;
 import com.wishfox.foxsdk.utils.FoxSdkViewExt;
 import com.wishfox.foxsdk.utils.pay.FoxSdkAliPay;
+import com.wishfox.foxsdk.utils.pay.FoxSdkQuickMoneyPay;
 import com.wishfox.foxsdk.utils.pay.FoxSdkWechatService;
 import com.wishfox.foxsdk.utils.pay.FoxSdkWxPay;
 
@@ -180,7 +186,7 @@ public class FSPayDialog extends Dialog {
      */
     private void pay(FoxSdkPayEnum payType) {
         Map<String, Object> params = createPayParams(payType);
-
+        FoxSdkLogger.e("FoxSdk",new Gson().toJson( params));
         FoxSdkNetworkExecutor.execute(() ->
                 FoxSdkRetrofitManager.getApiService().createOrder(params).blockingGet()
         )
@@ -222,15 +228,23 @@ public class FSPayDialog extends Dialog {
         params.put("order_time", orderTime);
         params.put("cp_order_id", cpOrderId);
 
+
         switch (payType) {
             case FOX_COIN:
                 params.put("pay_type", 6);
                 break;
             case ALI_PAY:
-                params.put("pay_type", 1);
+                //params.put("pay_type", 1);
+                String kqFusedApplicationScheme = WishFoxSdk.getConfig().getKqFusedApplicationScheme();
+                FSAliPay fsAliPay = new FSAliPay();
+                fsAliPay.setApp_scheme(kqFusedApplicationScheme);
+                String json = new Gson().toJson(fsAliPay);
+                params.put("pay_type", 30);//快钱支付宝
+                params.put("ext", json);
                 break;
             case WECHAT:
                 params.put("pay_type", 20);
+                //params.put("pay_type", 31);//快钱微信
                 break;
         }
 
@@ -254,7 +268,8 @@ public class FSPayDialog extends Dialog {
                     handleFoxCoinPayment(response.getData());
                     break;
                 case ALI_PAY:
-                    handleAliPayment(response.getData());
+                    //handleAliPayment(response.getData());
+                    handleQuickMoneyAliPayment(response.getData());
                     break;
                 case WECHAT:
                     handleWechatPayment(response.getData(), price);
@@ -280,6 +295,24 @@ public class FSPayDialog extends Dialog {
             boolean success = FoxSdkAliPay.payAliYiMa(getContext(), data.getCode_url(), data.getJump_url()).blockingLast();
             if (success && onPayCreate != null) {
                 onPayCreate.onPayCreate(new FSPayResult(true, data.getPos_seq(), FoxSdkPayEnum.ALI_PAY));
+            } else {
+                Toaster.show("支付失败");
+            }
+        } else {
+            Toaster.show("支付失败");
+        }
+        loading.dismiss();
+    }
+    private void handleQuickMoneyAliPayment(FSCreateOrder data) {
+        if (data.getRaw_response().getMpayInfo() != null) {
+            FSMpayInfo mpayInfo = data.getRaw_response().getMpayInfo();
+            Gson gson = new Gson();
+            String mpayInfoStr = gson.toJson(mpayInfo);
+//            String mpayInfoStr = "{\"appletInfo\":\""+mpayInfo.getAppletInfo()+"\"," +
+//                    "\"orderRequestInfo\":{\"orderRequestKey\":\""+mpayInfo.getOrderRequestInfo().getOrderRequestKey()+"\"}}";
+            boolean success = FoxSdkQuickMoneyPay.invokeFusedPaySDK(getContext(), "7", mpayInfoStr).blockingLast();
+            if (success && onPayCreate != null) {
+                onPayCreate.onPayCreate(new FSPayResult(true, data.getOrder_id(), FoxSdkPayEnum.ALI_PAY));
             } else {
                 Toaster.show("支付失败");
             }

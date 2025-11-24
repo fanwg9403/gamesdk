@@ -95,6 +95,8 @@
             android:launchMode="singleTop"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.Transparent" />
+        <!--快钱支付回调-->
+        <activity android:name="com.wishfox.foxsdk.wxapi.QuickMoneyPayResultActivity" />
     </application>
 
     <queries>

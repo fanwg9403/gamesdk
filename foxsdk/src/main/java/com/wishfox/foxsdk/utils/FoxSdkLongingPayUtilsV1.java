@@ -2,10 +2,7 @@ package com.wishfox.foxsdk.utils;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.app.Application;
 import android.content.DialogInterface;
-import android.os.Build;
-import android.os.Bundle;
 import android.util.Log;
 import android.view.KeyEvent;
 
@@ -352,6 +349,7 @@ public class FoxSdkLongingPayUtilsV1 {
                         // 使用 RxJava 版本的支付结果查询
                         String orderId = payResult.getOrderId();
                         if (orderId == null || orderId.isEmpty()) {
+                            FoxSdkLogger.e("FoxSdk", "订单ID为空");
                             return Observable.just(false);
                         }
                         return FoxSdkPayResult.payResult(context, orderId)

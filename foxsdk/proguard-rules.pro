@@ -355,3 +355,20 @@
     public static *** w(...);
     public static *** e(...);
 }
+
+# 快钱聚合支付混淆过滤
+-dontwarn com.kuaiqian.**
+-keep class com.kuaiqian.** {*;}
+# 微信混淆过滤
+-dontwarn com.tencent.**
+-keep class com.tencent.** {*;}
+# 内部WebView 混淆过滤
+-keepclassmembers class * {
+@android.webkit.JavascriptInterface <methods>;
+}
+#银联混淆
+-dontwarn com.unionpay.**
+-keep class com.huawei.nfc.sdk.service.** {*;}
+-keep class com.unionpay.** {*;}
+-keep class cn.gov.pbc.tsm.client.mobile.android.bank.service.** {*;}
+-keep class org.simalliance.openmobileapi.** {*;}
