@@ -336,7 +336,8 @@ public class FSPayDialog extends Dialog {
 
     private Map<String, Object> createWechatParams(FSCreateOrder data, String price) {
         Map<String, Object> params = new HashMap<>();
-        params.put("payType", "yi-ma");
+        //取消微信小程序支付类型，改为由小程序端发起
+        //params.put("payType", "yi-ma");
         params.put("paySource", 30);
         params.put("masterOrderNo", data.getPos_seq());
         params.put("amount", price);
