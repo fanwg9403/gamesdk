@@ -31,6 +31,97 @@ public class FSCreateOrder {
     private String busy_amount;
     private String operate_channel;
 
+    private boolean success;
+    private String order_id;
+    private FSRawResponse raw_response;
+    private String payType;
+    private String requestTime;
+    private String resultCode;
+    private String resultMessage;
+    private String stlDate;
+    private String terminalId;
+    private String txnType;
+
+    public boolean isSuccess() {
+        return success;
+    }
+
+    public void setSuccess(boolean success) {
+        this.success = success;
+    }
+
+    public String getOrder_id() {
+        return order_id;
+    }
+
+    public void setOrder_id(String order_id) {
+        this.order_id = order_id;
+    }
+
+    public FSRawResponse getRaw_response() {
+        return raw_response;
+    }
+
+    public void setRaw_response(FSRawResponse raw_response) {
+        this.raw_response = raw_response;
+    }
+
+    public String getPayType() {
+        return payType;
+    }
+
+    public void setPayType(String payType) {
+        this.payType = payType;
+    }
+
+    public String getRequestTime() {
+        return requestTime;
+    }
+
+    public void setRequestTime(String requestTime) {
+        this.requestTime = requestTime;
+    }
+
+    public String getResultCode() {
+        return resultCode;
+    }
+
+    public void setResultCode(String resultCode) {
+        this.resultCode = resultCode;
+    }
+
+    public String getResultMessage() {
+        return resultMessage;
+    }
+
+    public void setResultMessage(String resultMessage) {
+        this.resultMessage = resultMessage;
+    }
+
+    public String getStlDate() {
+        return stlDate;
+    }
+
+    public void setStlDate(String stlDate) {
+        this.stlDate = stlDate;
+    }
+
+    public String getTerminalId() {
+        return terminalId;
+    }
+
+    public void setTerminalId(String terminalId) {
+        this.terminalId = terminalId;
+    }
+
+    public String getTxnType() {
+        return txnType;
+    }
+
+    public void setTxnType(String txnType) {
+        this.txnType = txnType;
+    }
+
     public FSCreateOrder() {}
 
     // Getter和Setter方法

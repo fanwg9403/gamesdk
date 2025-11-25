@@ -96,6 +96,8 @@ dependencies {
             exclude group: 'com.google.errorprone', module: 'error_prone_annotations'
         }
     }
+
+    implementation fileTree(include: ['*.jar', '*.aar'], dir: 'libs')
 }
 
 group = 'com.github.fanwg9403'

@@ -3,12 +3,12 @@ package com.wishfox.foxsdk.utils.pay;
 import android.content.Context;
 
 import com.hjq.toast.Toaster;
+import com.wishfox.foxsdk.core.WishFoxSdk;
 import com.wishfox.foxsdk.data.model.FoxSdkBaseResponse;
 import com.wishfox.foxsdk.data.model.entity.FSCheckOrder;
-import com.wishfox.foxsdk.ui.view.widgets.FSLoadingDialog;
 import com.wishfox.foxsdk.data.network.FoxSdkApiService;
 import com.wishfox.foxsdk.data.network.FoxSdkRetrofitManager;
-import com.wishfox.foxsdk.core.WishFoxSdk;
+import com.wishfox.foxsdk.ui.view.widgets.FSLoadingDialog;
 
 import java.util.HashMap;
 import java.util.Map;
