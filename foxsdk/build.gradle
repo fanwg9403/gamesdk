@@ -97,7 +97,7 @@ dependencies {
         }
     }
 
-    implementation fileTree(include: ['*.jar', '*.aar'], dir: 'libs')
+    compileOnly fileTree(include: ['*.jar', '*.aar'], dir: 'libs')
 }
 
 group = 'com.github.fanwg9403'
