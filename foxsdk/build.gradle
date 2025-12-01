@@ -1,6 +1,7 @@
 plugins {
     id 'com.android.library'
     id 'com.github.dcendents.android-maven'
+    id 'maven-publish'
 }
 
 android {
@@ -15,6 +16,10 @@ android {
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles "consumer-rules.pro"
+
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a'
+        }
     }
 
     buildTypes {
@@ -97,7 +102,30 @@ dependencies {
         }
     }
 
-    compileOnly fileTree(include: ['*.jar', '*.aar'], dir: 'libs')
+    api fileTree(include: ['*.jar', '*.aar'], dir: 'libs')
 }
+
+task sourceJar(type: Jar) {
+    from android.sourceSets.main.java.srcDirs
+    archiveClassifier = "sources"
+}
+
+publishing {
+    repositories { RepositoryHandler handler ->
+        handler.mavenLocal()
+    }
+
+    publications {
+        aarAndroid(MavenPublication) {
+            groupId = "com.github.fanwg9403"
+            artifactId = "gamesdk"
+            version = "1.1.8"
+
+            artifact sourceJar
+            afterEvaluate { artifact(tasks.getByName("bundleReleaseAar")) }
+        }
+    }
+}
+
 
 group = 'com.github.fanwg9403'
