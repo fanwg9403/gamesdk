@@ -344,7 +344,7 @@ public class FoxSdkLongingPayUtilsV1 {
             });
 
             pollingDisposable = Observable.interval(0, 3, TimeUnit.SECONDS)
-                    .take(10)
+                    .take(5)
                     .flatMap(attempt -> {
                         // 使用 RxJava 版本的支付结果查询
                         String orderId = payResult.getOrderId();
@@ -374,7 +374,7 @@ public class FoxSdkLongingPayUtilsV1 {
                         isCheckPay = false;
                         showPayFailedDialog(context, mOnPayResultOperationListener);
                     }, () -> {
-                        // 完成时调用（10次尝试后）
+                        // 完成时调用（5次尝试后）
                         if (loadings == null || !loadings.isShowing()) return; // 如果已经关闭就不重复处理
                         loadings.dismiss();
                         loadings=null;
