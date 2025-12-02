@@ -256,7 +256,7 @@ public class FSHomeActivity extends FoxSdkBaseMviActivity<FSHomeViewState, FSHom
         }
 
         boolean hasBanner = false;
-        if (actionAdapter.getHeaderLayout().getChildCount() == 2) {
+        if (actionAdapter.getHeaderLayout().getChildCount() >= 2) {
             hasBanner = actionAdapter.getHeaderLayout().getChildAt(1) instanceof ConstraintLayout &&
                     ((ConstraintLayout) actionAdapter.getHeaderLayout().getChildAt(1)).getChildAt(0) instanceof Banner;
         } else {
@@ -264,13 +264,15 @@ public class FSHomeActivity extends FoxSdkBaseMviActivity<FSHomeViewState, FSHom
         }
         if (state.getBannerList() != null && !state.getBannerList().isEmpty()) {
             fsBannerAdapter.setDatas(state.getBannerList());
-            if (!hasBanner)
+            if (!hasBanner){
                 if(bannerHead.getParent() != null){
                     ((ViewGroup) bannerHead.getParent()).removeView(bannerHead);
                 }
                 actionAdapter.addHeaderView(bannerHead, 1);
-        } else if (hasBanner)
+            }
+        } else if (hasBanner){
             actionAdapter.removeHeaderView(bannerHead);
+        }
 
         boolean hasRegion = false;
         if (actionAdapter.getHeaderLayout().getChildCount() == 2) {
@@ -278,8 +280,9 @@ public class FSHomeActivity extends FoxSdkBaseMviActivity<FSHomeViewState, FSHom
                     ((ConstraintLayout) actionAdapter.getHeaderLayout().getChildAt(1)).getChildAt(0) instanceof ImageView;
         } else hasRegion = actionAdapter.getHeaderLayout().getChildCount() == 3;
         if (state.getUserInfo() != null && state.isLoginSuccess()) {
-            if (!hasRegion)
-                actionAdapter.addHeaderView(regionHead, hasBanner ? 2 : 1);
+            if (!hasRegion){
+                actionAdapter.addHeaderView(regionHead, state.getBannerList() != null && !state.getBannerList().isEmpty() ? 2 : 1);
+            }
         } else {
             if (hasRegion)
                 actionAdapter.removeHeaderView(regionHead);
