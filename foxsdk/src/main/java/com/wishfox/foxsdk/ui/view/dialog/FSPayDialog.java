@@ -243,7 +243,7 @@ public class FSPayDialog extends Dialog {
                 params.put("ext", json);
                 break;
             case WECHAT:
-                params.put("pay_type", 20);
+                params.put("pay_type", 32);
                 //params.put("pay_type", 31);//快钱微信
                 break;
         }
