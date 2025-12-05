@@ -12,6 +12,7 @@ import com.wishfox.foxsdk.data.model.entity.FSRechargeRecord;
 import com.wishfox.foxsdk.data.model.entity.FSSdkConfig;
 import com.wishfox.foxsdk.data.model.entity.FSStarterPack;
 import com.wishfox.foxsdk.data.model.entity.FSUserProfile;
+import com.wishfox.foxsdk.data.model.entity.FSWechatScheme;
 import com.wishfox.foxsdk.data.model.entity.FSWinFoxCoin;
 import com.wishfox.foxsdk.data.model.FoxSdkBaseResponse;
 
@@ -24,7 +25,6 @@ import retrofit2.http.Body;
 import retrofit2.http.DELETE;
 import retrofit2.http.GET;
 import retrofit2.http.POST;
-import retrofit2.http.Path;
 import retrofit2.http.Query;
 import retrofit2.http.QueryMap;
 
@@ -147,6 +147,15 @@ public interface FoxSdkApiService {
     @POST("/api/user/order")
     Single<FoxSdkBaseResponse<FSCreateOrder>> createOrder(
             @QueryMap Map<String, Object> params
+    );
+
+    /**
+     * 获取微信明文URL Scheme
+     */
+    @GET("/api/wechat/plain_scheme")
+    Single<FoxSdkBaseResponse<FSWechatScheme>> getWechatScheme(
+            @Query("query") String query,
+            @Query("env_version") String env_version
     );
 
     /**

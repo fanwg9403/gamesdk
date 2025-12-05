@@ -344,7 +344,7 @@ public class FoxSdkLongingPayUtilsV1 {
             });
 
             pollingDisposable = Observable.interval(0, 3, TimeUnit.SECONDS)
-                    .take(5)
+                    .take(3)
                     .flatMap(attempt -> {
                         // 使用 RxJava 版本的支付结果查询
                         String orderId = payResult.getOrderId();

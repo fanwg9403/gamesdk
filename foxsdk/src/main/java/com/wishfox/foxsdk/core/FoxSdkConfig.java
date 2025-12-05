@@ -2,8 +2,6 @@ package com.wishfox.foxsdk.core;
 
 import android.content.pm.ActivityInfo;
 
-import com.wishfox.foxsdk.utils.FoxSdkUtils;
-
 /**
  * 主要功能:
  *
@@ -28,7 +26,6 @@ public class FoxSdkConfig {
     private float floatXScale = 0.5f;
     // 悬浮球y轴偏移量，单位px
     private int floatXxOffset = 100;
-    private String wechatAppId;
     private boolean wechatTest = false;
 
     //快钱支付宝支付配置
@@ -55,7 +52,6 @@ public class FoxSdkConfig {
         this.screenOrientation = builder.screenOrientation;
         this.floatXScale = builder.floatXScale;
         this.floatXxOffset = builder.floatXxOffset;
-        this.wechatAppId = builder.wechatAppId;
         this.wechatTest = builder.wechatTest;
         this.kqFusedApplicationScheme = builder.kqFusedApplicationScheme;
     }
@@ -92,10 +88,6 @@ public class FoxSdkConfig {
     public int getFloatXxOffset() {
         return floatXxOffset;
     }
-
-    public String getWechatAppId() {
-        return wechatAppId;
-    }
     public String getKqFusedApplicationScheme() {
         return kqFusedApplicationScheme;
     }
@@ -119,7 +111,6 @@ public class FoxSdkConfig {
         private int screenOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
         private float floatXScale = 0.5f;
         private int floatXxOffset = 100;
-        private String wechatAppId;
         private String kqFusedApplicationScheme;
         private boolean wechatTest = false;
 
@@ -187,11 +178,6 @@ public class FoxSdkConfig {
 
         public Builder setFloatXxOffset(int floatXxOffset) {
             this.floatXxOffset = floatXxOffset;
-            return this;
-        }
-
-        public Builder setWechatAppId(String wechatAppId) {
-            this.wechatAppId = wechatAppId;
             return this;
         }
 

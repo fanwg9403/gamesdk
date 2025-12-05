@@ -1,20 +1,18 @@
 package com.wishfox.foxsdk.utils.pay;
 
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.text.TextUtils;
+import android.util.Pair;
 
+import com.google.gson.Gson;
 import com.hjq.toast.Toaster;
-import com.tencent.mm.opensdk.modelbiz.WXLaunchMiniProgram;
-import com.tencent.mm.opensdk.openapi.IWXAPI;
-import com.tencent.mm.opensdk.openapi.WXAPIFactory;
 import com.wishfox.foxsdk.R;
-import com.wishfox.foxsdk.core.WishFoxSdk;
 import com.wishfox.foxsdk.utils.FoxSdkConstant;
 import com.wishfox.foxsdk.utils.FoxSdkSPUtils;
 
+import java.net.URLEncoder;
 import java.util.Map;
-
-import io.reactivex.rxjava3.core.Observable;
 
 /**
  * 主要功能:
@@ -25,41 +23,39 @@ import io.reactivex.rxjava3.core.Observable;
  */
 public class FoxSdkWxPay {
 
-    public static Observable<Boolean> wXMiniProgramPayment(Context context, Map<String, Object> map) {
-        return Observable.fromCallable(() -> {
-            if (!FoxSdkWechatService.isWeChatInstalled().blockingFirst()) {
-                Toaster.show(context.getString(R.string.fs_str_wx_pay));
-                return false;
-            }
+    public static Pair<Boolean, String> wXMiniProgramPayment(Context context, Map<String, Object> map) {
+        if (!checkWechatInstallation(context)) {
+            Toaster.show(context.getString(R.string.fs_str_wx_pay));
+            return new Pair(false, context.getString(R.string.fs_str_wx_pay));
+        }
 
-            FoxSdkSPUtils storage = FoxSdkSPUtils.getInstance();
-            IWXAPI api = WXAPIFactory.createWXAPI(context, TextUtils.isEmpty(WishFoxSdk.getConfig().getWechatAppId()) ? FoxSdkPayConfig.APP_ID : WishFoxSdk.getConfig().getWechatAppId());
-            WXLaunchMiniProgram.Req req = new WXLaunchMiniProgram.Req();
-            req.userName = FoxSdkPayConfig.MINI_PROGRAM_ID;
+        FoxSdkSPUtils storage = FoxSdkSPUtils.getInstance();
+        Map<String, Object> mutableMap = new java.util.HashMap<>(map);
+        if (!"Android".equals(mutableMap.get("payChannel"))) {
+            mutableMap.put("payChannel", "Android");
+        }
+        mutableMap.put("childPayType", ChildPayType.WX_PAY.getValue());
+        mutableMap.put("token", storage.get(FoxSdkConstant.AUTHORIZATION, ""));
+        String resultQuery = "";
+        try {
+            resultQuery = new Gson().toJson(mutableMap);
+        } catch (Exception e) {
+            e.printStackTrace();
+            resultQuery = "";
+        }
+        if (TextUtils.isEmpty(resultQuery))
+            return new Pair(false, "打开微信失败，请联系客服");
+        else
+            return new Pair(true, resultQuery);
+    }
 
-            StringBuilder pathBuilder = new StringBuilder();
-            pathBuilder.append("contentPackages/payPage/payPage?token=")
-                    .append(storage.get(FoxSdkConstant.AUTHORIZATION, ""));
-
-            Map<String, Object> mutableMap = new java.util.HashMap<>(map);
-            if (!"Android".equals(mutableMap.get("payChannel"))) {
-                mutableMap.put("payChannel", "Android");
-            }
-            mutableMap.put("childPayType", ChildPayType.WX_PAY.getValue());
-
-            for (Map.Entry<String, Object> entry : mutableMap.entrySet()) {
-                Object value = entry.getValue();
-                String valueStr = (value instanceof String) ?
-                        (value != null ? (String) value : "") :
-                        String.valueOf(value != null ? value : "");
-                pathBuilder.append("&").append(entry.getKey()).append("=").append(valueStr);
-            }
-
-            req.path = pathBuilder.toString();
-            req.miniprogramType = WishFoxSdk.getConfig().isWechatTest() ? WXLaunchMiniProgram.Req.MINIPROGRAM_TYPE_PREVIEW :
-                    WXLaunchMiniProgram.Req.MINIPTOGRAM_TYPE_RELEASE;
-
-            return api.sendReq(req);
-        });
+    private static boolean checkWechatInstallation(Context context) {
+        try {
+            PackageManager pm = context.getPackageManager();
+            pm.getPackageInfo("com.tencent.mm", 0);
+            return true;
+        } catch (PackageManager.NameNotFoundException e) {
+            return false;
+        }
     }
 }

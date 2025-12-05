@@ -2,14 +2,16 @@ package com.wishfox.foxsdk.ui.view.dialog;
 
 import android.app.Dialog;
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.Pair;
 import android.view.View;
 
 import com.google.gson.Gson;
 import com.hjq.toast.Toaster;
 import com.wishfox.foxsdk.R;
-import com.wishfox.foxsdk.core.FoxSdkConfig;
 import com.wishfox.foxsdk.core.WishFoxSdk;
 import com.wishfox.foxsdk.data.model.entity.FSAliPay;
 import com.wishfox.foxsdk.data.model.entity.FSCoinInfo;
@@ -27,7 +29,6 @@ import com.wishfox.foxsdk.utils.FoxSdkPayEnum;
 import com.wishfox.foxsdk.utils.FoxSdkViewExt;
 import com.wishfox.foxsdk.utils.pay.FoxSdkAliPay;
 import com.wishfox.foxsdk.utils.pay.FoxSdkQuickMoneyPay;
-import com.wishfox.foxsdk.utils.pay.FoxSdkWechatService;
 import com.wishfox.foxsdk.utils.pay.FoxSdkWxPay;
 
 import java.io.IOException;
@@ -80,7 +81,7 @@ public class FSPayDialog extends Dialog {
         binding = FsDialogPayBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         if (sdkConfig != null) {
-            if (sdkConfig.getWechat_pay_open_status() == 0 || TextUtils.isEmpty(WishFoxSdk.getConfig().getWechatAppId())) {//未开启
+            if (sdkConfig.getWechat_pay_open_status() == 0) {//未开启
                 binding.fsCheckRadioWechat.setVisibility(View.GONE);
             } else {
                 binding.fsCheckRadioWechat.setVisibility(View.VISIBLE);
@@ -134,11 +135,6 @@ public class FSPayDialog extends Dialog {
             FoxSdkPayEnum payType = getPayTypeFromPosition(selectedPosition);
 
             if (payType != null) {
-                if (payType == FoxSdkPayEnum.WECHAT && TextUtils.isEmpty(WishFoxSdk.getConfig().getWechatAppId())) {
-                    loading.dismiss();
-                    Toaster.show("请先配置微信appid");
-                    return;
-                }
                 pay(payType);
             } else {
                 Toaster.show("请选择支付方式");
@@ -186,7 +182,7 @@ public class FSPayDialog extends Dialog {
      */
     private void pay(FoxSdkPayEnum payType) {
         Map<String, Object> params = createPayParams(payType);
-        FoxSdkLogger.e("FoxSdk",new Gson().toJson( params));
+        FoxSdkLogger.e("FoxSdk", new Gson().toJson(params));
         FoxSdkNetworkExecutor.execute(() ->
                 FoxSdkRetrofitManager.getApiService().createOrder(params).blockingGet()
         )
@@ -303,6 +299,7 @@ public class FSPayDialog extends Dialog {
         }
         loading.dismiss();
     }
+
     private void handleQuickMoneyAliPayment(FSCreateOrder data) {
         if (data.getRaw_response().getMpayInfo() != null) {
             FSMpayInfo mpayInfo = data.getRaw_response().getMpayInfo();
@@ -323,15 +320,59 @@ public class FSPayDialog extends Dialog {
     }
 
     private void handleWechatPayment(FSCreateOrder data, String price) {
-        FoxSdkWechatService.init(getContext());
         Map<String, Object> wxParams = createWechatParams(data, price);
 
-        boolean success = FoxSdkWxPay.wXMiniProgramPayment(getContext(), wxParams).blockingLast();
-        if (success && onPayCreate != null) {
-            String posSeq = data.getPos_seq() != null ? data.getPos_seq() : "";
-            onPayCreate.onPayCreate(new FSPayResult(true, posSeq, FoxSdkPayEnum.WECHAT));
+        Pair<Boolean, String> pair = FoxSdkWxPay.wXMiniProgramPayment(getContext(), wxParams);
+        if (pair.first) {
+            startWechatForScheme(pair.second, data.getPos_seq() != null ? data.getPos_seq() : "");
+        } else {
+            loading.dismiss();
+            Toaster.show(pair.second);
         }
-        loading.dismiss();
+    }
+
+    private void startWechatForScheme(String query, String pos_seq) {
+        FoxSdkNetworkExecutor.execute(() ->
+                FoxSdkRetrofitManager.getApiService().getWechatScheme(
+                        query,
+                        WishFoxSdk.getConfig().isWechatTest() ? "trial" : "release"
+                ).blockingGet()
+        )
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(result -> {
+                    loading.dismiss();
+                    if (result.isSuccess()) {
+                        try {
+                            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(result.getData().getScheme()));
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            getContext().startActivity(intent);
+
+                            if (onPayCreate != null) {
+                                onPayCreate.onPayCreate(new FSPayResult(true, pos_seq, FoxSdkPayEnum.WECHAT));
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                            Toaster.show("打开微信失败，请联系客服");
+                        }
+                    } else if (result.isError()) {
+                        String errorMsg = result.getError() != null ? result.getError() : "支付失败";
+                        Toaster.show(errorMsg);
+                    } else if (result.isEmpty()) {
+                        Toaster.show("支付结果为空");
+                    }
+                }, throwable -> {
+                    loading.dismiss();
+                    String errorMsg = "网络请求失败";
+                    if (throwable instanceof IOException) {
+                        errorMsg = "网络连接失败，请检查网络";
+                    } else if (throwable instanceof SocketTimeoutException) {
+                        errorMsg = "网络连接超时，请重试";
+                    } else if (throwable instanceof HttpException) {
+                        errorMsg = "服务器错误，请稍后重试";
+                    }
+                    Toaster.show(errorMsg);
+                });
     }
 
     private Map<String, Object> createWechatParams(FSCreateOrder data, String price) {

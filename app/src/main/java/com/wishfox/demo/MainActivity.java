@@ -6,9 +6,7 @@ import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.google.gson.Gson;
 import com.wishfox.foxsdk.data.model.entity.FSPayResult;
-import com.wishfox.foxsdk.ui.view.dialog.FSPayDialog;
 import com.wishfox.foxsdk.utils.FoxSdkLongingPayUtilsV1;
 import com.wishfox.foxsdk.utils.FoxSdkUtils;
 
@@ -28,10 +26,10 @@ public class MainActivity extends AppCompatActivity {
                         MainActivity.this,
                         "1",
                         "元宝",
-                        "0.01",
+                        "1",
                         "元宝",
                         System.currentTimeMillis(),
-                        "284020251030173253512349483",
+                        "284020251030173253512349495",
                         (userId, token) -> {
                             ((TextView) findViewById(R.id.tv_info)).setText("userId: " + userId + "\ntoken: " + token);
                         }, (payResult) -> {

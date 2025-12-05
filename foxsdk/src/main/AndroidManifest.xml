@@ -15,10 +15,6 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 
-    <queries>
-        <package android:name="com.sohuglobal.world" />
-    </queries>
-
     <application
         android:allowBackup="true"
         android:label="@string/app_name"
@@ -74,35 +70,20 @@
 
         <!-- 许愿狐授权入口 -->
         <activity
-            android:name="com.wishfox.foxsdk.wxapi.WXEntryActivity"
-            android:exported="true"
-            android:label="@string/app_name"
-            android:launchMode="singleTop"
-            android:taskAffinity="com.wishfox.foxsdk"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-
-        <activity
-            android:name="com.wishfox.foxsdk.wxapi.WXPayEntryActivity"
-            android:exported="true"
-            android:label="@string/app_name"
-            android:taskAffinity="com.wishfox.foxsdk"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-
-        <activity
             android:name="com.wishfox.foxsdk.core.WishFoxEntryActivity"
             android:exported="true"
             android:label="WishFoxSdk"
             android:launchMode="singleTop"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.Transparent" />
+
         <!--快钱支付回调-->
         <activity android:name="com.wishfox.foxsdk.wxapi.QuickMoneyPayResultActivity" />
     </application>
 
     <queries>
+        <package android:name="com.sohuglobal.world" />
         <package android:name="com.tencent.mm" />  <!-- // 指定微信包名-->
-    </queries>
-    <queries>
         <package android:name="com.eg.android.AlipayGphone" /> <!-- 支付宝 -->
         <package android:name="hk.alipay.wallet" /> <!-- AlipayHK -->
     </queries>
