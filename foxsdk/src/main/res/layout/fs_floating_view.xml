@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ImageView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="@dimen/dp_60"
-    android:layout_height="@dimen/dp_60"
-    android:contentDescription="@null"
-    android:src="@mipmap/fs_icon_float_round_fill" />
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:padding="@dimen/dp_8">
+
+    <ImageView xmlns:android="http://schemas.android.com/apk/res/android"
+        android:layout_width="@dimen/dp_40"
+        android:layout_height="@dimen/dp_40"
+        android:contentDescription="@null"
+        android:src="@mipmap/fs_icon_float_round_fill" />
+</FrameLayout>
