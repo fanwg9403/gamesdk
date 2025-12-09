@@ -38,10 +38,10 @@ public class FoxSdkUtils {
     }
 
     public static void hideFloatX() {
-        FloatingX.configControl(FoxSdkUtils.FloatXTag).setEnableHalfHide(true, WishFoxSdk.getConfig().getFloatXScale());
-        if (FloatingX.control(FoxSdkUtils.FloatXTag).getView() != null)
-            FloatingX.control(FoxSdkUtils.FloatXTag).getView().setAlpha(0.5f);
-        WishFoxSdk.setFloatActive(false);
+//        FloatingX.configControl(FoxSdkUtils.FloatXTag).setEnableHalfHide(true, WishFoxSdk.getConfig().getFloatXScale());
+//        if (FloatingX.control(FoxSdkUtils.FloatXTag).getView() != null)
+//            FloatingX.control(FoxSdkUtils.FloatXTag).getView().setAlpha(0.5f);
+//        WishFoxSdk.setFloatActive(false);
     }
 
     public static Pair<String, String> getFSUInfo() {

@@ -62,7 +62,7 @@ public class FoxSdkLongingPayUtilsV1 {
      * @param mActivity
      * @param onLoginListener
      */
-    public void loginWishFox(Activity mActivity, OnLoginListener onLoginListener) {
+    public static void loginWishFox(Activity mActivity, OnLoginListener onLoginListener) {
         loginDialog = new FSLoginDialog(mActivity);
         loginDialog.setOnLoginClickListener((arg1, arg2, type,loadingDialog) -> {
 //            loading = new FSLoadingDialog(mActivity);
