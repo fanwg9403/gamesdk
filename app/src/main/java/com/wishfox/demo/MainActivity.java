@@ -37,7 +37,7 @@ public class MainActivity extends AppCompatActivity {
                             fsPayResult = payResult;
                         }));
 
-        findViewById(R.id.tv_pay).postDelayed(FoxSdkUtils::hideFloatX, 1000);
+//        findViewById(R.id.tv_pay).postDelayed(FoxSdkUtils::hideFloatX, 1000);
     }
 
     @Override

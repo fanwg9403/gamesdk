@@ -92,7 +92,7 @@ public class WishFoxSdk {
                 .setLayout(R.layout.fs_floating_view)
                 .setOffsetXY(0, FoxSdkCommonExt.dp2px(context, config.getFloatXxOffset()))
                 .setScopeType(FxScopeType.APP)
-                .setDisplayMode(FxDisplayMode.ClickOnly)
+                .setDisplayMode(FxDisplayMode.Normal)
 //                .setEnableAnimation(true)
                 .addInstallBlackClass(
                         "com.wishfox.foxsdk.ui.view.activity.FSHomeActivity",
