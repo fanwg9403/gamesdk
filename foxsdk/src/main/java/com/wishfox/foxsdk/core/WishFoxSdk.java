@@ -4,12 +4,16 @@ import android.annotation.SuppressLint;
 import android.app.Application;
 import android.content.Context;
 import android.content.Intent;
+import android.view.MotionEvent;
+import android.view.View;
 
 import com.hjq.toast.Toaster;
 import com.petterp.floatingx.FloatingX;
 import com.petterp.floatingx.assist.FxDisplayMode;
 import com.petterp.floatingx.assist.FxScopeType;
 import com.petterp.floatingx.assist.helper.FxAppHelper;
+import com.petterp.floatingx.listener.IFxTouchListener;
+import com.petterp.floatingx.view.IFxInternalHelper;
 import com.tencent.bugly.crashreport.CrashReport;
 import com.wishfox.foxsdk.ui.base.FoxSdkBaseMviActivity;
 import com.wishfox.foxsdk.data.network.FoxSdkRetrofitManager;
@@ -20,6 +24,9 @@ import com.wishfox.foxsdk.utils.FoxSdkLogger;
 import com.wishfox.foxsdk.utils.FoxSdkUtils;
 import com.wishfox.foxsdk.utils.FoxSdkViewExt;
 import com.wishfox.foxsdk.utils.customerservice.QiyukfHelper;
+
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * 主要功能:
@@ -36,6 +43,7 @@ public class WishFoxSdk {
     private static FoxSdkConfig config;
     private static Context context;
 
+    private static boolean floatMove = false;
     private static boolean floatActive = true;
 
     public static void setFloatActive(boolean floatActive) {
@@ -104,45 +112,81 @@ public class WishFoxSdk {
                         "com.wishfox.foxsdk.ui.view.activity.FSMessageActivity",
                         "com.wishfox.foxsdk.ui.view.activity.FSWebActivity"
                 )
-                .setOnClickListener(v -> {
-                    if (v != null && v.getContext() != null) {
-                        FoxSdkViewExt.setOnClickListener(v, (cv) -> {
-//                            if (floatActive) {
-                                Intent intent = new Intent(v.getContext(), FSHomeActivity.class);
-                                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                                context.startActivity(intent);
-//
-//                                if (FloatingX.control(FoxSdkUtils.FloatXTag).getView() != null) {
-//                                    FloatingX.control(FoxSdkUtils.FloatXTag).getView().postDelayed(() -> {
-//                                        FloatingX.configControl(FoxSdkUtils.FloatXTag).setEnableHalfHide(true, getConfig().getFloatXScale());
-//                                        if (FloatingX.control(FoxSdkUtils.FloatXTag).getView() != null)
-//                                            FloatingX.control(FoxSdkUtils.FloatXTag).getView().setAlpha(0.5f);
-//                                        floatActive = false;
-//                                    }, 1500);
-//                                }
-//                            } else {
-//                                FloatingX.configControl(FoxSdkUtils.FloatXTag).setEnableHalfHide(false);
-//                                if (FloatingX.control(FoxSdkUtils.FloatXTag).getView() != null)
-//                                    FloatingX.control(FoxSdkUtils.FloatXTag).getView().setAlpha(1f);
-//                                if (FloatingX.control(FoxSdkUtils.FloatXTag).getView() != null) {
-//                                    FloatingX.control(FoxSdkUtils.FloatXTag).getView().postDelayed(() -> {
-//                                        floatActive = true;
-//                                        if (FloatingX.control(FoxSdkUtils.FloatXTag).getView() != null) {
-//                                            FloatingX.control(FoxSdkUtils.FloatXTag).getView().postDelayed(() -> {
-//                                                FloatingX.configControl(FoxSdkUtils.FloatXTag).setEnableHalfHide(true, getConfig().getFloatXScale());
-//                                                if (FloatingX.control(FoxSdkUtils.FloatXTag).getView() != null)
-//                                                    FloatingX.control(FoxSdkUtils.FloatXTag).getView().setAlpha(0.5f);
-//                                                floatActive = false;
-//                                            }, 1500);
-//                                        }
-//                                    }, 150);
-//                                } else {
-//                                    floatActive = true;
-//                                }
-//                            }
-                        });
+                .setTouchListener(new IFxTouchListener() {
+                    @Override
+                    public void onDown() {
+                        View floatView = FloatingX.control(FoxSdkUtils.FloatXTag).getView();
+                        if (floatView != null)
+                            floatView.postDelayed(() -> {
+                                if (!floatMove && floatView != null && floatView.getContext() != null) {
+                                    Intent intent = new Intent(floatView.getContext(), FSHomeActivity.class);
+                                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                    context.startActivity(intent);
+                                }
+                            }, 350);
+                    }
+
+                    @Override
+                    public void onUp() {
+                        View floatView = FloatingX.control(FoxSdkUtils.FloatXTag).getView();
+                        if (floatView != null)
+                            floatView.postDelayed(() -> floatMove = false, 150);
+                    }
+
+                    @Override
+                    public void onDragIng(@NotNull MotionEvent motionEvent, float v, float v1) {
+                        floatMove = true;
+                    }
+
+                    @Override
+                    public boolean onTouch(@NotNull MotionEvent motionEvent, @Nullable IFxInternalHelper iFxInternalHelper) {
+                        return false;
+                    }
+
+                    @Override
+                    public boolean onInterceptTouchEvent(@NotNull MotionEvent motionEvent, @Nullable IFxInternalHelper iFxInternalHelper) {
+                        return true;
                     }
                 })
+//                .setOnClickListener(v -> {
+//                    if (v != null && v.getContext() != null && !floatMove) {
+//                        FoxSdkViewExt.setOnClickListener(v, (cv) -> {
+////                            if (floatActive) {
+//                            Intent intent = new Intent(v.getContext(), FSHomeActivity.class);
+//                            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+//                            context.startActivity(intent);
+////
+////                                if (FloatingX.control(FoxSdkUtils.FloatXTag).getView() != null) {
+////                                    FloatingX.control(FoxSdkUtils.FloatXTag).getView().postDelayed(() -> {
+////                                        FloatingX.configControl(FoxSdkUtils.FloatXTag).setEnableHalfHide(true, getConfig().getFloatXScale());
+////                                        if (FloatingX.control(FoxSdkUtils.FloatXTag).getView() != null)
+////                                            FloatingX.control(FoxSdkUtils.FloatXTag).getView().setAlpha(0.5f);
+////                                        floatActive = false;
+////                                    }, 1500);
+////                                }
+////                            } else {
+////                                FloatingX.configControl(FoxSdkUtils.FloatXTag).setEnableHalfHide(false);
+////                                if (FloatingX.control(FoxSdkUtils.FloatXTag).getView() != null)
+////                                    FloatingX.control(FoxSdkUtils.FloatXTag).getView().setAlpha(1f);
+////                                if (FloatingX.control(FoxSdkUtils.FloatXTag).getView() != null) {
+////                                    FloatingX.control(FoxSdkUtils.FloatXTag).getView().postDelayed(() -> {
+////                                        floatActive = true;
+////                                        if (FloatingX.control(FoxSdkUtils.FloatXTag).getView() != null) {
+////                                            FloatingX.control(FoxSdkUtils.FloatXTag).getView().postDelayed(() -> {
+////                                                FloatingX.configControl(FoxSdkUtils.FloatXTag).setEnableHalfHide(true, getConfig().getFloatXScale());
+////                                                if (FloatingX.control(FoxSdkUtils.FloatXTag).getView() != null)
+////                                                    FloatingX.control(FoxSdkUtils.FloatXTag).getView().setAlpha(0.5f);
+////                                                floatActive = false;
+////                                            }, 1500);
+////                                        }
+////                                    }, 150);
+////                                } else {
+////                                    floatActive = true;
+////                                }
+////                            }
+//                        });
+//                    }
+//                })
                 .build();
         FloatingX.install(helper).show();
     }
