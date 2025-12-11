@@ -8,8 +8,8 @@ import android.content.pm.PackageManager;
 import android.util.Pair;
 
 import com.hjq.toast.Toaster;
-import com.petterp.floatingx.FloatingX;
-import com.wishfox.foxsdk.core.WishFoxSdk;
+//import com.petterp.floatingx.FloatingX;
+//import com.wishfox.foxsdk.core.WishFoxSdk;
 import com.wishfox.foxsdk.data.model.entity.FSLoginResult;
 import com.wishfox.foxsdk.data.model.entity.FSUserInfo;
 

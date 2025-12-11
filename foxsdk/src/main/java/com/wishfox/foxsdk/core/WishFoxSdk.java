@@ -1,24 +1,29 @@
 package com.wishfox.foxsdk.core;
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.app.Application;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Bundle;
 import android.view.MotionEvent;
 import android.view.View;
 
+import androidx.annotation.NonNull;
+
 import com.hjq.toast.Toaster;
-import com.petterp.floatingx.FloatingX;
-import com.petterp.floatingx.assist.FxDisplayMode;
-import com.petterp.floatingx.assist.FxScopeType;
-import com.petterp.floatingx.assist.helper.FxAppHelper;
-import com.petterp.floatingx.listener.IFxTouchListener;
-import com.petterp.floatingx.view.IFxInternalHelper;
+//import com.petterp.floatingx.FloatingX;
+//import com.petterp.floatingx.assist.FxDisplayMode;
+//import com.petterp.floatingx.assist.FxScopeType;
+//import com.petterp.floatingx.assist.helper.FxAppHelper;
+//import com.petterp.floatingx.listener.IFxTouchListener;
+//import com.petterp.floatingx.view.IFxInternalHelper;
 import com.tencent.bugly.crashreport.CrashReport;
 import com.wishfox.foxsdk.ui.base.FoxSdkBaseMviActivity;
 import com.wishfox.foxsdk.data.network.FoxSdkRetrofitManager;
 import com.wishfox.foxsdk.R;
 import com.wishfox.foxsdk.ui.view.activity.FSHomeActivity;
+import com.wishfox.foxsdk.ui.view.widgets.FSSemiStealthWindow;
 import com.wishfox.foxsdk.utils.FoxSdkCommonExt;
 import com.wishfox.foxsdk.utils.FoxSdkLogger;
 import com.wishfox.foxsdk.utils.FoxSdkUtils;
@@ -83,7 +88,8 @@ public class WishFoxSdk {
         QiyukfHelper.getInstance().initKFSDK();
 
         // 初始化悬浮窗
-        initFloatingWindow(context);
+//        initFloatingWindow(context);
+        WindowLifecycleControl.with((Application) context);
 
         if (config.isEnableLog()) {
             FoxSdkLogger.d(TAG, "WishFoxSDK 初始化成功！");
@@ -94,60 +100,60 @@ public class WishFoxSdk {
      * 初始化悬浮窗
      */
     private static void initFloatingWindow(Context context) {
-        FxAppHelper helper = new FxAppHelper.Builder()
-                .setTag(FoxSdkUtils.FloatXTag)
-                .setContext(context)
-                .setLayout(R.layout.fs_floating_view)
-                .setOffsetXY(0, FoxSdkCommonExt.dp2px(context, config.getFloatXxOffset()))
-                .setScopeType(FxScopeType.APP)
-                .setDisplayMode(FxDisplayMode.Normal)
-//                .setEnableAnimation(true)
-                .addInstallBlackClass(
-                        "com.wishfox.foxsdk.ui.view.activity.FSHomeActivity",
-                        "com.wishfox.foxsdk.ui.view.activity.FSStarterPackActivity",
-                        "com.wishfox.foxsdk.ui.view.activity.FSWinFoxCoinActivity",
-                        "com.wishfox.foxsdk.ui.view.activity.FSRechargeRecordActivity",
-                        "com.wishfox.foxsdk.ui.view.activity.FSGameRecordActivity",
-                        "com.qiyukf.unicorn.ui.activity.ServiceMessageActivity",
-                        "com.wishfox.foxsdk.ui.view.activity.FSMessageActivity",
-                        "com.wishfox.foxsdk.ui.view.activity.FSWebActivity"
-                )
-                .setTouchListener(new IFxTouchListener() {
-                    @Override
-                    public void onDown() {
-                        View floatView = FloatingX.control(FoxSdkUtils.FloatXTag).getView();
-                        if (floatView != null)
-                            floatView.postDelayed(() -> {
-                                if (!floatMove && floatView != null && floatView.getContext() != null) {
-                                    Intent intent = new Intent(floatView.getContext(), FSHomeActivity.class);
-                                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                                    context.startActivity(intent);
-                                }
-                            }, 350);
-                    }
-
-                    @Override
-                    public void onUp() {
-                        View floatView = FloatingX.control(FoxSdkUtils.FloatXTag).getView();
-                        if (floatView != null)
-                            floatView.postDelayed(() -> floatMove = false, 150);
-                    }
-
-                    @Override
-                    public void onDragIng(@NotNull MotionEvent motionEvent, float v, float v1) {
-                        floatMove = true;
-                    }
-
-                    @Override
-                    public boolean onTouch(@NotNull MotionEvent motionEvent, @Nullable IFxInternalHelper iFxInternalHelper) {
-                        return false;
-                    }
-
-                    @Override
-                    public boolean onInterceptTouchEvent(@NotNull MotionEvent motionEvent, @Nullable IFxInternalHelper iFxInternalHelper) {
-                        return true;
-                    }
-                })
+//        FxAppHelper helper = new FxAppHelper.Builder()
+//                .setTag(FoxSdkUtils.FloatXTag)
+//                .setContext(context)
+//                .setLayout(R.layout.fs_floating_view)
+//                .setOffsetXY(0, FoxSdkCommonExt.dp2px(context, config.getFloatXxOffset()))
+//                .setScopeType(FxScopeType.APP)
+//                .setDisplayMode(FxDisplayMode.Normal)
+////                .setEnableAnimation(true)
+//                .addInstallBlackClass(
+//                        "com.wishfox.foxsdk.ui.view.activity.FSHomeActivity",
+//                        "com.wishfox.foxsdk.ui.view.activity.FSStarterPackActivity",
+//                        "com.wishfox.foxsdk.ui.view.activity.FSWinFoxCoinActivity",
+//                        "com.wishfox.foxsdk.ui.view.activity.FSRechargeRecordActivity",
+//                        "com.wishfox.foxsdk.ui.view.activity.FSGameRecordActivity",
+//                        "com.qiyukf.unicorn.ui.activity.ServiceMessageActivity",
+//                        "com.wishfox.foxsdk.ui.view.activity.FSMessageActivity",
+//                        "com.wishfox.foxsdk.ui.view.activity.FSWebActivity"
+//                )
+//                .setTouchListener(new IFxTouchListener() {
+//                    @Override
+//                    public void onDown() {
+//                        View floatView = FloatingX.control(FoxSdkUtils.FloatXTag).getView();
+//                        if (floatView != null)
+//                            floatView.postDelayed(() -> {
+//                                if (!floatMove && floatView != null && floatView.getContext() != null) {
+//                                    Intent intent = new Intent(floatView.getContext(), FSHomeActivity.class);
+//                                    intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+//                                    context.startActivity(intent);
+//                                }
+//                            }, 350);
+//                    }
+//
+//                    @Override
+//                    public void onUp() {
+//                        View floatView = FloatingX.control(FoxSdkUtils.FloatXTag).getView();
+//                        if (floatView != null)
+//                            floatView.postDelayed(() -> floatMove = false, 150);
+//                    }
+//
+//                    @Override
+//                    public void onDragIng(@NotNull MotionEvent motionEvent, float v, float v1) {
+//                        floatMove = true;
+//                    }
+//
+//                    @Override
+//                    public boolean onTouch(@NotNull MotionEvent motionEvent, @Nullable IFxInternalHelper iFxInternalHelper) {
+//                        return false;
+//                    }
+//
+//                    @Override
+//                    public boolean onInterceptTouchEvent(@NotNull MotionEvent motionEvent, @Nullable IFxInternalHelper iFxInternalHelper) {
+//                        return true;
+//                    }
+//                })
 //                .setOnClickListener(v -> {
 //                    if (v != null && v.getContext() != null && !floatMove) {
 //                        FoxSdkViewExt.setOnClickListener(v, (cv) -> {
@@ -187,8 +193,8 @@ public class WishFoxSdk {
 //                        });
 //                    }
 //                })
-                .build();
-        FloatingX.install(helper).show();
+//                .build();
+//        FloatingX.install(helper).show();
     }
 
     /**
@@ -221,5 +227,49 @@ public class WishFoxSdk {
      */
     public static boolean isInitialized() {
         return isInitialized;
+    }
+}
+
+final class WindowLifecycleControl implements Application.ActivityLifecycleCallbacks {
+
+    static void with(Application application) {
+        application.registerActivityLifecycleCallbacks(new WindowLifecycleControl());
+    }
+
+    @Override
+    public void onActivityCreated(@NonNull Activity activity, @androidx.annotation.Nullable Bundle savedInstanceState) {
+        if (!(activity instanceof FoxSdkBaseMviActivity))
+            new FSSemiStealthWindow(activity)
+                    .show();
+    }
+
+    @Override
+    public void onActivityStarted(@NonNull Activity activity) {
+
+    }
+
+    @Override
+    public void onActivityResumed(@NonNull Activity activity) {
+
+    }
+
+    @Override
+    public void onActivityPaused(@NonNull Activity activity) {
+
+    }
+
+    @Override
+    public void onActivityStopped(@NonNull Activity activity) {
+
+    }
+
+    @Override
+    public void onActivitySaveInstanceState(@NonNull Activity activity, @NonNull Bundle outState) {
+
+    }
+
+    @Override
+    public void onActivityDestroyed(@NonNull Activity activity) {
+
     }
 }

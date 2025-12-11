@@ -1,13 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:padding="@dimen/dp_8">
-
-    <ImageView xmlns:android="http://schemas.android.com/apk/res/android"
-        android:layout_width="@dimen/dp_40"
-        android:layout_height="@dimen/dp_40"
-        android:alpha="0.5"
-        android:contentDescription="@null"
-        android:src="@mipmap/fs_icon_float_round_fill" />
-</FrameLayout>
+<ImageView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/icon"
+    android:layout_width="@dimen/dp_56"
+    android:layout_height="@dimen/dp_56"
+    android:padding="@dimen/dp_8"
+    android:src="@mipmap/fs_icon_float_round_fill" />
