@@ -49,7 +49,7 @@ public class FoxSdkWxPay {
             return new Pair(true, resultQuery);
     }
 
-    private static boolean checkWechatInstallation(Context context) {
+   public static boolean checkWechatInstallation(Context context) {
         try {
             PackageManager pm = context.getPackageManager();
             pm.getPackageInfo("com.tencent.mm", 0);

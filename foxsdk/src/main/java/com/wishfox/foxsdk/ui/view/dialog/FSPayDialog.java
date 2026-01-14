@@ -135,7 +135,28 @@ public class FSPayDialog extends Dialog {
             FoxSdkPayEnum payType = getPayTypeFromPosition(selectedPosition);
 
             if (payType != null) {
+                switch (payType) {
+                    case FOX_COIN:
+                        break;
+                    case ALI_PAY:
+                        boolean installed = FoxSdkAliPay.isAlipayAvailable(getContext());
+                        if (!installed) {
+                            Toaster.show(getContext().getString(R.string.fs_str_ali_pay));
+                            loading.dismiss();
+                            return;
+                        }
+                        break;
+                    case WECHAT:
+                        boolean installedWx= FoxSdkWxPay.checkWechatInstallation(getContext());
+                        if (!installedWx) {
+                            Toaster.show(getContext().getString(R.string.fs_str_wx_pay));
+                            loading.dismiss();
+                            return;
+                        }
+                        break;
+                }
                 pay(payType);
+
             } else {
                 Toaster.show("请选择支付方式");
                 loading.dismiss();
@@ -239,8 +260,8 @@ public class FSPayDialog extends Dialog {
                 params.put("ext", json);
                 break;
             case WECHAT:
-                params.put("pay_type", 32);
-                //params.put("pay_type", 31);//快钱微信
+//                params.put("pay_type", 32);
+                params.put("pay_type", 31);//快钱微信
                 break;
         }
 
@@ -268,7 +289,8 @@ public class FSPayDialog extends Dialog {
                     handleQuickMoneyAliPayment(response.getData());
                     break;
                 case WECHAT:
-                    handleWechatPayment(response.getData(), price);
+                    //handleWechatPayment(response.getData(), price);
+                    handleQuickMoneyWechatPayment(response.getData());
                     break;
             }
         } else {
@@ -329,6 +351,26 @@ public class FSPayDialog extends Dialog {
             loading.dismiss();
             Toaster.show(pair.second);
         }
+    }
+
+    //快钱微信支付
+    private void handleQuickMoneyWechatPayment(FSCreateOrder data) {
+
+
+        if (data.getRaw_response().getMpayInfo() != null) {
+            FSMpayInfo mpayInfo = data.getRaw_response().getMpayInfo();
+            Gson gson = new Gson();
+            String mpayInfoStr = gson.toJson(mpayInfo);
+            boolean success = FoxSdkQuickMoneyPay.invokeFusedPaySDK(getContext(), "4", mpayInfoStr).blockingLast();
+            if (success && onPayCreate != null) {
+                onPayCreate.onPayCreate(new FSPayResult(true, data.getOrder_id(), FoxSdkPayEnum.WECHAT));
+            } else {
+                Toaster.show("支付失败");
+            }
+        } else {
+            Toaster.show("支付失败");
+        }
+        loading.dismiss();
     }
 
     private void startWechatForScheme(String query, String pos_seq) {

@@ -85,6 +85,7 @@ dependencies {
     // Toast
     api 'com.github.getActivity:Toaster:13.8'
     api 'com.github.getActivity:EasyWindow:13.2'
+    api 'com.tencent.mm.opensdk:wechat-sdk-android:6.8.34' //微信官方依赖库
 
     // Bugly
     api 'com.tencent.bugly:crashreport:4.1.9.3'

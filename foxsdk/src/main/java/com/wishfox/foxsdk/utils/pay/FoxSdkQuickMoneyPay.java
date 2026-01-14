@@ -1,9 +1,12 @@
 package com.wishfox.foxsdk.utils.pay;
 
+import static com.wishfox.foxsdk.utils.pay.FoxSdkWxPay.checkWechatInstallation;
+
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.text.TextUtils;
+import android.util.Pair;
 
 import com.hjq.toast.Toaster;
 import com.kuaiqian.fusedpay.entity.FusedPayRequest;
@@ -30,10 +33,27 @@ public class FoxSdkQuickMoneyPay {
 
         return Observable.fromCallable(() -> {
             boolean installed = FoxSdkAliPay.isAlipayAvailable(context);
-            if (!installed) {
-                Toaster.show(context.getString(R.string.fs_str_ali_pay));
-                return false;
-            } else {
+            if(platform.equals("7")){
+                if (!installed) {
+                    Toaster.show(context.getString(R.string.fs_str_ali_pay));
+                    return false;
+                } else {
+                    FoxSdkLogger.e("FoxSdk", "调用聚合支付sdk==="+platform+"---mpayInfo==="+mpayInfo);
+                    FusedPayRequest payRequest = new FusedPayRequest();
+                    payRequest.setPlatform(platform);
+                    payRequest.setMpayInfo(mpayInfo);
+                    // CallBackSchemeId可以自定义，自定义的结果页面需实现IKuaiqianEventHandler接口
+                    payRequest.setCallbackSchemeId("com.wishfox.foxsdk.wxapi.QuickMoneyPayResultActivity");
+                    IFusedPayApi payApi = FusedPayApiFactory.createPayApi(context);
+                    payApi.pay(payRequest);
+                    return true;
+                }
+            }else if(platform.equals("4")){
+                boolean installedWx = FoxSdkWxPay.checkWechatInstallation(context);
+                if (!installedWx) {
+                    Toaster.show(context.getString(R.string.fs_str_wx_pay));
+                    return false;
+                }
                 FoxSdkLogger.e("FoxSdk", "调用聚合支付sdk==="+platform+"---mpayInfo==="+mpayInfo);
                 FusedPayRequest payRequest = new FusedPayRequest();
                 payRequest.setPlatform(platform);
@@ -43,6 +63,8 @@ public class FoxSdkQuickMoneyPay {
                 IFusedPayApi payApi = FusedPayApiFactory.createPayApi(context);
                 payApi.pay(payRequest);
                 return true;
+            }else{
+                return false;
             }
         });
     }
