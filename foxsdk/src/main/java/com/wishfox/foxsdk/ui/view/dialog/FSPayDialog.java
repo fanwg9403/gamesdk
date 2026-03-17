@@ -32,7 +32,9 @@ import com.wishfox.foxsdk.utils.pay.FoxSdkQuickMoneyPay;
 import com.wishfox.foxsdk.utils.pay.FoxSdkWxPay;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.SocketTimeoutException;
+import java.net.URLEncoder;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -71,8 +73,10 @@ public class FSPayDialog extends Dialog {
     private OnConfirmListener onConfirm;
     private OnPayCreateListener onPayCreate;
 
+    private Context context;
     public FSPayDialog(Context context) {
         super(context, R.style.FSLoadingDialog);
+        this.context = context;
     }
 
     @Override
@@ -256,12 +260,15 @@ public class FSPayDialog extends Dialog {
                 FSAliPay fsAliPay = new FSAliPay();
                 fsAliPay.setApp_scheme(kqFusedApplicationScheme);
                 String json = new Gson().toJson(fsAliPay);
-                params.put("pay_type", 30);//快钱支付宝
-                params.put("ext", json);
+//                params.put("ext", json);
+//                params.put("pay_type", 30);//快钱支付宝
+                params.put("pay_type", 42);//通联支付支付宝
+
                 break;
             case WECHAT:
 //                params.put("pay_type", 32);
-                params.put("pay_type", 31);//快钱微信
+//                params.put("pay_type", 31);//快钱微信
+                params.put("pay_type", 41);//通联支付微信
                 break;
         }
 
@@ -286,11 +293,13 @@ public class FSPayDialog extends Dialog {
                     break;
                 case ALI_PAY:
                     //handleAliPayment(response.getData());
-                    handleQuickMoneyAliPayment(response.getData());
+//                    handleQuickMoneyAliPayment(response.getData());
+                    handleAllinpayAliPayment(response.getData());//通联支付支付宝
                     break;
                 case WECHAT:
-                    //handleWechatPayment(response.getData(), price);
-                    handleQuickMoneyWechatPayment(response.getData());
+//                    handleWechatPayment(response.getData(), price);
+//                    handleQuickMoneyWechatPayment(response.getData());
+                    handleAllinpayWechatPayment(response.getData(), price);//通联支付微信
                     break;
             }
         } else {
@@ -341,6 +350,44 @@ public class FSPayDialog extends Dialog {
         loading.dismiss();
     }
 
+    //通联支付-----微信支付
+    private void handleAllinpayWechatPayment(FSCreateOrder data, String price) {
+        Map<String, Object> wxParams = createAllinpayWechatParams(data, price);
+
+        Pair<Boolean, String> pair = FoxSdkWxPay.wXMiniProgramPayment(getContext(), wxParams);
+        if (pair.first) {
+            startWechatForScheme(pair.second, data.getPos_seq() != null ? data.getPos_seq() : "");
+        } else {
+            loading.dismiss();
+            Toaster.show(pair.second);
+        }
+    }
+    //通联支付----支付宝支付
+    private void handleAllinpayAliPayment(FSCreateOrder data) {
+        loading.dismiss();
+        FSCreateOrder.PayData requestParams = data.getPay_data();
+        String appId = data.getAppId();
+        String json = new Gson().toJson(requestParams);
+
+//        String json = "";
+        String query = "";
+        try {
+            FoxSdkLogger.e("json",json);
+            query = URLEncoder.encode("payinfo=" + URLEncoder.encode(json, "UTF-8"), "UTF-8");
+            String url =
+            "alipays://platformapi/startapp?appId="+appId+"&page=pages/orderDetail/orderDetail&thirdPartSchema="
+                            +  URLEncoder.encode("allinpaysdk://", "UTF-8")
+                            + "&query=" + query;
+            FoxSdkLogger.e("url",url);
+            context.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+            onPayCreate.onPayCreate(new FSPayResult(true, data.getOrder_id(), FoxSdkPayEnum.ALI_PAY));
+        } catch (UnsupportedEncodingException e) {
+            Toaster.show("支付失败");
+            throw new RuntimeException(e);
+        }
+
+
+    }
     private void handleWechatPayment(FSCreateOrder data, String price) {
         Map<String, Object> wxParams = createWechatParams(data, price);
 
@@ -424,6 +471,38 @@ public class FSPayDialog extends Dialog {
         params.put("paySource", 30);
         params.put("masterOrderNo", data.getPos_seq());
         params.put("amount", price);
+        return params;
+    }
+    //通联支付数据组装
+    private Map<String, Object> createAllinpayWechatParams(FSCreateOrder data, String price) {
+        Map<String, Object> params = new HashMap<>();
+        params.put("cusid", data.getPay_data().getCusid());
+        params.put("appid", data.getPay_data().getAppid());
+        params.put("version", data.getPay_data().getVersion());
+        params.put("trxamt", data.getPay_data().getTrxamt());
+        params.put("reqsn", data.getPay_data().getReqsn());
+        params.put("notify_url", data.getPay_data().getNotify_url());
+        params.put("body", data.getPay_data().getBody());
+        params.put("paytype", data.getPay_data().getPaytype());
+        params.put("randomstr", data.getPay_data().getRandomstr());
+        params.put("signtype", data.getPay_data().getSigntype());
+        params.put("sign", data.getPay_data().getSign());
+
+       /* params.put("orgid", data.getPay_data().());
+        params.put("unireqsn", data.getPay_data().());
+        params.put("expiretime", data.getPay_data().());
+        params.put("remark", data.getPay_data().());
+        params.put("validtime", data.getPay_data().());
+        params.put("limit_pay", data.getPay_data().());
+        params.put("multipay", data.getPay_data().());
+        params.put("asinfo", data.getPay_data().());
+        params.put("subbranch", data.getPay_data().());
+        params.put("isdirectpay", data.getPay_data().());
+        params.put("ishideshare", data.getPay_data().());
+        params.put("isdirectback", data.getPay_data().());
+        params.put("idno", data.getPay_data().());
+        params.put("truename", data.getPay_data().());*/
+
         return params;
     }
 

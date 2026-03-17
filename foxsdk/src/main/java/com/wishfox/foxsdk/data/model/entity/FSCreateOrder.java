@@ -1,5 +1,7 @@
 package com.wishfox.foxsdk.data.model.entity;
 
+import java.io.Serializable;
+
 /**
  * 主要功能:
  *
@@ -41,6 +43,26 @@ public class FSCreateOrder {
     private String stlDate;
     private String terminalId;
     private String txnType;
+    private String appId;
+
+    public String getAppId() {
+        return appId;
+    }
+
+    public void setAppId(String appId) {
+        appId = appId;
+    }
+
+    private PayData pay_data;
+
+    public PayData getPay_data() {
+        return pay_data;
+    }
+
+    public void setPay_data(PayData pay_data) {
+        this.pay_data = pay_data;
+    }
+
 
     public boolean isSuccess() {
         return success;
@@ -208,4 +230,112 @@ public class FSCreateOrder {
         public String getId() { return id; }
         public void setId(String id) { this.id = id; }
     }
+
+    public static class PayData implements Serializable {
+
+        private String cusid;
+        private String version;
+        private String signtype;
+        private String trxamt;
+        private String reqsn;
+        private String notify_url;
+        private String body;
+        private String appid;
+        private String paytype;
+        private String randomstr;
+
+        public String getSign() {
+            return sign;
+        }
+
+        public void setSign(String sign) {
+            this.sign = sign;
+        }
+
+        public String getRandomstr() {
+            return randomstr;
+        }
+
+        public void setRandomstr(String randomstr) {
+            this.randomstr = randomstr;
+        }
+
+        public String getPaytype() {
+            return paytype;
+        }
+
+        public void setPaytype(String paytype) {
+            this.paytype = paytype;
+        }
+
+        public String getAppid() {
+            return appid;
+        }
+
+        public void setAppid(String appid) {
+            this.appid = appid;
+        }
+
+        public String getBody() {
+            return body;
+        }
+
+        public void setBody(String body) {
+            this.body = body;
+        }
+
+        public String getNotify_url() {
+            return notify_url;
+        }
+
+        public void setNotify_url(String notify_url) {
+            this.notify_url = notify_url;
+        }
+
+        public String getReqsn() {
+            return reqsn;
+        }
+
+        public void setReqsn(String reqsn) {
+            this.reqsn = reqsn;
+        }
+
+        public String getTrxamt() {
+            return trxamt;
+        }
+
+        public void setTrxamt(String trxamt) {
+            this.trxamt = trxamt;
+        }
+
+        public String getSigntype() {
+            return signtype;
+        }
+
+        public void setSigntype(String signtype) {
+            this.signtype = signtype;
+        }
+
+        public String getVersion() {
+            return version;
+        }
+
+        public void setVersion(String version) {
+            this.version = version;
+        }
+
+        public String getCusid() {
+            return cusid;
+        }
+
+        public void setCusid(String cusid) {
+            this.cusid = cusid;
+        }
+
+        private String sign;
+
+
+
+    }
+
 }
