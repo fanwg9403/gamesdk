@@ -76,6 +76,21 @@
             android:launchMode="singleTop"
             android:screenOrientation="portrait"
             android:theme="@style/Theme.Transparent" />
+        <activity
+            android:name="com.wishfox.foxsdk.ui.view.activity.FSAllinpaysdkAlipayActivity"
+            android:theme="@style/Theme.Transparent" >
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <!--<data android:scheme="allinpaysdk://"/>-->
+
+                <data android:scheme="${SDK_SCHEME}"
+                    android:host="app"
+                    android:pathPrefix="/goodsDetail"/>
+
+            </intent-filter>
+        </activity>
 
         <!--快钱支付回调-->
         <activity android:name="com.wishfox.foxsdk.wxapi.QuickMoneyPayResultActivity" />

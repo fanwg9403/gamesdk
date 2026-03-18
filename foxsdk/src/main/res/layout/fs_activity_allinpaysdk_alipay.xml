@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    >
+
+
+    <LinearLayout
+        android:id="@+id/fs_ll_all"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="@color/color_222222"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintHorizontal_weight="4"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/fs_right_view">
+        <View
+            android:id="@+id/fs_top_view"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"/>
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center">
+            <ImageView
+                android:layout_width="111dp"
+                android:layout_height="@dimen/dp_80"
+                android:src="@mipmap/fs_pay_result" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="支付成功"
+                android:layout_marginTop="@dimen/dp_12"
+                android:textSize="@dimen/size_18"
+                android:textColor="@color/white"/>
+            <com.hjq.shape.view.ShapeTextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingVertical="@dimen/dp_10"
+                android:paddingHorizontal="52dp"
+                android:layout_marginTop="@dimen/dp_30"
+                android:text="返回"
+                android:textSize="@dimen/size_14"
+                android:textColor="@color/white"
+                app:shape_radius="@dimen/dp_40"
+                app:shape_solidColor="#009E5C"/>
+        </LinearLayout>
+
+    </LinearLayout>
+    <View
+        android:id="@+id/fs_right_view"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/fs_ll_all"
+        app:layout_constraintHorizontal_weight="1"/>
+</androidx.constraintlayout.widget.ConstraintLayout>

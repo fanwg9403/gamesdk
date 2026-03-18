@@ -3,12 +3,14 @@ package com.wishfox.foxsdk.di;
 import androidx.lifecycle.ViewModel;
 import androidx.lifecycle.ViewModelProvider;
 
+import com.wishfox.foxsdk.data.repository.FSAllinpaysdkAlipayRepository;
 import com.wishfox.foxsdk.data.repository.FSGameRecordRepository;
 import com.wishfox.foxsdk.data.repository.FSHomeRepository;
 import com.wishfox.foxsdk.data.repository.FSMessageRepository;
 import com.wishfox.foxsdk.data.repository.FSRechargeRecordRepository;
 import com.wishfox.foxsdk.data.repository.FSStarterPackRepository;
 import com.wishfox.foxsdk.data.repository.FSWinFoxCoinRepository;
+import com.wishfox.foxsdk.ui.viewmodel.FSAllinpaysdkAlipayViewModel;
 import com.wishfox.foxsdk.ui.viewmodel.FSGameRecordViewModel;
 import com.wishfox.foxsdk.ui.viewmodel.FSHomeViewModel;
 import com.wishfox.foxsdk.ui.viewmodel.FSMessageViewModel;
@@ -45,6 +47,9 @@ public class FoxSdkViewModelFactory implements ViewModelProvider.Factory {
         } else if (modelClass.isAssignableFrom(FSMessageViewModel.class)) {
             FSMessageRepository messageRepository = FoxSdkRepositoryContainer.getMessageRepository();
             return (T) new FSMessageViewModel(messageRepository);
+        }  else if (modelClass.isAssignableFrom(FSAllinpaysdkAlipayViewModel.class)) {
+            FSAllinpaysdkAlipayRepository allinpaysdkAlipayRepository = FoxSdkRepositoryContainer.getAllinpaysdkAlipayRepository();
+            return (T) new FSAllinpaysdkAlipayViewModel(allinpaysdkAlipayRepository);
         } else {
             throw new IllegalArgumentException("未知的 ViewModel class: " + modelClass.getName() + "，请先在FoxSdkRepositoryContainer中注册");
         }

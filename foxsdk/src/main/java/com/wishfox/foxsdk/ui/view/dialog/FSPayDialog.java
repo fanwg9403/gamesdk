@@ -13,12 +13,12 @@ import com.google.gson.Gson;
 import com.hjq.toast.Toaster;
 import com.wishfox.foxsdk.R;
 import com.wishfox.foxsdk.core.WishFoxSdk;
+import com.wishfox.foxsdk.data.model.FoxSdkBaseResponse;
 import com.wishfox.foxsdk.data.model.entity.FSAliPay;
 import com.wishfox.foxsdk.data.model.entity.FSCoinInfo;
 import com.wishfox.foxsdk.data.model.entity.FSCreateOrder;
 import com.wishfox.foxsdk.data.model.entity.FSMpayInfo;
 import com.wishfox.foxsdk.data.model.entity.FSPayResult;
-import com.wishfox.foxsdk.data.model.FoxSdkBaseResponse;
 import com.wishfox.foxsdk.data.model.entity.FSSdkConfig;
 import com.wishfox.foxsdk.data.network.FoxSdkNetworkExecutor;
 import com.wishfox.foxsdk.data.network.FoxSdkRetrofitManager;
@@ -356,7 +356,7 @@ public class FSPayDialog extends Dialog {
 
         Pair<Boolean, String> pair = FoxSdkWxPay.wXMiniProgramPayment(getContext(), wxParams);
         if (pair.first) {
-            startWechatForScheme(pair.second, data.getPos_seq() != null ? data.getPos_seq() : "");
+            startWechatForScheme(pair.second, data.getPos_seq() != null ? data.getPos_seq() : "","yougua");
         } else {
             loading.dismiss();
             Toaster.show(pair.second);
@@ -374,9 +374,10 @@ public class FSPayDialog extends Dialog {
         try {
             FoxSdkLogger.e("json",json);
             query = URLEncoder.encode("payinfo=" + URLEncoder.encode(json, "UTF-8"), "UTF-8");
+            String scheme =  WishFoxSdk.getConfig().getKqFusedApplicationScheme();
             String url =
-            "alipays://platformapi/startapp?appId="+appId+"&page=pages/orderDetail/orderDetail&thirdPartSchema="
-                            +  URLEncoder.encode("allinpaysdk://", "UTF-8")
+            "alipays://platformapi/startapp?appId="+appId+"&page=pages/orderDetail/orderDetail"
+                            +"&thirdPartSchema="+  URLEncoder.encode(scheme+"://app/goodsDetail/", "UTF-8")
                             + "&query=" + query;
             FoxSdkLogger.e("url",url);
             context.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
@@ -393,7 +394,7 @@ public class FSPayDialog extends Dialog {
 
         Pair<Boolean, String> pair = FoxSdkWxPay.wXMiniProgramPayment(getContext(), wxParams);
         if (pair.first) {
-            startWechatForScheme(pair.second, data.getPos_seq() != null ? data.getPos_seq() : "");
+            startWechatForScheme(pair.second, data.getPos_seq() != null ? data.getPos_seq() : "","");
         } else {
             loading.dismiss();
             Toaster.show(pair.second);
@@ -420,11 +421,12 @@ public class FSPayDialog extends Dialog {
         loading.dismiss();
     }
 
-    private void startWechatForScheme(String query, String pos_seq) {
+    private void startWechatForScheme(String query, String pos_seq,String app_name) {
         FoxSdkNetworkExecutor.execute(() ->
                 FoxSdkRetrofitManager.getApiService().getWechatScheme(
                         query,
-                        WishFoxSdk.getConfig().isWechatTest() ? "trial" : "release"
+                        WishFoxSdk.getConfig().isWechatTest() ? "trial" : "release",
+                        app_name
                 ).blockingGet()
         )
                 .subscribeOn(Schedulers.io())

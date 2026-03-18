@@ -155,7 +155,8 @@ public interface FoxSdkApiService {
     @GET("/api/wechat/plain_scheme")
     Single<FoxSdkBaseResponse<FSWechatScheme>> getWechatScheme(
             @Query("query") String query,
-            @Query("env_version") String env_version
+            @Query("env_version") String env_version,
+            @Query("app_name") String app_name
     );
 
     /**

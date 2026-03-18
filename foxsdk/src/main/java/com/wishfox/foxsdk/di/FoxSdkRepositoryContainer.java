@@ -1,5 +1,6 @@
 package com.wishfox.foxsdk.di;
 
+import com.wishfox.foxsdk.data.repository.FSAllinpaysdkAlipayRepository;
 import com.wishfox.foxsdk.data.repository.FSGameRecordRepository;
 import com.wishfox.foxsdk.data.repository.FSHomeRepository;
 import com.wishfox.foxsdk.data.repository.FSMessageRepository;
@@ -22,6 +23,7 @@ public class FoxSdkRepositoryContainer {
     private static FSRechargeRecordRepository _rechargeRecordRepository;
     private static FSGameRecordRepository _gameRecordRepository;
     private static FSMessageRepository _messageRepository;
+    private static FSAllinpaysdkAlipayRepository _allinpaysdkAlipayRepository;
 
     /**
      * 获取新手礼包Repository
@@ -81,5 +83,14 @@ public class FoxSdkRepositoryContainer {
             _gameRecordRepository = new FSGameRecordRepository();
         }
         return _gameRecordRepository;
+    }
+    /**
+     * 通联支 支付宝过度页
+     */
+    public static FSAllinpaysdkAlipayRepository getAllinpaysdkAlipayRepository() {
+        if (_allinpaysdkAlipayRepository == null) {
+            _allinpaysdkAlipayRepository = new FSAllinpaysdkAlipayRepository();
+        }
+        return _allinpaysdkAlipayRepository;
     }
 }
