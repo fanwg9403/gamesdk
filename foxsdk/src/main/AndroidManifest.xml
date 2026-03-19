@@ -87,7 +87,7 @@
 
                 <data android:scheme="${SDK_SCHEME}"
                     android:host="app"
-                    android:pathPrefix="/goodsDetail"/>
+                    android:pathPrefix="/gameDetail"/>
 
             </intent-filter>
         </activity>

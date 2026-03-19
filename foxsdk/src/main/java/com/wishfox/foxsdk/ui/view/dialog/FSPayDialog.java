@@ -356,7 +356,7 @@ public class FSPayDialog extends Dialog {
 
         Pair<Boolean, String> pair = FoxSdkWxPay.wXMiniProgramPayment(getContext(), wxParams);
         if (pair.first) {
-            startWechatForScheme(pair.second, data.getPos_seq() != null ? data.getPos_seq() : "","yougua");
+            startWechatForSchemeEncrypted(pair.second, data.getPos_seq() != null ? data.getPos_seq() : "","yougua");
         } else {
             loading.dismiss();
             Toaster.show(pair.second);
@@ -377,7 +377,7 @@ public class FSPayDialog extends Dialog {
             String scheme =  WishFoxSdk.getConfig().getKqFusedApplicationScheme();
             String url =
             "alipays://platformapi/startapp?appId="+appId+"&page=pages/orderDetail/orderDetail"
-                            +"&thirdPartSchema="+  URLEncoder.encode(scheme+"://app/goodsDetail/", "UTF-8")
+                            +"&thirdPartSchema="+  URLEncoder.encode(scheme+"://app/gameDetail/", "UTF-8")
                             + "&query=" + query;
             FoxSdkLogger.e("url",url);
             context.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
@@ -424,6 +424,51 @@ public class FSPayDialog extends Dialog {
     private void startWechatForScheme(String query, String pos_seq,String app_name) {
         FoxSdkNetworkExecutor.execute(() ->
                 FoxSdkRetrofitManager.getApiService().getWechatScheme(
+                        query,
+                        WishFoxSdk.getConfig().isWechatTest() ? "trial" : "release",
+                        app_name
+                ).blockingGet()
+        )
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(result -> {
+                    loading.dismiss();
+                    if (result.isSuccess()) {
+                        try {
+                            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(result.getData().getScheme()));
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            getContext().startActivity(intent);
+
+                            if (onPayCreate != null) {
+                                onPayCreate.onPayCreate(new FSPayResult(true, pos_seq, FoxSdkPayEnum.WECHAT));
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                            Toaster.show("打开微信失败，请联系客服");
+                        }
+                    } else if (result.isError()) {
+                        String errorMsg = result.getError() != null ? result.getError() : "支付失败";
+                        Toaster.show(errorMsg);
+                    } else if (result.isEmpty()) {
+                        Toaster.show("支付结果为空");
+                    }
+                }, throwable -> {
+                    loading.dismiss();
+                    String errorMsg = "网络请求失败";
+                    if (throwable instanceof IOException) {
+                        errorMsg = "网络连接失败，请检查网络";
+                    } else if (throwable instanceof SocketTimeoutException) {
+                        errorMsg = "网络连接超时，请重试";
+                    } else if (throwable instanceof HttpException) {
+                        errorMsg = "服务器错误，请稍后重试";
+                    }
+                    Toaster.show(errorMsg);
+                });
+    }
+
+    private void startWechatForSchemeEncrypted(String query, String pos_seq,String app_name) {
+        FoxSdkNetworkExecutor.execute(() ->
+                FoxSdkRetrofitManager.getApiService().getWechatSchemeEncrypted(
                         query,
                         WishFoxSdk.getConfig().isWechatTest() ? "trial" : "release",
                         app_name
