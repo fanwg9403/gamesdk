@@ -354,7 +354,7 @@ public class FSPayDialog extends Dialog {
     private void handleAllinpayWechatPayment(FSCreateOrder data, String price) {
         Map<String, Object> wxParams = createAllinpayWechatParams(data, price);
 
-        Pair<Boolean, String> pair = FoxSdkWxPay.wXMiniProgramPayment(getContext(), wxParams);
+        Pair<Boolean, String> pair = FoxSdkWxPay.wXMiniProgramAllinpayPayment(getContext(), wxParams);
         if (pair.first) {
             startWechatForSchemeEncrypted(pair.second, data.getPos_seq() != null ? data.getPos_seq() : "","yougua");
         } else {
@@ -534,8 +534,9 @@ public class FSPayDialog extends Dialog {
         params.put("randomstr", data.getPay_data().getRandomstr());
         params.put("signtype", data.getPay_data().getSigntype());
         params.put("sign", data.getPay_data().getSign());
+        params.put("orgid", data.getPay_data().getOrgid());
 
-       /* params.put("orgid", data.getPay_data().());
+       /*
         params.put("unireqsn", data.getPay_data().());
         params.put("expiretime", data.getPay_data().());
         params.put("remark", data.getPay_data().());

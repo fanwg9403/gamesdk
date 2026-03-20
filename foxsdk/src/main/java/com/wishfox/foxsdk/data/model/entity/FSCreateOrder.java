@@ -244,6 +244,16 @@ public class FSCreateOrder {
         private String paytype;
         private String randomstr;
 
+        private String orgid;
+
+        public String getOrgid() {
+            return orgid;
+        }
+
+        public void setOrgid(String orgid) {
+            this.orgid = orgid;
+        }
+
         public String getSign() {
             return sign;
         }

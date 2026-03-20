@@ -3,6 +3,7 @@ package com.wishfox.foxsdk.utils.pay;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.text.TextUtils;
+import android.util.Log;
 import android.util.Pair;
 
 import com.google.gson.Gson;
@@ -36,6 +37,27 @@ public class FoxSdkWxPay {
         }
         mutableMap.put("childPayType", ChildPayType.WX_PAY.getValue());
         mutableMap.put("token", storage.get(FoxSdkConstant.AUTHORIZATION, ""));
+        String resultQuery = "";
+        try {
+            resultQuery = new Gson().toJson(mutableMap);
+        } catch (Exception e) {
+            e.printStackTrace();
+            resultQuery = "";
+        }
+        if (TextUtils.isEmpty(resultQuery))
+            return new Pair(false, "打开微信失败，请联系客服");
+        else
+            return new Pair(true, resultQuery);
+    }
+
+    // 微信支付--通联支付
+    public static Pair<Boolean, String> wXMiniProgramAllinpayPayment(Context context, Map<String, Object> map) {
+        if (!checkWechatInstallation(context)) {
+            Toaster.show(context.getString(R.string.fs_str_wx_pay));
+            return new Pair(false, context.getString(R.string.fs_str_wx_pay));
+        }
+
+        Map<String, Object> mutableMap = new java.util.HashMap<>(map);
         String resultQuery = "";
         try {
             resultQuery = new Gson().toJson(mutableMap);

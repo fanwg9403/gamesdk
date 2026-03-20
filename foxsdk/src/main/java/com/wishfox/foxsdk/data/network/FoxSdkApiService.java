@@ -167,6 +167,10 @@ public interface FoxSdkApiService {
             @Query("env_version") String env_version,
             @Query("app_name") String app_name
     );
+    @GET("/api/wechat/encrypted_scheme")
+    Single<FoxSdkBaseResponse<FSWechatScheme>> getWechatSchemeEncrypted(
+            @QueryMap Map<String, Object> params
+    );
 
     /**
      * 订单查询接口
