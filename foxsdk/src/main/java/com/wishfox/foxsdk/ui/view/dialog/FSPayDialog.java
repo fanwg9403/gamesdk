@@ -356,7 +356,7 @@ public class FSPayDialog extends Dialog {
 
         Pair<Boolean, String> pair = FoxSdkWxPay.wXMiniProgramAllinpayPayment(getContext(), wxParams);
         if (pair.first) {
-            startWechatForSchemeEncrypted(pair.second, data.getPos_seq() != null ? data.getPos_seq() : "","yougua");
+            startWechatForSchemeEncrypted(pair.second, data.getOrder_id() != null ? data.getOrder_id() : "","yougua");
         } else {
             loading.dismiss();
             Toaster.show(pair.second);
