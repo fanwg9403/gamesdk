@@ -14,7 +14,10 @@ import androidx.lifecycle.ViewModelProvider;
 
 import com.gyf.immersionbar.BarHide;
 import com.gyf.immersionbar.ImmersionBar;
+import com.hjq.toast.Toaster;
+import com.kuaiqian.fusedpay.utils.LogUtil;
 import com.scwang.smart.refresh.header.ClassicsHeader;
+import com.wishfox.foxsdk.BuildConfig;
 import com.wishfox.foxsdk.R;
 import com.wishfox.foxsdk.data.model.entity.FSUserInfo;
 import com.wishfox.foxsdk.databinding.FsActivityHomeBinding;
@@ -28,6 +31,7 @@ import com.wishfox.foxsdk.ui.view.dialog.FSLoginDialog;
 import com.wishfox.foxsdk.ui.viewmodel.FSHomeViewModel;
 import com.wishfox.foxsdk.ui.viewstate.FSHomeViewState;
 import com.wishfox.foxsdk.utils.FoxSdkAnimation;
+import com.wishfox.foxsdk.utils.FoxSdkUtils;
 import com.wishfox.foxsdk.utils.FoxSdkViewExt;
 import com.wishfox.foxsdk.utils.customerservice.QiyukfHelper;
 import com.youth.banner.Banner;
@@ -160,7 +164,6 @@ public class FSHomeActivity extends FoxSdkBaseMviActivity<FSHomeViewState, FSHom
                 );
             }
         });
-
         actionAdapter = new FSHomeActionAdapter(FSUserInfo.getInstance() == null ? new ArrayList<>() : actionItems);
         actionAdapter.setOnItemClickListener((adapter, view, position) -> {
             switch (position) {
@@ -225,6 +228,8 @@ public class FSHomeActivity extends FoxSdkBaseMviActivity<FSHomeViewState, FSHom
 
         fsBannerAdapter = new FSBannerAdapter(new ArrayList<>());
         ((Banner) bannerHead.findViewById(R.id.fs_home_banner)).setAdapter(fsBannerAdapter);
+
+        binding.fsSdkVersion.setText("SDK版本：1.3.0");
     }
 
     @Override

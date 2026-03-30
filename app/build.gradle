@@ -60,6 +60,8 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.2.0'
     implementation 'com.android.support.constraint:constraint-layout:2.0.4'
     implementation project(path: ':foxsdk')
+    // 许愿狐 SDK 新版
+//    api("com.github.fanwg9403:gamesdk:1.2.9")
 
     configurations.all {
         resolutionStrategy {
