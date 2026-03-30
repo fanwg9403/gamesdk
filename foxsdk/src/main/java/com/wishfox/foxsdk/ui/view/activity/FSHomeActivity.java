@@ -62,6 +62,7 @@ public class FSHomeActivity extends FoxSdkBaseMviActivity<FSHomeViewState, FSHom
             new Pair<>("游戏记录", 0),
             new Pair<>("充值记录", 1),
             new Pair<>("我的消息", 2),
+            new Pair<>("SDK版本号："+BuildConfig.XYH_GAME_SDK_VERSION_NAME, 3),
             new Pair<>("", -1)
     );
 
@@ -166,7 +167,8 @@ public class FSHomeActivity extends FoxSdkBaseMviActivity<FSHomeViewState, FSHom
         });
         actionAdapter = new FSHomeActionAdapter(FSUserInfo.getInstance() == null ? new ArrayList<>() : actionItems);
         actionAdapter.setOnItemClickListener((adapter, view, position) -> {
-            switch (position) {
+            List<Pair<String, Integer>> data = (List<Pair<String, Integer>>) adapter.getData();
+            switch ( data.get(position).second) {
                 case 0:
                     FSGameRecordActivity.start(this);
                     break;
@@ -229,7 +231,6 @@ public class FSHomeActivity extends FoxSdkBaseMviActivity<FSHomeViewState, FSHom
         fsBannerAdapter = new FSBannerAdapter(new ArrayList<>());
         ((Banner) bannerHead.findViewById(R.id.fs_home_banner)).setAdapter(fsBannerAdapter);
 
-        binding.fsSdkVersion.setText("SDK版本："+BuildConfig.XYH_GAME_SDK_VERSION_NAME);
     }
 
     @Override
@@ -256,8 +257,10 @@ public class FSHomeActivity extends FoxSdkBaseMviActivity<FSHomeViewState, FSHom
             // 未登录
             ((TextView) userHead.findViewById(R.id.fs_tv_username)).setText(getString(R.string.fs_login_now));
             ((TextView) userHead.findViewById(R.id.fs_stv_coin)).setVisibility(View.GONE);
-
-            actionAdapter.setNewInstance(new ArrayList<>());
+            List<Pair<String, Integer>> newActionItems = Arrays.asList(
+                    new Pair<>("SDK版本号："+BuildConfig.XYH_GAME_SDK_VERSION_NAME, 3)
+            );
+            actionAdapter.setNewInstance(newActionItems);
         }
 
         boolean hasBanner = false;
