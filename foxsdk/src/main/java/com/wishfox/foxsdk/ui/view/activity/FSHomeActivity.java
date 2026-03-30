@@ -229,7 +229,7 @@ public class FSHomeActivity extends FoxSdkBaseMviActivity<FSHomeViewState, FSHom
         fsBannerAdapter = new FSBannerAdapter(new ArrayList<>());
         ((Banner) bannerHead.findViewById(R.id.fs_home_banner)).setAdapter(fsBannerAdapter);
 
-        binding.fsSdkVersion.setText("SDK版本：1.3.0");
+        binding.fsSdkVersion.setText("SDK版本："+BuildConfig.XYH_GAME_SDK_VERSION_NAME);
     }
 
     @Override

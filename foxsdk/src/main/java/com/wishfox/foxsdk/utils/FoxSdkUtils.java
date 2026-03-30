@@ -100,19 +100,4 @@ public class FoxSdkUtils {
             }
         });
     }
-    //获取sdk当前版本
-    public static String getLocalVersionName(Context ctx) {
-        String localVersion = "";
-        try {
-            PackageManager packageManager = ctx.getApplicationContext().getPackageManager();
-            PackageInfo packageInfo = packageManager.getPackageInfo(ctx.getPackageName(), 0);
-            localVersion = packageInfo != null ? packageInfo.versionName : "";
-            if (localVersion == null) {
-                localVersion = "";
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return localVersion;
-    }
 }

@@ -19,6 +19,7 @@ android {
         ndk {
             abiFilters 'armeabi-v7a', 'arm64-v8a'
         }
+        buildConfigField "String", "XYH_GAME_SDK_VERSION_NAME", "\"${versionName}\""
     }
 
     buildTypes {
