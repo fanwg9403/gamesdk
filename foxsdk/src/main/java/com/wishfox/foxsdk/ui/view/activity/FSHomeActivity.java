@@ -1,6 +1,8 @@
 package com.wishfox.foxsdk.ui.view.activity;
 
+import android.app.Activity;
 import android.content.Intent;
+import android.content.Context;
 import android.os.Bundle;
 import android.util.Pair;
 import android.view.LayoutInflater;
@@ -19,6 +21,8 @@ import com.kuaiqian.fusedpay.utils.LogUtil;
 import com.scwang.smart.refresh.header.ClassicsHeader;
 import com.wishfox.foxsdk.BuildConfig;
 import com.wishfox.foxsdk.R;
+import com.wishfox.foxsdk.core.FoxSdkOverlayManager;
+import com.wishfox.foxsdk.core.WishFoxSdk;
 import com.wishfox.foxsdk.data.model.entity.FSUserInfo;
 import com.wishfox.foxsdk.databinding.FsActivityHomeBinding;
 import com.wishfox.foxsdk.di.FoxSdkViewModelFactory;
@@ -33,7 +37,6 @@ import com.wishfox.foxsdk.ui.viewstate.FSHomeViewState;
 import com.wishfox.foxsdk.utils.FoxSdkAnimation;
 import com.wishfox.foxsdk.utils.FoxSdkUtils;
 import com.wishfox.foxsdk.utils.FoxSdkViewExt;
-import com.wishfox.foxsdk.utils.customerservice.QiyukfHelper;
 import com.youth.banner.Banner;
 
 import java.util.ArrayList;
@@ -66,6 +69,34 @@ public class FSHomeActivity extends FoxSdkBaseMviActivity<FSHomeViewState, FSHom
             new Pair<>("", -1)
     );
 
+    public static void start(Context context) {
+        if (context == null) {
+            return;
+        }
+        if (context instanceof Activity &&
+                !(context instanceof FoxSdkBaseMviActivity) &&
+                WishFoxSdk.isInitialized()) {
+            FoxSdkOverlayManager.show((Activity) context);
+            return;
+        }
+        startLegacyFallback(context);
+    }
+
+    /**
+     * Emergency compatibility path used only when a host-content Overlay
+     * cannot be created. Normal host Activity callers must use start(Context).
+     */
+    public static void startLegacyFallback(Context context) {
+        if (context == null) {
+            return;
+        }
+        Intent intent = new Intent(context, FSHomeActivity.class);
+        if (!(context instanceof android.app.Activity)) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        }
+        context.startActivity(intent);
+    }
+
     @Override
     protected FSHomeViewModel getViewModel() {
         if (viewModel == null) {
@@ -82,8 +113,6 @@ public class FSHomeActivity extends FoxSdkBaseMviActivity<FSHomeViewState, FSHom
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        initView();
         initAdapters();
     }
 
@@ -142,29 +171,6 @@ public class FSHomeActivity extends FoxSdkBaseMviActivity<FSHomeViewState, FSHom
             }
         });
 
-        FoxSdkViewExt.setOnClickListener(((ImageView) regionHead.findViewById(R.id.fs_iv_service)), v -> {
-            if (FSUserInfo.getInstance() == null) {
-                new FSLoginDialog(this)
-                        .setOnLoginClickListener((phone, codeOrPassword, loginType,loadingDialog) -> {
-                            viewModel.dispatch(
-                                    new FSHomeIntent.Login(
-                                            phone,
-                                            codeOrPassword,
-                                            loginType
-                                    )
-                            );
-                        })
-                        .show();
-            } else {
-                QiyukfHelper.getInstance().openCustomerService(
-                        this,
-                        "在线客服",
-                        "Mine",
-                        "",
-                        ""
-                );
-            }
-        });
         actionAdapter = new FSHomeActionAdapter(FSUserInfo.getInstance() == null ? new ArrayList<>() : actionItems);
         actionAdapter.setOnItemClickListener((adapter, view, position) -> {
             List<Pair<String, Integer>> data = (List<Pair<String, Integer>>) adapter.getData();
@@ -176,7 +182,7 @@ public class FSHomeActivity extends FoxSdkBaseMviActivity<FSHomeViewState, FSHom
                     FSRechargeRecordActivity.start(this);
                     break;
                 case 2:
-                    startActivity(new Intent(this, FSMessageActivity.class));
+                    FoxSdkOverlayManager.showPage(this, FoxSdkOverlayManager.Page.MESSAGE);
                     break;
 //                case 3:
 //                    showLogoutDialog();
@@ -192,6 +198,7 @@ public class FSHomeActivity extends FoxSdkBaseMviActivity<FSHomeViewState, FSHom
         FoxSdkViewExt.setOnClickListener(binding.fsVOutside, v -> finish());
         binding.fsHomeRoot.setEnabled(true);
         binding.fsHomeRoot.setRefreshHeader(new ClassicsHeader(this));
+        renderState(getViewModel().getCurrentState());
         dispatch(new FSHomeIntent.Init());
 
         binding.fsHomeRoot.setOnRefreshListener(refreshLayout ->
@@ -227,18 +234,35 @@ public class FSHomeActivity extends FoxSdkBaseMviActivity<FSHomeViewState, FSHom
         userHead = LayoutInflater.from(this).inflate(R.layout.fs_layout_home_user_info, null);
         bannerHead = LayoutInflater.from(this).inflate(R.layout.fs_layout_home_banner, null);
         regionHead = LayoutInflater.from(this).inflate(R.layout.fs_layout_home_region, null);
+        hideCustomerServiceEntry(regionHead);
 
         fsBannerAdapter = new FSBannerAdapter(new ArrayList<>());
         ((Banner) bannerHead.findViewById(R.id.fs_home_banner)).setAdapter(fsBannerAdapter);
 
     }
 
+    private void hideCustomerServiceEntry(View regionView) {
+        View serviceView = regionView.findViewById(R.id.fs_iv_service);
+        View coinView = regionView.findViewById(R.id.fs_iv_coin);
+        if (serviceView != null) {
+            serviceView.setVisibility(View.GONE);
+            serviceView.setOnClickListener(null);
+        }
+        if (coinView != null && coinView.getLayoutParams() instanceof ConstraintLayout.LayoutParams) {
+            ConstraintLayout.LayoutParams params =
+                    (ConstraintLayout.LayoutParams) coinView.getLayoutParams();
+            params.endToStart = -1;
+            params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID;
+            coinView.setLayoutParams(params);
+        }
+    }
+
     @Override
     protected void renderState(FSHomeViewState state) {
-        binding.fsHomeRoot.finishRefresh();
-
-        if (state == null)
+        if (state == null || actionAdapter == null || userHead == null) {
             return;
+        }
+        binding.fsHomeRoot.finishRefresh();
 
         if (state.getUserInfo() != null && state.isLoginSuccess()) {
             if (state.getCoinInfo() != null) {

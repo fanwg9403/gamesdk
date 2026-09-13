@@ -81,4 +81,14 @@ public class FSMessageViewModel extends FoxSdkBaseMviViewModel<FSMessageViewStat
         super.onCleared();
         disposables.dispose();
     }
+
+    /**
+     * Overlay pages do not have a ViewModelStore owner, so their explicit
+     * removal must release the message requests as well.
+     */
+    @Override
+    public void disposeForOverlay() {
+        super.disposeForOverlay();
+        disposables.dispose();
+    }
 }

@@ -3,9 +3,14 @@ package com.wishfox.foxsdk.core;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.Application;
+import android.content.ComponentCallbacks;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.Configuration;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.MotionEvent;
 import android.view.View;
 
@@ -28,10 +33,16 @@ import com.wishfox.foxsdk.utils.FoxSdkCommonExt;
 import com.wishfox.foxsdk.utils.FoxSdkLogger;
 import com.wishfox.foxsdk.utils.FoxSdkUtils;
 import com.wishfox.foxsdk.utils.FoxSdkViewExt;
-import com.wishfox.foxsdk.utils.customerservice.QiyukfHelper;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 主要功能:
@@ -53,6 +64,13 @@ public class WishFoxSdk {
 
     public static void setFloatActive(boolean floatActive) {
         WishFoxSdk.floatActive = floatActive;
+        if (!floatActive) {
+            WindowLifecycleControl.hideAllWindows();
+        }
+    }
+
+    static boolean isFloatActive() {
+        return floatActive;
     }
 
     /**
@@ -83,9 +101,9 @@ public class WishFoxSdk {
                 config.isEnableLog()
         );
 
-        // 初始化七鱼客服
-        QiyukfHelper.getInstance().init(context, FoxSdkBaseMviActivity.class);
-        QiyukfHelper.getInstance().initKFSDK();
+        // 七鱼客服不再续费，客服 SDK 初始化已停用
+//        QiyukfHelper.getInstance().init(context, FoxSdkBaseMviActivity.class);
+//        QiyukfHelper.getInstance().initKFSDK();
 
         // 初始化悬浮窗
 //        initFloatingWindow(context);
@@ -114,7 +132,6 @@ public class WishFoxSdk {
 //                        "com.wishfox.foxsdk.ui.view.activity.FSWinFoxCoinActivity",
 //                        "com.wishfox.foxsdk.ui.view.activity.FSRechargeRecordActivity",
 //                        "com.wishfox.foxsdk.ui.view.activity.FSGameRecordActivity",
-//                        "com.qiyukf.unicorn.ui.activity.ServiceMessageActivity",
 //                        "com.wishfox.foxsdk.ui.view.activity.FSMessageActivity",
 //                        "com.wishfox.foxsdk.ui.view.activity.FSWebActivity"
 //                )
@@ -230,17 +247,28 @@ public class WishFoxSdk {
     }
 }
 
-final class WindowLifecycleControl implements Application.ActivityLifecycleCallbacks {
+final class WindowLifecycleControl
+        implements Application.ActivityLifecycleCallbacks, ComponentCallbacks {
+
+    private static final String SDK_PACKAGE_PREFIX = "com.wishfox.foxsdk.";
+    private static final AtomicBoolean REGISTERED = new AtomicBoolean(false);
+    private static final Map<Activity, WeakReference<FSSemiStealthWindow>> WINDOWS = new WeakHashMap<>();
 
     static void with(Application application) {
-        application.registerActivityLifecycleCallbacks(new WindowLifecycleControl());
+        if (application != null && REGISTERED.compareAndSet(false, true)) {
+            WindowLifecycleControl callbacks = new WindowLifecycleControl();
+            application.registerActivityLifecycleCallbacks(callbacks);
+            application.registerComponentCallbacks(callbacks);
+        }
     }
 
     @Override
     public void onActivityCreated(@NonNull Activity activity, @androidx.annotation.Nullable Bundle savedInstanceState) {
-        if (!(activity instanceof FoxSdkBaseMviActivity))
-            new FSSemiStealthWindow(activity)
-                    .show();
+        if (isSdkActivity(activity) || activity instanceof FoxSdkBaseMviActivity ||
+                !WishFoxSdk.isFloatActive()) {
+            return;
+        }
+        showWindow(activity);
     }
 
     @Override
@@ -250,12 +278,23 @@ final class WindowLifecycleControl implements Application.ActivityLifecycleCallb
 
     @Override
     public void onActivityResumed(@NonNull Activity activity) {
-
+        if (!isSdkActivity(activity) &&
+                !(activity instanceof FoxSdkBaseMviActivity) &&
+                WishFoxSdk.isFloatActive()) {
+            showWindow(activity);
+        }
+        if (FoxSdkOverlayManager.isShowing(activity)) {
+            FoxSdkDiagnostics.record("host_resumed_with_overlay", activity, null);
+            FoxSdkDiagnostics.putContext(activity, "home", "host_resumed");
+        }
     }
 
     @Override
     public void onActivityPaused(@NonNull Activity activity) {
-
+        if (FoxSdkOverlayManager.isShowing(activity)) {
+            FoxSdkDiagnostics.record("host_paused_with_overlay", activity, null);
+            FoxSdkDiagnostics.putContext(activity, "home", "host_paused");
+        }
     }
 
     @Override
@@ -270,6 +309,122 @@ final class WindowLifecycleControl implements Application.ActivityLifecycleCallb
 
     @Override
     public void onActivityDestroyed(@NonNull Activity activity) {
+        FoxSdkOverlayManager.onActivityDestroyed(activity);
 
+        FSSemiStealthWindow window = null;
+        synchronized (WINDOWS) {
+            WeakReference<FSSemiStealthWindow> reference = WINDOWS.remove(activity);
+            if (reference != null) {
+                window = reference.get();
+            }
+        }
+        if (window != null) {
+            try {
+                window.cancel();
+            } catch (Throwable throwable) {
+                FoxSdkDiagnostics.reportFailure(activity, "floating_ball", "cancel_failed", throwable);
+            }
+            try {
+                window.recycle();
+            } catch (Throwable throwable) {
+                FoxSdkDiagnostics.reportFailure(activity, "floating_ball", "recycle_failed", throwable);
+            }
+        }
+    }
+
+    @Override
+    public void onConfigurationChanged(@NonNull Configuration newConfig) {
+        FoxSdkOverlayManager.onConfigurationChanged();
+    }
+
+    @Override
+    public void onLowMemory() {
+        // The host application owns process-level memory policy.
+    }
+
+    static void hideWindow(Activity activity) {
+        if (activity == null) {
+            return;
+        }
+
+        FSSemiStealthWindow window = null;
+        synchronized (WINDOWS) {
+            WeakReference<FSSemiStealthWindow> reference = WINDOWS.remove(activity);
+            if (reference != null) {
+                window = reference.get();
+            }
+        }
+        if (window != null) {
+            try {
+                window.recycle();
+                FoxSdkDiagnostics.record("float_hide", activity, null);
+            } catch (Throwable throwable) {
+                FoxSdkDiagnostics.reportFailure(activity, "floating_ball", "hide_failed", throwable);
+            }
+        }
+    }
+
+    static void showWindow(Activity activity) {
+        if (activity == null ||
+                !isActivityUsable(activity) ||
+                isSdkActivity(activity) ||
+                activity instanceof FoxSdkBaseMviActivity ||
+                FoxSdkOverlayManager.isShowing(activity) ||
+                !WishFoxSdk.isFloatActive()) {
+            return;
+        }
+        synchronized (WINDOWS) {
+            WeakReference<FSSemiStealthWindow> reference = WINDOWS.get(activity);
+            if (reference != null && reference.get() != null) {
+                return;
+            }
+        }
+
+        try {
+            FSSemiStealthWindow window = new FSSemiStealthWindow(activity);
+            window.show();
+            synchronized (WINDOWS) {
+                WINDOWS.put(activity, new WeakReference<>(window));
+            }
+            FoxSdkDiagnostics.record("float_show", activity, null);
+        } catch (Throwable throwable) {
+            FoxSdkDiagnostics.reportFailure(activity, "floating_ball", "show_failed", throwable);
+        }
+    }
+
+    static void hideAllWindows() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            new Handler(Looper.getMainLooper()).post(WindowLifecycleControl::hideAllWindows);
+            return;
+        }
+        List<FSSemiStealthWindow> windows = new ArrayList<>();
+        synchronized (WINDOWS) {
+            for (WeakReference<FSSemiStealthWindow> reference : WINDOWS.values()) {
+                FSSemiStealthWindow window = reference == null ? null : reference.get();
+                if (window != null) {
+                    windows.add(window);
+                }
+            }
+            WINDOWS.clear();
+        }
+        for (FSSemiStealthWindow window : windows) {
+            try {
+                window.recycle();
+            } catch (Throwable throwable) {
+                FoxSdkDiagnostics.reportFailure(null, "floating_ball", "hide_all_failed", throwable);
+            }
+        }
+    }
+
+    private static boolean isSdkActivity(Activity activity) {
+        String className = activity == null ? "" : activity.getClass().getName();
+        return className.startsWith(SDK_PACKAGE_PREFIX);
+    }
+
+    private static boolean isActivityUsable(Activity activity) {
+        if (activity == null || activity.isFinishing()) {
+            return false;
+        }
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.JELLY_BEAN_MR1 || !activity.isDestroyed();
     }
 }

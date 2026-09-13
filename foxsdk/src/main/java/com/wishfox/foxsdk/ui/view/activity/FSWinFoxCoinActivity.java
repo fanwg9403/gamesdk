@@ -13,6 +13,8 @@ import com.scwang.smart.refresh.header.ClassicsHeader;
 import com.scwang.smart.refresh.layout.api.RefreshLayout;
 import com.scwang.smart.refresh.layout.listener.OnRefreshLoadMoreListener;
 import com.wishfox.foxsdk.R;
+import com.wishfox.foxsdk.core.FoxSdkOverlayManager;
+import com.wishfox.foxsdk.core.WishFoxSdk;
 import com.wishfox.foxsdk.data.model.entity.FSGameSchemeData;
 import com.wishfox.foxsdk.data.model.entity.FSWinFoxCoin;
 import com.wishfox.foxsdk.databinding.FsActivityWinFoxCoinBinding;
@@ -41,7 +43,21 @@ public class FSWinFoxCoinActivity extends FoxSdkBaseMviActivity<FSWinFoxCoinView
     private FSWinFoxCoinAdapter winFoxCoinAdapter;
 
     public static void start(Context context) {
-        context.startActivity(new Intent(context, FSWinFoxCoinActivity.class));
+        if (context == null) {
+            return;
+        }
+        if (context instanceof android.app.Activity && WishFoxSdk.isInitialized()) {
+            FoxSdkOverlayManager.showPage(
+                    (android.app.Activity) context,
+                    FoxSdkOverlayManager.Page.WIN_FOX_COIN
+            );
+            return;
+        }
+        Intent intent = new Intent(context, FSWinFoxCoinActivity.class);
+        if (!(context instanceof android.app.Activity)) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        }
+        context.startActivity(intent);
     }
 
     @Override

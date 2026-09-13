@@ -7,7 +7,7 @@
 
     <View
         android:id="@+id/fs_v_start_safe_area"
-        android:layout_width="@dimen/dp_45"
+        android:layout_width="0dp"
         android:layout_height="match_parent"
         android:background="@color/fs_activity_bg"
         app:layout_constraintStart_toStartOf="parent"
@@ -20,7 +20,7 @@
         android:orientation="vertical"
         app:layout_constraintEnd_toStartOf="@id/fs_right_view"
         app:layout_constraintHorizontal_weight="73"
-        app:layout_constraintStart_toEndOf="@id/fs_v_start_safe_area"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
         <View
@@ -55,6 +55,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:layout_marginEnd="@dimen/dp_12"
+            android:paddingStart="@dimen/dp_15"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/fs_tv_title"
             app:srlEnableLoadMore="true"

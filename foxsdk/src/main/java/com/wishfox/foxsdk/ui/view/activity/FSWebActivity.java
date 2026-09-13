@@ -1,6 +1,7 @@
 package com.wishfox.foxsdk.ui.view.activity;
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
@@ -17,6 +18,8 @@ import androidx.fragment.app.FragmentActivity;
 
 import com.hjq.toast.Toaster;
 import com.wishfox.foxsdk.R;
+import com.wishfox.foxsdk.core.FoxSdkOverlayManager;
+import com.wishfox.foxsdk.core.WishFoxSdk;
 import com.wishfox.foxsdk.utils.FoxSdkUtils;
 import com.wishfox.foxsdk.utils.FoxSdkViewExt;
 
@@ -169,9 +172,19 @@ public class FSWebActivity extends FragmentActivity {
     }
 
     public static void startWithUrl(Context context, String url, boolean showTitle) {
+        if (context == null) {
+            return;
+        }
+        if (context instanceof Activity && WishFoxSdk.isInitialized()) {
+            FoxSdkOverlayManager.showWeb((Activity) context, url, showTitle);
+            return;
+        }
         Intent intent = new Intent(context, FSWebActivity.class);
         intent.putExtra("url", url);
         intent.putExtra("showTitle", showTitle);
+        if (!(context instanceof Activity)) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        }
         context.startActivity(intent);
     }
 
@@ -180,9 +193,19 @@ public class FSWebActivity extends FragmentActivity {
     }
 
     public static void startWithHtml(Context context, String html, boolean showTitle) {
+        if (context == null) {
+            return;
+        }
+        if (context instanceof Activity && WishFoxSdk.isInitialized()) {
+            FoxSdkOverlayManager.showWebHtml((Activity) context, html, showTitle);
+            return;
+        }
         Intent intent = new Intent(context, FSWebActivity.class);
         intent.putExtra("html", html);
         intent.putExtra("showTitle", showTitle);
+        if (!(context instanceof Activity)) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        }
         context.startActivity(intent);
     }
 

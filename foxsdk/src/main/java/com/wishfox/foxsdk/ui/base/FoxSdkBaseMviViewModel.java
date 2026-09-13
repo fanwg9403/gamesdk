@@ -301,6 +301,14 @@ public abstract class FoxSdkBaseMviViewModel<State extends FoxSdkViewState,Inten
         disposables.dispose();
     }
 
+    /**
+     * Overlay-hosted screens do not have a ViewModelStore owner. They use this
+     * explicit lifecycle boundary instead of invoking onCleared() directly.
+     */
+    public void disposeForOverlay() {
+        disposables.dispose();
+    }
+
     // 功能接口定义
     public interface FoxSdkNetworkErrorConsumer {
         void accept(String error, Integer code);

@@ -25,11 +25,11 @@ public class MyApp extends Application {
                         "1",
                         "billcomwishfoxdemoe"
                 )
-//                        .setBaseUrl("http://192.168.150.240:9113")
+                        .setBaseUrl("http://192.168.150.240:9113")
 //                        .setBaseUrl("https://api-game-pre.wishfoxs.com")
                         .setEnableLog(true)
                         .setWechatTest(false)
-                        .setScreenOrientation(FoxSdkConfig.ORIENTATION_PORTRAIT)
+                        .setScreenOrientation(FoxSdkConfig.ORIENTATION_LANDSCAPE)
                         .setFloatXScale(0.5f)
                         .setFloatXxOffset(100)
                         .build()

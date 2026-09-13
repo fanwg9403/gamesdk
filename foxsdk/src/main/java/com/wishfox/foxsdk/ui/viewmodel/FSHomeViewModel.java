@@ -45,6 +45,18 @@ public class FSHomeViewModel extends FoxSdkBaseMviViewModel<FSHomeViewState, FSH
         return new FSHomeViewState();
     }
 
+    /**
+     * Overlay pages may be rebuilt for configuration changes without asking
+     * the server for fresh home data. Keep the restored state inside the
+     * ViewModel as well as the rendered UI so future rebuilds can snapshot the
+     * same data safely.
+     */
+    public void restoreStateForOverlay(FSHomeViewState state) {
+        if (state != null) {
+            setState(state);
+        }
+    }
+
     @Override
     protected void handleIntent(FSHomeIntent intent) {
         if (intent instanceof FSHomeIntent.Login) {
@@ -302,6 +314,18 @@ public class FSHomeViewModel extends FoxSdkBaseMviViewModel<FSHomeViewState, FSH
     @Override
     protected void onCleared() {
         super.onCleared();
+        disposables.dispose();
+    }
+
+    /**
+     * The home screen can be hosted by a plain View instead of a Lifecycle
+     * ViewModelStore. Keep the same disposal boundary used by Activity-backed
+     * ViewModels so all pending requests are cancelled when the overlay is
+     * removed.
+     */
+    @Override
+    public void disposeForOverlay() {
+        super.disposeForOverlay();
         disposables.dispose();
     }
 }

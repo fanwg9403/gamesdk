@@ -32,7 +32,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@id/fs_v_outside"
         app:layout_constraintHorizontal_weight="4"
-        app:layout_constraintStart_toEndOf="@id/fs_v_start_safe_area"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/fs_v_top_safe_area"
         app:srlEnableLoadMore="false"
         app:srlEnableOverScrollBounce="true"

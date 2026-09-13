@@ -4,17 +4,18 @@
     package="com.wishfox.foxsdk">
 
     <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 七鱼客服已停用，相关语音、拍照、文件、通知权限不再声明 -->
+    <!--<uses-permission android:name="android.permission.RECORD_AUDIO" />-->
+    <!--<uses-permission android:name="android.permission.CAMERA" />-->
+    <!--<uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />-->
+    <!--<uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />-->
+    <!--<uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />-->
+    <!--<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />-->
 
-    <uses-feature android:name="android.hardware.camera" />
+    <!--<uses-feature android:name="android.hardware.camera" />-->
 
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <!--<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />-->
+    <!--<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />-->
 
     <application
         android:allowBackup="true"

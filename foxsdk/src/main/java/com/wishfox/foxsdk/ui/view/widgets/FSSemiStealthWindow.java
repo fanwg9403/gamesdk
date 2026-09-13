@@ -3,7 +3,6 @@ package com.wishfox.foxsdk.ui.view.widgets;
 import android.animation.Animator;
 import android.app.Activity;
 import android.content.Context;
-import android.content.Intent;
 import android.content.res.Resources;
 import android.graphics.Rect;
 import android.util.DisplayMetrics;
@@ -16,11 +15,14 @@ import androidx.annotation.NonNull;
 import com.hjq.window.EasyWindow;
 import com.hjq.window.OnWindowLifecycleCallback;
 import com.hjq.window.OnWindowViewClickListener;
-import com.hjq.window.draggable.AbstractWindowDraggableRule;
+import com.hjq.window.draggable.IWindowDraggableRule;
 import com.hjq.window.draggable.SpringBackWindowDraggableRule;
+import com.hjq.window.draggable.callback.OnSpringBackAnimCallback;
+import com.hjq.window.draggable.callback.OnWindowDraggingCallback;
 import com.wishfox.foxsdk.R;
-import com.wishfox.foxsdk.ui.view.activity.FSHomeActivity;
-import com.wishfox.foxsdk.utils.FoxSdkViewExt;
+import com.wishfox.foxsdk.core.FoxSdkOverlayManager;
+
+import java.lang.ref.WeakReference;
 
 /**
  * 主要功能:
@@ -29,13 +31,17 @@ import com.wishfox.foxsdk.utils.FoxSdkViewExt;
  * @author: 范为广
  * @date: 2025年12月11日 14:23
  */
-public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow> implements AbstractWindowDraggableRule.OnWindowDraggingListener, SpringBackWindowDraggableRule.SpringBackAnimCallback, OnWindowViewClickListener<View>, OnWindowLifecycleCallback {
+public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
+        implements OnWindowDraggingCallback, OnSpringBackAnimCallback,
+        OnWindowViewClickListener<View>, OnWindowLifecycleCallback {
 
     private boolean mAnimatingFlag;
     private boolean mDraggingFlag;
+    private final WeakReference<Activity> hostActivity;
 
     public FSSemiStealthWindow(@NonNull Activity activity) {
         super(activity);
+        hostActivity = new WeakReference<>(activity);
     }
 
     @Override
@@ -48,9 +54,9 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow> i
 
         SpringBackWindowDraggableRule springBackWindowDraggableRule = new SpringBackWindowDraggableRule(
                 SpringBackWindowDraggableRule.ORIENTATION_HORIZONTAL);
-        springBackWindowDraggableRule.setAllowMoveToScreenNotch(false);
-        springBackWindowDraggableRule.setWindowDraggingListener(this);
-        springBackWindowDraggableRule.setSpringBackAnimCallback(this);
+        springBackWindowDraggableRule.setAllowMoveToScreenSafeArea(false);
+        springBackWindowDraggableRule.setOnWindowDraggingCallback(this);
+        springBackWindowDraggableRule.setOnSpringBackAnimCallback(this);
         setWindowDraggableRule(springBackWindowDraggableRule);
 
         setOnClickListenerByView(android.R.id.icon, this);
@@ -81,11 +87,11 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow> i
      * 隐藏 View 一半显示
      */
     private void hideHalfView(int gravity) {
-        AbstractWindowDraggableRule windowDraggableRule = getWindowDraggableRule();
+        IWindowDraggableRule windowDraggableRule = getWindowDraggableRule();
         if (windowDraggableRule == null) {
             return;
         }
-        View windowRootLayout = getRootLayout();
+        View windowRootLayout = getWindowRootLayout();
         if (windowRootLayout == null) {
             return;
         }
@@ -98,7 +104,7 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow> i
         Rect clipBounds = new Rect();
         switch (gravity) {
             case Gravity.LEFT:
-                Rect safeInsetRect = windowDraggableRule.getSafeInsetRect();
+                Rect safeInsetRect = windowDraggableRule.getSafeInsetRect(this);
                 if (safeInsetRect != null && safeInsetRect.left > 0) {
                     WindowManager.LayoutParams windowParams = getWindowParams();
                     windowDraggableRule.updateLocation(windowParams.x - viewWidth / 2f, windowParams.y, true);
@@ -127,18 +133,18 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow> i
     }
 
     private void showFullView() {
-        View rootLayout = getRootLayout();
+        View rootLayout = getWindowRootLayout();
         if (rootLayout == null) {
             return;
         }
         rootLayout.setAlpha(1f);
         int viewWidth = rootLayout.getWidth();
         int viewHeight = rootLayout.getHeight();
-        AbstractWindowDraggableRule windowDraggableRule = getWindowDraggableRule();
+        IWindowDraggableRule windowDraggableRule = getWindowDraggableRule();
         if (windowDraggableRule == null) {
             return;
         }
-        Rect safeInsetRect = windowDraggableRule.getSafeInsetRect();
+        Rect safeInsetRect = windowDraggableRule.getSafeInsetRect(this);
         if (safeInsetRect != null && safeInsetRect.left > 0) {
             WindowManager.LayoutParams windowParams = getWindowParams();
             windowDraggableRule.updateLocation(windowParams.x + viewWidth / 2f, windowParams.y, false);
@@ -154,12 +160,12 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow> i
      * View 是否全屏显示
      */
     private boolean isFullShowView() {
-        View view = getRootLayout();
-        AbstractWindowDraggableRule windowDraggableRule = getWindowDraggableRule();
+        View view = getWindowRootLayout();
+        IWindowDraggableRule windowDraggableRule = getWindowDraggableRule();
         if (windowDraggableRule == null) {
             return true;
         }
-        Rect safeInsetRect = windowDraggableRule.getSafeInsetRect();
+        Rect safeInsetRect = windowDraggableRule.getSafeInsetRect(this);
         if (safeInsetRect != null && safeInsetRect.left > 0) {
             if (getWindowParams().x < safeInsetRect.left) {
                 return false;
@@ -171,7 +177,7 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow> i
         int viewWidth = view.getWidth();
         int viewHeight = view.getHeight();
         Rect clipBounds = view.getClipBounds();
-        if (view.getTranslationX() != 0 && view.getTranslationY() != 0) {
+        if (view.getTranslationX() != 0 || view.getTranslationY() != 0) {
             return false;
         }
         if (clipBounds == null) {
@@ -238,12 +244,19 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow> i
             postStayEdgeRunnable();
             return;
         } else {
-            FoxSdkViewExt.setOnClickListener(view, v -> {
-                Intent intent = new Intent(view.getContext(), FSHomeActivity.class);
-                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                view.getContext().startActivity(intent);
-            });
+            Activity activity = hostActivity.get();
+            FoxSdkOverlayManager.show(activity);
         }
+    }
+
+    /**
+     * EasyWindow 15.8 exposes the content view as the stable root accessor.
+     * Keeping this small adapter also makes the floating ball resilient when
+     * the library returns a null content view during teardown.
+     */
+    private View getWindowRootLayout() {
+        View contentView = getContentView();
+        return contentView;
     }
 
     /**

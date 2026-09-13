@@ -10,6 +10,8 @@ import com.gyf.immersionbar.ImmersionBar;
 import com.scwang.smart.refresh.footer.ClassicsFooter;
 import com.scwang.smart.refresh.header.ClassicsHeader;
 import com.wishfox.foxsdk.R;
+import com.wishfox.foxsdk.core.FoxSdkOverlayManager;
+import com.wishfox.foxsdk.core.WishFoxSdk;
 import com.wishfox.foxsdk.databinding.FsActivityGameRecordBinding;
 import com.wishfox.foxsdk.di.FoxSdkViewModelFactory;
 import com.wishfox.foxsdk.domain.intent.FSGameRecordIntent;
@@ -36,7 +38,21 @@ public class FSGameRecordActivity extends FoxSdkBaseMviActivity<FSGameRecordView
     private FSGameRecordAdapter gameRecordAdapter;
 
     public static void start(Context context) {
-        context.startActivity(new Intent(context, FSGameRecordActivity.class));
+        if (context == null) {
+            return;
+        }
+        if (context instanceof android.app.Activity && WishFoxSdk.isInitialized()) {
+            FoxSdkOverlayManager.showPage(
+                    (android.app.Activity) context,
+                    FoxSdkOverlayManager.Page.GAME_RECORD
+            );
+            return;
+        }
+        Intent intent = new Intent(context, FSGameRecordActivity.class);
+        if (!(context instanceof android.app.Activity)) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        }
+        context.startActivity(intent);
     }
 
     @Override

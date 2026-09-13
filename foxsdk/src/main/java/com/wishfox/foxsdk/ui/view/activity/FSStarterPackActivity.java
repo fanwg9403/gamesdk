@@ -13,6 +13,8 @@ import com.scwang.smart.refresh.header.ClassicsHeader;
 import com.scwang.smart.refresh.layout.api.RefreshLayout;
 import com.scwang.smart.refresh.layout.listener.OnRefreshLoadMoreListener;
 import com.wishfox.foxsdk.R;
+import com.wishfox.foxsdk.core.FoxSdkOverlayManager;
+import com.wishfox.foxsdk.core.WishFoxSdk;
 import com.wishfox.foxsdk.data.model.entity.FSStarterPack;
 import com.wishfox.foxsdk.databinding.FsActivityStarterPackBinding;
 import com.wishfox.foxsdk.di.FoxSdkViewModelFactory;
@@ -42,7 +44,21 @@ public class FSStarterPackActivity extends FoxSdkBaseMviActivity<FSStarterPackVi
     private static final long CLICK_INTERVAL = 3000;
 
     public static void start(Context context) {
-        context.startActivity(new Intent(context, FSStarterPackActivity.class));
+        if (context == null) {
+            return;
+        }
+        if (context instanceof android.app.Activity && WishFoxSdk.isInitialized()) {
+            FoxSdkOverlayManager.showPage(
+                    (android.app.Activity) context,
+                    FoxSdkOverlayManager.Page.STARTER_PACK
+            );
+            return;
+        }
+        Intent intent = new Intent(context, FSStarterPackActivity.class);
+        if (!(context instanceof android.app.Activity)) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        }
+        context.startActivity(intent);
     }
 
     @Override

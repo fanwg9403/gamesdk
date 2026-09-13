@@ -26,8 +26,19 @@ import io.reactivex.rxjava3.annotations.NonNull;
  */
 public class FSBannerAdapter extends BannerAdapter<FSHomeBanner, FSBannerAdapter.VH> {
 
+    public interface OnBannerClickListener {
+        void onBannerClick(String url);
+    }
+
+    private final OnBannerClickListener onBannerClickListener;
+
     public FSBannerAdapter(List<FSHomeBanner> datas) {
+        this(datas, null);
+    }
+
+    public FSBannerAdapter(List<FSHomeBanner> datas, OnBannerClickListener onBannerClickListener) {
         super(datas);
+        this.onBannerClickListener = onBannerClickListener;
     }
 
     @Override
@@ -37,7 +48,14 @@ public class FSBannerAdapter extends BannerAdapter<FSHomeBanner, FSBannerAdapter
 
     @Override
     public void onBindView(VH holder, FSHomeBanner data, int position, int size) {
-        FoxSdkViewExt.setOnClickListener(holder.binding.fsBannerImage, v -> FSWebActivity.startWithUrl(v.getContext(), data.getLink() != null ? data.getLink() : ""));
+        FoxSdkViewExt.setOnClickListener(holder.binding.fsBannerImage, v -> {
+            String url = data.getLink() != null ? data.getLink() : "";
+            if (onBannerClickListener != null) {
+                onBannerClickListener.onBannerClick(url);
+            } else {
+                FSWebActivity.startWithUrl(v.getContext(), url);
+            }
+        });
 
         Glide.with(holder.binding.fsBannerImage.getContext())
                 .load(data.getImage())

@@ -1,5 +1,6 @@
 package com.wishfox.foxsdk.ui.view.dialog;
 
+import android.app.Activity;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
@@ -20,6 +21,7 @@ import com.wishfox.foxsdk.data.model.entity.FSCreateOrder;
 import com.wishfox.foxsdk.data.network.FoxSdkNetworkExecutor;
 import com.wishfox.foxsdk.data.network.FoxSdkRetrofitManager;
 import com.wishfox.foxsdk.databinding.FsDialogLoginBinding;
+import com.wishfox.foxsdk.core.FoxSdkOverlayManager;
 import com.wishfox.foxsdk.ui.view.activity.FSWebActivity;
 import com.wishfox.foxsdk.ui.view.widgets.FSLoadingDialog;
 import com.wishfox.foxsdk.utils.FoxSdkUtils;
@@ -174,14 +176,31 @@ public class FSLoginDialog extends Dialog {
         });
 
         // 认证登录
-        FoxSdkViewExt.setOnClickListener(binding.fsTvAuthLogin, v -> ctx.startActivity(new Intent(ctx, WishFoxEntryActivity.class)
-                .setAction(FoxSdkConfig.WishFoxActions.WISH_FOX_AUTH_ACTION)));
+        FoxSdkViewExt.setOnClickListener(binding.fsTvAuthLogin, v -> {
+            dismiss();
+            ctx.startActivity(new Intent(ctx, WishFoxEntryActivity.class)
+                    .setAction(FoxSdkConfig.WishFoxActions.WISH_FOX_AUTH_ACTION));
+        });
 
         // 用户协议
-        FoxSdkViewExt.setOnClickListener(binding.fsTvUserAgreement, v -> FSWebActivity.startWithUrl(ctx, "https://world.wishfoxs.com/gameOfUser.html"));
+        FoxSdkViewExt.setOnClickListener(binding.fsTvUserAgreement, v ->
+                openAgreement("https://world.wishfoxs.com/gameOfUser.html"));
 
         // 隐私协议
-        FoxSdkViewExt.setOnClickListener(binding.fsTvPrivacyAgreement, v -> FSWebActivity.startWithUrl(ctx, "https://world.wishfoxs.com/gaemOfPrivacy.html"));
+        FoxSdkViewExt.setOnClickListener(binding.fsTvPrivacyAgreement, v ->
+                openAgreement("https://world.wishfoxs.com/gaemOfPrivacy.html"));
+    }
+
+    private void openAgreement(String url) {
+        if (ctx instanceof Activity &&
+                FoxSdkOverlayManager.isShowing((Activity) ctx)) {
+            // The agreement is rendered by the host overlay. Close this
+            // dialog first so its window cannot remain above the WebView.
+            dismiss();
+            FoxSdkOverlayManager.showWeb((Activity) ctx, url, false);
+        } else {
+            FSWebActivity.startWithUrl(ctx, url);
+        }
     }
 
     private void setupTextWatchers() {
