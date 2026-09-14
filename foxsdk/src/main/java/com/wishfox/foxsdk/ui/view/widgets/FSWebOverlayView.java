@@ -16,7 +16,7 @@ import com.wishfox.foxsdk.databinding.FsActivityWebDetailBinding;
 import com.wishfox.foxsdk.utils.FoxSdkViewExt;
 
 /**
- * WebView 页的宿主内 Overlay 实现。
+ * WebView 页的宿主内 Overlay 实现，支持 URL、HTML 内容和 H5 返回交互。
  */
 public final class FSWebOverlayView extends FSOverlayPageView {
 
@@ -28,6 +28,16 @@ public final class FSWebOverlayView extends FSOverlayPageView {
     private WebView webView;
     private boolean proxyBack;
 
+    /**
+     * 创建宿主内 WebView Overlay 页面。
+     *
+     * @param activity 宿主 Activity
+     * @param callback Overlay 关闭回调
+     * @param url 要加载的网页地址
+     * @param html 要加载的 HTML 内容
+     * @param showTitle 是否显示标题栏
+     * @param showReport 是否显示举报入口
+     */
     public FSWebOverlayView(
             Activity activity,
             Callback callback,
@@ -45,6 +55,9 @@ public final class FSWebOverlayView extends FSOverlayPageView {
         initView();
     }
 
+    /**
+     * 初始化标题栏、安全区和 WebView 入口参数。
+     */
     private void initView() {
         FSOverlayInsets.applyToPadding(activity, this);
 
@@ -57,14 +70,17 @@ public final class FSWebOverlayView extends FSOverlayPageView {
 
         if (TextUtils.isEmpty(url) && TextUtils.isEmpty(html)) {
             Toaster.show(R.string.fs_link_error);
-            // The manager attaches this view immediately after construction.
-            // Post the close callback to avoid re-entrant page replacement.
+            // 管理器会在构造完成后立即挂载当前 View。
+            // 这里延后关闭回调，避免页面替换过程发生重入。
             post(this::requestClose);
             return;
         }
         initWebView();
     }
 
+    /**
+     * 初始化 WebView 设置并加载 URL 或 HTML 内容。
+     */
     @SuppressLint({"JavascriptInterface", "SetJavaScriptEnabled"})
     private void initWebView() {
         webView = binding.fsWebView;
@@ -98,6 +114,9 @@ public final class FSWebOverlayView extends FSOverlayPageView {
         }
     }
 
+    /**
+     * 提供给 H5 调用的关闭入口。
+     */
     @JavascriptInterface
     public void finishActivity() {
         post(() -> {
@@ -107,6 +126,9 @@ public final class FSWebOverlayView extends FSOverlayPageView {
         });
     }
 
+    /**
+     * 代理页面返回逻辑，优先交给 H5 回调或 WebView 历史栈处理。
+     */
     private void proxyBackPress() {
         if (webView == null) {
             requestClose();
@@ -125,6 +147,13 @@ public final class FSWebOverlayView extends FSOverlayPageView {
         }
     }
 
+    /**
+     * 调用 H5 注册的方法。
+     *
+     * @param funName H5 方法名
+     * @param data 传递给 H5 的参数
+     * @param callbackFunction JavaScript 执行结果回调
+     */
     @JavascriptInterface
     public void registerFunction(String funName, String data, ValueCallback<String> callbackFunction) {
         if (webView == null || TextUtils.isEmpty(funName)) {
@@ -135,11 +164,17 @@ public final class FSWebOverlayView extends FSOverlayPageView {
         webView.evaluateJavascript(script, callbackFunction);
     }
 
+    /**
+     * 处理宿主返回键并交由网页历史或 H5 回调处理。
+     */
     @Override
     protected void handleBackPressed() {
         proxyBackPress();
     }
 
+    /**
+     * 销毁 WebView 并释放页面资源。
+     */
     @Override
     public void destroy() {
         super.destroy();
@@ -152,7 +187,7 @@ public final class FSWebOverlayView extends FSOverlayPageView {
                 webView.removeAllViews();
                 webView.destroy();
             } catch (Throwable ignored) {
-                // WebView teardown is best effort during Activity destruction.
+                // Activity 销毁阶段 WebView 释放失败时忽略，避免影响宿主生命周期。
             }
             webView = null;
         }

@@ -12,6 +12,7 @@ import android.util.DisplayMetrics;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.ImageView;
 
 import androidx.annotation.NonNull;
 
@@ -25,11 +26,12 @@ import com.hjq.window.draggable.callback.OnSpringBackAnimCallback;
 import com.hjq.window.draggable.callback.OnWindowDraggingCallback;
 import com.wishfox.foxsdk.R;
 import com.wishfox.foxsdk.core.FoxSdkOverlayManager;
+import com.wishfox.foxsdk.utils.FSFloatImageManager;
 
 import java.lang.ref.WeakReference;
 
 /**
- * 主要功能:
+ * 主要功能: SDK 半隐藏悬浮球窗口。
  *
  * @Description:
  * @author: 范为广
@@ -51,26 +53,34 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
     private SavedPosition mRestoredPosition;
     private final WeakReference<Activity> hostActivity;
 
+    /**
+     * 创建绑定宿主 Activity 的悬浮球窗口。
+     */
     public FSSemiStealthWindow(@NonNull Activity activity) {
         super(activity);
         hostActivity = new WeakReference<>(activity);
     }
 
+    /**
+     * 初始化悬浮球布局、拖拽规则和窗口参数。
+     */
     @Override
     protected void initWindow(@NonNull Context context) {
         super.initWindow(context);
 
         /*
-         * EasyWindow supplies a default window animation (16973828). The
-         * floating ball is recycled immediately before the SDK overlay is
-         * attached, but WindowManager can still keep that window's exit
-         * animation on screen. This makes the ball briefly cover the already
-         * visible home page. The ball has its own drag spring-back animation,
-         * so disable only the WindowManager enter/exit animation here.
+         * EasyWindow 默认会设置窗口动画 16973828。
+         * 悬浮球在 SDK 首页挂载前会立即 recycle，但 WindowManager 仍可能继续播放
+         * 这个窗口的退出动画，导致悬浮球短暂覆盖在已经展示的首页上。
+         * 悬浮球自身拖拽回弹动画由拖拽规则负责，这里只关闭 WindowManager 进出场动画。
          */
         setWindowAnim(0);
 
         setContentView(R.layout.fs_floating_view);
+        View floatImage = findViewById(android.R.id.icon);
+        if (floatImage instanceof ImageView) {
+            FSFloatImageManager.loadInto((ImageView) floatImage);
+        }
 
         mRestoredPosition = loadSavedPosition(context);
         if (mRestoredPosition == null) {
@@ -99,6 +109,7 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
         sendTask(mStayEdgeRunnable, 3000);
     }
 
+    /** 首次展示后延迟校准横屏初始位置。 */
     private final Runnable mSettleInitialPositionRunnable = () -> {
         if (!mInitialPositionPending || !isShowing() || mAnimatingFlag || mDraggingFlag) {
             return;
@@ -106,6 +117,7 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
         settleInitialPosition();
     };
 
+    /** 悬浮球空闲一段时间后自动半隐藏贴边。 */
     private final Runnable mStayEdgeRunnable = () -> {
         if (mAnimatingFlag || mDraggingFlag) {
             return;
@@ -171,6 +183,9 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
         saveCurrentPosition();
     }
 
+    /**
+     * 将半隐藏状态恢复为完整显示。
+     */
     private void showFullView() {
         View rootLayout = getWindowRootLayout();
         if (rootLayout == null) {
@@ -248,6 +263,9 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
         return (windowParams.x + getWindowViewWidth() / 2f) < screenWidth / 2f;
     }
 
+    /**
+     * 拖拽开始时取消半隐藏任务，并把半隐藏状态恢复成完整显示。
+     */
     @Override
     public void onWindowDraggingStart(@NonNull EasyWindow<?> easyWindow) {
         mInitialPositionPending = false;
@@ -261,12 +279,18 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
         }
     }
 
+    /**
+     * 拖拽结束时保存当前位置。
+     */
     @Override
     public void onWindowDraggingStop(@NonNull EasyWindow<?> easyWindow) {
         mDraggingFlag = false;
         saveCurrentPosition();
     }
 
+    /**
+     * 回弹动画开始时刷新拖拽边界。
+     */
     @Override
     public void onSpringBackAnimationStart(@NonNull EasyWindow<?> easyWindow, @NonNull Animator animator) {
         syncDragSafeAreaPolicy();
@@ -274,6 +298,9 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
         mAnimatingFlag = true;
     }
 
+    /**
+     * 回弹动画结束后保存最终位置并重新启动半隐藏任务。
+     */
     @Override
     public void onSpringBackAnimationEnd(@NonNull EasyWindow<?> easyWindow, @NonNull Animator animator) {
         syncDragSafeAreaPolicy();
@@ -291,6 +318,9 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
         postStayEdgeRunnable();
     }
 
+    /**
+     * 点击悬浮球时，先从半隐藏恢复为完整显示，再打开 SDK 首页。
+     */
     @Override
     public void onClick(@NonNull EasyWindow<?> easyWindow, @NonNull View view) {
         settleInitialPosition();
@@ -306,8 +336,7 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
     }
 
     /**
-     * Keep the root lookup in one place so the floating ball remains resilient
-     * when EasyWindow returns a null view during teardown.
+     * 统一获取悬浮球根布局，避免 EasyWindow 销毁阶段返回空 View 时引发异常。
      */
     private View getWindowRootLayout() {
         View rootLayout = getRootLayout();
@@ -317,26 +346,33 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
         return getContentView();
     }
 
+    /**
+     * 获取可用的悬浮球宽度，布局未完成时回退到 EasyWindow 记录的宽度。
+     */
     private int getAvailableViewWidth(View view) {
         int viewWidth = view == null ? 0 : view.getWidth();
         return viewWidth > 0 ? viewWidth : getWindowViewWidth();
     }
 
+    /**
+     * 获取可用的悬浮球高度，布局未完成时回退到 EasyWindow 记录的高度。
+     */
     private int getAvailableViewHeight(View view) {
         int viewHeight = view == null ? 0 : view.getHeight();
         return viewHeight > 0 ? viewHeight : getWindowViewHeight();
     }
 
+    /**
+     * 根据当前横竖屏和沉浸状态同步拖拽安全区策略。
+     */
     private void syncDragSafeAreaPolicy() {
         IWindowDraggableRule windowDraggableRule = getWindowDraggableRule();
         if (windowDraggableRule != null) {
             /*
-             * Landscape games are usually immersive. On some devices EasyWindow
-             * reports a non-zero left safe inset even when the host has hidden
-             * the navigation/status bars. If the floating ball is clamped to
-             * that inset, it cannot reach the physical edge and every click is
-             * misread as a request to "show full" again. Keep portrait behavior
-             * conservative, but let landscape drag/spring-back use the real edge.
+             * 横屏游戏通常处于沉浸模式。部分设备在宿主已经隐藏状态栏和导航栏后，
+             * EasyWindow 仍会读到非零左侧安全区；如果悬浮球被限制在这个安全区内，
+             * 就无法贴到物理屏幕边缘，点击时也容易被误判为只需要恢复完整显示。
+             * 竖屏保持相对保守的安全区策略，横屏拖拽和回弹则允许使用物理边缘。
             */
             windowDraggableRule.setAllowMoveToScreenSafeArea(isLandscape());
         }
@@ -347,14 +383,15 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
         }
     }
 
+    /**
+     * 配置悬浮球窗口的全屏、沉浸和挖孔屏参数。
+     */
     private void configureFloatingWindowLayout() {
         /*
-         * EasyWindow copies the host's current system-bar flags in its
-         * Activity constructor. A host may apply immersive mode a little later
-         * (for example from onWindowFocusChanged), while this floating window
-         * is created from onActivityCreated. Explicitly make the floating
-         * window edge-to-edge so its visible display frame starts at physical
-         * screen coordinate 0 on the first show as well.
+         * EasyWindow 在 Activity 构造器中复制宿主当时的系统栏标记。
+         * 但宿主可能稍后才进入沉浸模式，例如在 onWindowFocusChanged 中设置；
+         * 悬浮球又是在 onActivityCreated 阶段创建的，所以这里主动把悬浮球窗口
+         * 设置为边到边布局，保证首次显示时可见区域也从物理屏幕坐标 0 开始。
          */
         int systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                 | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
@@ -381,20 +418,25 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
         }
     }
 
+    /**
+     * 刷新 EasyWindow 拖拽规则缓存的窗口和屏幕尺寸。
+     */
     private void refreshDragMetrics() {
         IWindowDraggableRule windowDraggableRule = getWindowDraggableRule();
         if (windowDraggableRule instanceof BaseWindowDraggableRule) {
             /*
-             * BaseWindowDraggableRule caches the visible display frame at
-             * start(). Refresh it after WindowManager has attached the window;
-             * this is essential when the host applies immersive flags after
-             * Activity creation.
+             * BaseWindowDraggableRule 会在 start() 时缓存可见窗口区域。
+             * WindowManager 挂载窗口后需要再次刷新；当宿主在 Activity 创建后
+             * 才设置沉浸标记时，这一步可以避免使用过期边界。
              */
             ((BaseWindowDraggableRule) windowDraggableRule).refreshWindowInfo();
             ((BaseWindowDraggableRule) windowDraggableRule).refreshScreenPhysicalSize();
         }
     }
 
+    /**
+     * 首次展示时修正横屏初始位置，避免被旧安全区推离屏幕边缘。
+     */
     private void settleInitialPosition() {
         if (!mInitialPositionPending || !isShowing() || mAnimatingFlag || mDraggingFlag) {
             return;
@@ -407,6 +449,9 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
         mInitialPositionPending = false;
     }
 
+    /**
+     * 横屏半隐藏前把悬浮球吸附到物理屏幕边缘。
+     */
     private void snapToPhysicalEdgeIfNeeded(int gravity, int viewWidth) {
         if (!isLandscape()) {
             return;
@@ -431,6 +476,9 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
         }
     }
 
+    /**
+     * 横屏首次展示时把悬浮球对齐到左侧物理边缘。
+     */
     private void alignToInitialLandscapeEdge() {
         if (!isLandscape()) {
             return;
@@ -447,6 +495,9 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
         }
     }
 
+    /**
+     * 获取 EasyWindow 计算出的屏幕不可见宽度，用于补偿沉浸式横屏坐标。
+     */
     private int getScreenInvisibleWidth() {
         IWindowDraggableRule windowDraggableRule = getWindowDraggableRule();
         if (windowDraggableRule == null) {
@@ -455,10 +506,16 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
         return Math.max(0, windowDraggableRule.getScreenInvisibleWidth());
     }
 
+    /**
+     * 判断当前窗口是否处于横屏。
+     */
     private boolean isLandscape() {
         return isLandscape(getContext());
     }
 
+    /**
+     * 判断指定 Context 是否处于横屏。
+     */
     private boolean isLandscape(Context context) {
         return context != null &&
                 context.getResources() != null &&
@@ -468,9 +525,8 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
     }
 
     /**
-     * {@link OnWindowLifecycleCallback}
+     * 窗口展示后恢复历史位置或校准首次横屏位置。
      */
-
     @Override
     public void onWindowShow(@NonNull EasyWindow<?> easyWindow) {
         configureFloatingWindowLayout();
@@ -489,11 +545,17 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
         postStayEdgeRunnable();
     }
 
+    /**
+     * 窗口回收前保存当前位置，覆盖打开首页和宿主销毁等场景。
+     */
     @Override
     public void onWindowRecycle(@NonNull EasyWindow<?> easyWindow) {
         saveCurrentPosition();
     }
 
+    /**
+     * 恢复历史位置，并按当前屏幕边界裁剪，防止尺寸变化后越界。
+     */
     private void restorePositionWithinCurrentBounds(@NonNull SavedPosition position) {
         IWindowDraggableRule windowDraggableRule = getWindowDraggableRule();
         if (windowDraggableRule == null) {
@@ -526,10 +588,16 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
         }
     }
 
+    /**
+     * 将数值限制在指定范围内。
+     */
     private int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(value, max));
     }
 
+    /**
+     * 保存当前悬浮球坐标。保存失败时静默忽略，避免影响悬浮球生命周期。
+     */
     private void saveCurrentPosition() {
         Activity activity = hostActivity.get();
         WindowManager.LayoutParams windowParams = getWindowParams();
@@ -546,10 +614,13 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
                     .putInt(keyPrefix + ".y", windowParams.y)
                     .apply();
         } catch (Throwable ignored) {
-            // Position persistence must never affect the floating window lifecycle.
+            // 位置持久化不能影响悬浮球生命周期。
         }
     }
 
+    /**
+     * 读取当前宿主页面和屏幕方向对应的历史悬浮球坐标。
+     */
     private SavedPosition loadSavedPosition(Context context) {
         if (!(context instanceof Activity)) {
             return null;
@@ -573,6 +644,9 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
         }
     }
 
+    /**
+     * 生成悬浮球位置缓存键名前缀，按宿主 Activity 类名和横竖屏隔离。
+     */
     private String getPositionKeyPrefix(Activity activity) {
         return POSITION_KEY_PREFIX
                 + activity.getClass().getName()
@@ -580,6 +654,9 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
                 + (isLandscape(activity) ? "landscape" : "portrait");
     }
 
+    /**
+     * 悬浮球历史坐标数据。
+     */
     private static final class SavedPosition {
         private final int x;
         private final int y;

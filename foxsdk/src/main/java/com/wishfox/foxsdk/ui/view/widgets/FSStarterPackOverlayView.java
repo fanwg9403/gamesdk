@@ -22,7 +22,7 @@ import com.wishfox.foxsdk.utils.FoxSdkViewExt;
 import java.util.ArrayList;
 
 /**
- * 新手礼包页的宿主内 Overlay 实现。
+ * 新手礼包页的宿主内 Overlay 实现，负责礼包领取、复制兑换码和分页加载。
  */
 public final class FSStarterPackOverlayView extends FSOverlayPageView {
 
@@ -30,6 +30,12 @@ public final class FSStarterPackOverlayView extends FSOverlayPageView {
     private final FSStarterPackViewModel viewModel;
     private final FSStarterPackAdapter adapter;
 
+    /**
+     * 创建新手礼包页面并启动首次加载。
+     *
+     * @param activity 宿主 Activity
+     * @param callback Overlay 关闭回调
+     */
     public FSStarterPackOverlayView(Activity activity, Callback callback) {
         super(activity, callback);
         binding = FsActivityStarterPackBinding.inflate(LayoutInflater.from(activity), this, true);
@@ -49,6 +55,9 @@ public final class FSStarterPackOverlayView extends FSOverlayPageView {
         viewModel.dispatch(new FSStarterPackIntent.LoadInitial());
     }
 
+    /**
+     * 初始化导航、刷新分页控件、列表及礼包操作监听器。
+     */
     private void initView() {
         applyWindowInsets(
                 binding.fsTopView,
@@ -65,6 +74,11 @@ public final class FSStarterPackOverlayView extends FSOverlayPageView {
         binding.fsRefresh.setRefreshHeader(new ClassicsHeader(activity));
         binding.fsRefresh.setRefreshFooter(new ClassicsFooter(activity));
         binding.fsRefresh.setOnRefreshLoadMoreListener(new OnRefreshLoadMoreListener() {
+            /**
+             * 处理下拉刷新请求，避免与已有加载任务并发。
+             *
+             * @param refreshLayout 当前刷新布局
+             */
             @Override
             public void onRefresh(RefreshLayout refreshLayout) {
                 FSStarterPackViewState state = viewModel.getCurrentState();
@@ -74,6 +88,11 @@ public final class FSStarterPackOverlayView extends FSOverlayPageView {
                 }
             }
 
+            /**
+             * 处理上拉加载更多请求，避免与已有加载任务并发。
+             *
+             * @param refreshLayout 当前刷新布局
+             */
             @Override
             public void onLoadMore(RefreshLayout refreshLayout) {
                 FSStarterPackViewState state = viewModel.getCurrentState();
@@ -102,6 +121,11 @@ public final class FSStarterPackOverlayView extends FSOverlayPageView {
         });
     }
 
+    /**
+     * 根据状态更新礼包列表、分页控件及领取结果。
+     *
+     * @param state 当前新手礼包页面状态
+     */
     private void renderState(FSStarterPackViewState state) {
         if (isDestroyedForOverlay() || state == null) {
             return;
@@ -146,6 +170,9 @@ public final class FSStarterPackOverlayView extends FSOverlayPageView {
         }
     }
 
+    /**
+     * 销毁页面并释放 ViewModel 订阅资源。
+     */
     @Override
     public void destroy() {
         super.destroy();

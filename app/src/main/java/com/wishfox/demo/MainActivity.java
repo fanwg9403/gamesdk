@@ -78,9 +78,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * Keep the demo host in the same full-screen immersive state as a
-     * third-party game. The SDK overlay must render over this Activity without
-     * changing these window flags.
+     * 让 Demo 宿主保持与三方游戏一致的全屏沉浸状态。
+     * SDK Overlay 需要在不修改这些窗口标记的前提下覆盖到当前 Activity 上。
      */
     private void enableImmersiveMode() {
         Window window = getWindow();

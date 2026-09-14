@@ -339,7 +339,7 @@ final class WindowLifecycleControl
 
     @Override
     public void onLowMemory() {
-        // The host application owns process-level memory policy.
+        // 进程级内存策略由宿主应用负责，SDK 不在这里主动释放宿主资源。
     }
 
     static void hideWindow(Activity activity) {

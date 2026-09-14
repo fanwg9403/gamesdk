@@ -18,7 +18,7 @@ import com.wishfox.foxsdk.utils.FoxSdkViewExt;
 import java.util.ArrayList;
 
 /**
- * 游戏记录页的宿主内 Overlay 实现。
+ * 游戏记录页的宿主内 Overlay 实现，负责展示记录列表并处理刷新与分页状态。
  */
 public final class FSGameRecordOverlayView extends FSOverlayPageView {
 
@@ -26,6 +26,12 @@ public final class FSGameRecordOverlayView extends FSOverlayPageView {
     private final FSGameRecordViewModel viewModel;
     private final FSGameRecordAdapter adapter;
 
+    /**
+     * 创建游戏记录页面并启动首次加载。
+     *
+     * @param activity 宿主 Activity
+     * @param callback Overlay 关闭回调
+     */
     public FSGameRecordOverlayView(Activity activity, Callback callback) {
         super(activity, callback);
         binding = FsActivityGameRecordBinding.inflate(LayoutInflater.from(activity), this, true);
@@ -45,6 +51,9 @@ public final class FSGameRecordOverlayView extends FSOverlayPageView {
         viewModel.dispatch(new FSGameRecordIntent.LoadInitial());
     }
 
+    /**
+     * 初始化安全区、返回按钮、刷新控件和列表适配器。
+     */
     private void initView() {
         applyWindowInsets(
                 binding.fsTopView,
@@ -70,6 +79,11 @@ public final class FSGameRecordOverlayView extends FSOverlayPageView {
         binding.fsRecyclerView.setAdapter(adapter);
     }
 
+    /**
+     * 根据 ViewModel 状态更新列表数据及刷新控件状态。
+     *
+     * @param state 当前游戏记录页面状态
+     */
     private void renderState(FSGameRecordViewState state) {
         if (isDestroyedForOverlay() || state == null) {
             return;
@@ -104,6 +118,9 @@ public final class FSGameRecordOverlayView extends FSOverlayPageView {
         }
     }
 
+    /**
+     * 销毁页面并释放 ViewModel 订阅资源。
+     */
     @Override
     public void destroy() {
         super.destroy();

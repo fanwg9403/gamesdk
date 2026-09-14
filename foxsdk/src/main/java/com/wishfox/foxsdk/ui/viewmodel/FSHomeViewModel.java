@@ -12,6 +12,8 @@ import com.wishfox.foxsdk.ui.base.FoxSdkBaseMviViewModel;
 import com.wishfox.foxsdk.ui.view.dialog.FSLoginDialog;
 import com.wishfox.foxsdk.ui.viewstate.FSHomeViewState;
 import com.wishfox.foxsdk.ui.viewstate.FoxSdkUiEffect;
+import com.wishfox.foxsdk.core.WishFoxSdk;
+import com.wishfox.foxsdk.utils.FSFloatImageManager;
 import com.wishfox.foxsdk.utils.FoxSdkConstant;
 import com.wishfox.foxsdk.utils.FoxSdkSPUtils;
 
@@ -46,10 +48,8 @@ public class FSHomeViewModel extends FoxSdkBaseMviViewModel<FSHomeViewState, FSH
     }
 
     /**
-     * Overlay pages may be rebuilt for configuration changes without asking
-     * the server for fresh home data. Keep the restored state inside the
-     * ViewModel as well as the rendered UI so future rebuilds can snapshot the
-     * same data safely.
+     * 横竖屏变化时 Overlay 页面可能重建，但不需要重新请求首页数据。
+     * 这里把恢复出来的状态同步回 ViewModel，保证后续重建仍能安全快照同一份数据。
      */
     public void restoreStateForOverlay(FSHomeViewState state) {
         if (state != null) {
@@ -95,6 +95,9 @@ public class FSHomeViewModel extends FoxSdkBaseMviViewModel<FSHomeViewState, FSH
     }
 
     private void handleInit() {
+        // 获取悬浮球图片；失败时由悬浮窗读取上一次成功的缓存或预置图片
+        getFloatImage();
+
         // 获取广告列表
         Disposable initDisposable = repository.getAdvertiseList()
                 .subscribeOn(Schedulers.io())
@@ -125,6 +128,21 @@ public class FSHomeViewModel extends FoxSdkBaseMviViewModel<FSHomeViewState, FSH
                 });
 
         disposables.add(initDisposable);
+    }
+
+    /**
+     * 请求悬浮球图片并刷新本地缓存。
+     */
+    private void getFloatImage() {
+        Disposable floatImageDisposable = repository.getFloatImage()
+                .subscribeOn(Schedulers.io())
+                .subscribe(result -> {
+                    String imageUrl = result != null && result.isSuccess() ? result.getData() : null;
+                    FSFloatImageManager.refreshCache(WishFoxSdk.getContext(), imageUrl);
+                }, throwable -> {
+                    // 保留之前的缓存，供悬浮窗继续使用。
+                });
+        disposables.add(floatImageDisposable);
     }
 
     private void getUserVirtualInfoAndUpdateState(List<FSHomeBanner> banners) {
@@ -318,10 +336,9 @@ public class FSHomeViewModel extends FoxSdkBaseMviViewModel<FSHomeViewState, FSH
     }
 
     /**
-     * The home screen can be hosted by a plain View instead of a Lifecycle
-     * ViewModelStore. Keep the same disposal boundary used by Activity-backed
-     * ViewModels so all pending requests are cancelled when the overlay is
-     * removed.
+     * 首页可能由普通 View 持有，而不是由 Lifecycle ViewModelStore 管理。
+     * 这里保持与 Activity 承载 ViewModel 一致的释放边界，确保 Overlay 移除时
+     * 所有未完成请求都会被取消。
      */
     @Override
     public void disposeForOverlay() {

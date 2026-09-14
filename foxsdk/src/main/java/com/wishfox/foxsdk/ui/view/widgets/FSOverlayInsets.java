@@ -12,17 +12,20 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 /**
- * Applies system-bar and display-cutout insets to views hosted inside the
- * third-party Activity. The start safe-area view is deliberately kept out of
- * the horizontal ConstraintLayout weight chain; the page content receives a
- * dynamic start margin instead. This prevents a zero-width chain member from
- * collapsing the page and avoids a permanent 1dp landscape gap.
+ * 为挂载在三方宿主 Activity 内的 SDK 页面应用系统栏和挖孔屏安全区。
+ *
+ * <p>左侧安全区占位 View 不参与 ConstraintLayout 的横向权重链，
+ * 页面内容通过动态起始外边距偏移，避免零宽度链元素压缩页面，
+ * 也避免横屏时出现固定 1dp 空隙。</p>
  */
 final class FSOverlayInsets {
 
     private FSOverlayInsets() {
     }
 
+    /**
+     * 为顶部安全区、左侧安全区和页面内容根节点应用当前窗口安全区。
+     */
     static void apply(
             Activity activity,
             View host,
@@ -77,9 +80,8 @@ final class FSOverlayInsets {
     }
 
     /**
-     * Applies all four safe-area edges to a full-screen child such as the
-     * SDK WebView page. System-bar insets are ignored while the corresponding
-     * bar is hidden, but display-cutout insets are always retained.
+     * 为 WebView 这类全屏子页面应用四边安全区。
+     * 对应系统栏隐藏时忽略系统栏安全区，但始终保留挖孔屏安全区。
      */
     static void applyToPadding(Activity activity, View host) {
         if (host == null) {
@@ -99,6 +101,9 @@ final class FSOverlayInsets {
         ViewCompat.requestApplyInsets(host);
     }
 
+    /**
+     * 计算顶部需要预留的安全距离。
+     */
     private static int resolveTopInset(
             Activity activity,
             WindowInsetsCompat insets,
@@ -107,11 +112,10 @@ final class FSOverlayInsets {
         int topInset = cutout == null ? 0 : cutout.getSafeInsetTop();
 
         /*
-         * WindowInsetsCompat 1.3 (pulled by the SDK's AppCompat version)
-         * exposes the legacy inset values but not visibility masks. Use the
-         * platform visibility API on Android 11+ and the legacy fullscreen
-         * flag on Android 7-10 so an immersive host does not get a phantom
-         * status-bar height above every secondary-page title.
+         * SDK 当前 AppCompat 版本间接使用的 WindowInsetsCompat 1.3
+         * 只能拿到旧版安全区值，不能直接读取系统栏可见性。
+         * Android 11 及以上使用平台可见性 API，Android 7-10 使用旧版全屏标记，
+         * 避免沉浸式宿主在二级页标题上方出现一段假的状态栏高度。
          */
         if (!isStatusBarHidden(activity, insets)) {
             topInset = Math.max(topInset, insets.getSystemWindowInsetTop());
@@ -119,6 +123,9 @@ final class FSOverlayInsets {
         return Math.max(0, topInset);
     }
 
+    /**
+     * 计算起始方向需要预留的安全距离。
+     */
     private static int resolveStartInset(
             Activity activity,
             WindowInsetsCompat insets,
@@ -127,10 +134,9 @@ final class FSOverlayInsets {
         int startInset = cutout == null ? 0 : cutout.getSafeInsetLeft();
 
         /*
-         * A hidden navigation bar must not be treated as a permanent left
-         * safe-area inset. This matters on immersive landscape devices where
-         * legacy WindowInsets may still report the navigation bar width.
-         * When navigation is visible, retain its inset for non-immersive hosts.
+         * 隐藏状态的导航栏不能被当成永久左侧安全区。
+         * 横屏沉浸设备上，旧版 WindowInsets 仍可能上报导航栏宽度；
+         * 只有导航栏可见时，才为非沉浸宿主保留这部分安全区。
          */
         if (!isNavigationBarHidden(activity, insets)) {
             startInset = Math.max(startInset, insets.getSystemWindowInsetLeft());
@@ -138,6 +144,9 @@ final class FSOverlayInsets {
         return Math.max(0, startInset);
     }
 
+    /**
+     * 计算结束方向需要预留的安全距离。
+     */
     private static int resolveEndInset(
             Activity activity,
             WindowInsetsCompat insets,
@@ -150,6 +159,9 @@ final class FSOverlayInsets {
         return Math.max(0, endInset);
     }
 
+    /**
+     * 计算底部需要预留的安全距离。
+     */
     private static int resolveBottomInset(
             Activity activity,
             WindowInsetsCompat insets,
@@ -162,6 +174,9 @@ final class FSOverlayInsets {
         return Math.max(0, bottomInset);
     }
 
+    /**
+     * 判断宿主当前是否处于隐藏状态栏的沉浸模式。
+     */
     private static boolean isStatusBarHidden(
             Activity activity,
             WindowInsetsCompat insets
@@ -186,6 +201,9 @@ final class FSOverlayInsets {
         return false;
     }
 
+    /**
+     * 判断宿主当前是否处于隐藏导航栏的沉浸模式。
+     */
     private static boolean isNavigationBarHidden(
             Activity activity,
             WindowInsetsCompat insets
@@ -203,6 +221,9 @@ final class FSOverlayInsets {
         return false;
     }
 
+    /**
+     * 安全获取宿主 DecorView。
+     */
     private static View getDecorView(Activity activity) {
         if (activity == null || activity.getWindow() == null) {
             return null;

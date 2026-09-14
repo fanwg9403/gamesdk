@@ -20,7 +20,7 @@ import com.wishfox.foxsdk.utils.FoxSdkViewExt;
 import java.util.ArrayList;
 
 /**
- * 充值记录页的宿主内 Overlay 实现。
+ * 充值记录页的宿主内 Overlay 实现，负责展示充值记录并处理刷新与分页。
  */
 public final class FSRechargeRecordOverlayView extends FSOverlayPageView {
 
@@ -28,6 +28,12 @@ public final class FSRechargeRecordOverlayView extends FSOverlayPageView {
     private final FSRechargeRecordViewModel viewModel;
     private final FSRechargeRecordAdapter adapter;
 
+    /**
+     * 创建充值记录页面并启动首次加载。
+     *
+     * @param activity 宿主 Activity
+     * @param callback Overlay 关闭回调
+     */
     public FSRechargeRecordOverlayView(Activity activity, Callback callback) {
         super(activity, callback);
         binding = FsActivityRechargeRecordBinding.inflate(LayoutInflater.from(activity), this, true);
@@ -47,6 +53,9 @@ public final class FSRechargeRecordOverlayView extends FSOverlayPageView {
         viewModel.dispatch(new FSRechargeRecordIntent.LoadInitial());
     }
 
+    /**
+     * 初始化安全区、导航按钮、刷新控件和列表。
+     */
     private void initView() {
         applyWindowInsets(
                 binding.fsTopView,
@@ -63,6 +72,7 @@ public final class FSRechargeRecordOverlayView extends FSOverlayPageView {
         binding.fsRefresh.setRefreshHeader(new ClassicsHeader(activity));
         binding.fsRefresh.setRefreshFooter(new ClassicsFooter(activity));
         binding.fsRefresh.setOnRefreshLoadMoreListener(new OnRefreshLoadMoreListener() {
+            /** 处理下拉刷新请求。 */
             @Override
             public void onRefresh(RefreshLayout refreshLayout) {
                 FSRechargeRecordViewState state = viewModel.getCurrentState();
@@ -72,6 +82,7 @@ public final class FSRechargeRecordOverlayView extends FSOverlayPageView {
                 }
             }
 
+            /** 处理上拉加载更多请求。 */
             @Override
             public void onLoadMore(RefreshLayout refreshLayout) {
                 FSRechargeRecordViewState state = viewModel.getCurrentState();
@@ -84,6 +95,11 @@ public final class FSRechargeRecordOverlayView extends FSOverlayPageView {
         binding.fsRecyclerView.setAdapter(adapter);
     }
 
+    /**
+     * 根据 ViewModel 状态更新充值记录列表和加载提示。
+     *
+     * @param state 当前充值记录页面状态
+     */
     private void renderState(FSRechargeRecordViewState state) {
         if (isDestroyedForOverlay() || state == null) {
             return;
@@ -118,6 +134,9 @@ public final class FSRechargeRecordOverlayView extends FSOverlayPageView {
         }
     }
 
+    /**
+     * 销毁页面并释放 ViewModel 订阅资源。
+     */
     @Override
     public void destroy() {
         super.destroy();

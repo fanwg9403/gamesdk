@@ -38,19 +38,30 @@ import java.util.List;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
 
 /**
- * Home screen rendered directly in the host Activity.
+ * 直接渲染在宿主 Activity 中的 SDK 首页 Overlay。
  *
- * <p>This view intentionally reuses the existing home layout and adapters. It
- * does not change the host window flags, requested orientation, or lifecycle,
- * so opening the SDK cannot pause a Unity/Cocos Activity.</p>
+ * <p>页面复用现有首页布局和适配器，不修改宿主窗口标志、请求方向或生命周期，
+ * 从而避免打开 SDK 时暂停 Unity/Cocos 宿主 Activity。</p>
  */
 public final class FSHomeOverlayView extends FrameLayout {
 
     public interface Callback {
+        /** 请求关闭首页 Overlay。 */
         void onCloseRequested();
 
+        /**
+         * 请求打开指定 SDK 子页面。
+         *
+         * @param page 要打开的页面
+         */
         void onOpenPage(FoxSdkOverlayManager.Page page);
 
+        /**
+         * 请求打开网页页面。
+         *
+         * @param url 网页地址
+         * @param showTitle 是否显示标题栏
+         */
         void onOpenWeb(String url, boolean showTitle);
     }
 
@@ -75,10 +86,23 @@ public final class FSHomeOverlayView extends FrameLayout {
             new Pair<>("", -1)
     );
 
+    /**
+     * 创建首页 Overlay 并加载最新首页数据。
+     *
+     * @param activity 宿主 Activity
+     * @param callback 页面交互回调
+     */
     public FSHomeOverlayView(Activity activity, Callback callback) {
         this(activity, callback, null);
     }
 
+    /**
+     * 创建首页 Overlay，可选恢复之前保存的首页状态。
+     *
+     * @param activity 宿主 Activity
+     * @param callback 页面交互回调
+     * @param preservedState 需要恢复的首页状态
+     */
     public FSHomeOverlayView(
             Activity activity,
             Callback callback,
@@ -130,10 +154,16 @@ public final class FSHomeOverlayView extends FrameLayout {
         }
     }
 
+    /**
+     * 获取当前首页状态，供页面切换时保存和恢复。
+     *
+     * @return 当前首页状态
+     */
     public FSHomeViewState getCurrentState() {
         return viewModel.getCurrentState();
     }
 
+    /** 初始化首页布局、安全区、Banner、操作列表及刷新监听。 */
     private void initView() {
         applyWindowInsets(
                 binding.fsVTopSafeArea,
@@ -166,6 +196,13 @@ public final class FSHomeOverlayView extends FrameLayout {
                 viewModel.dispatch(new FSHomeIntent.Init()));
     }
 
+    /**
+     * 将系统窗口安全区应用到首页内容。
+     *
+     * @param topSafeView 顶部安全区视图
+     * @param startSafeView 起始方向安全区视图
+     * @param contentView 页面内容视图
+     */
     private void applyWindowInsets(
             View topSafeView,
             View startSafeView,
@@ -180,14 +217,17 @@ public final class FSHomeOverlayView extends FrameLayout {
         );
     }
 
+    /**
+     * 视图挂载后重新请求窗口安全区，确保动态添加时布局正确。
+     */
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        // Home is attached dynamically after the host window's initial
-        // insets dispatch, so explicitly request the current values.
+        // 首页在宿主窗口首次分发 Insets 后动态挂载，因此需要主动请求当前值。
         ViewCompat.requestApplyInsets(this);
     }
 
+    /** 初始化用户信息、快捷入口及点击处理。 */
     private void initActions() {
         TextView username = userHead.findViewById(R.id.fs_tv_username);
         TextView coin = userHead.findViewById(R.id.fs_stv_coin);
@@ -236,6 +276,7 @@ public final class FSHomeOverlayView extends FrameLayout {
         binding.fsRv.setAdapter(actionAdapter);
     }
 
+    /** 按当前登录状态添加首页头部视图。 */
     private void initHeaders() {
         actionAdapter.addHeaderView(userHead);
         if (FSUserInfo.getInstance() != null) {
@@ -243,6 +284,7 @@ public final class FSHomeOverlayView extends FrameLayout {
         }
     }
 
+    /** 订阅 ViewModel 状态并在状态变化时刷新页面。 */
     private void observeState() {
         viewDisposables.add(viewModel.getViewState().subscribe(
                 this::renderState,
@@ -255,6 +297,11 @@ public final class FSHomeOverlayView extends FrameLayout {
         ));
     }
 
+    /**
+     * 隐藏客服入口并将狐币入口调整到区域右侧。
+     *
+     * @param regionView 区域头部视图
+     */
     private void hideCustomerServiceEntry(View regionView) {
         View serviceView = regionView.findViewById(R.id.fs_iv_service);
         View coinView = regionView.findViewById(R.id.fs_iv_coin);
@@ -271,12 +318,19 @@ public final class FSHomeOverlayView extends FrameLayout {
         }
     }
 
+    /**
+     * 为视图注册可自动释放的点击监听器。
+     *
+     * @param view 目标视图
+     * @param listener 点击监听器
+     */
     private void addClick(View view, View.OnClickListener listener) {
         if (view != null) {
             viewDisposables.add(FoxSdkViewExt.setOnClickListener(view, listener));
         }
     }
 
+    /** 在宿主仍可用时显示登录对话框。 */
     private void showLoginDialog() {
         if (destroyed || activity.isFinishing() || activity.isDestroyed()) {
             return;
@@ -295,12 +349,18 @@ public final class FSHomeOverlayView extends FrameLayout {
         }
     }
 
+    /**
+     * 通过回调请求打开 SDK 子页面。
+     *
+     * @param page 要打开的页面
+     */
     private void openPage(FoxSdkOverlayManager.Page page) {
         if (callback != null) {
             callback.onOpenPage(page);
         }
     }
 
+    /** 根据首页状态更新用户信息、快捷入口、Banner 和区域头部。 */
     private void renderState(FSHomeViewState state) {
         if (destroyed || state == null) {
             return;
@@ -338,6 +398,12 @@ public final class FSHomeOverlayView extends FrameLayout {
         }
     }
 
+    /**
+     * 将服务端返回的狐币字符串转换为整数。
+     *
+     * @param value 服务端狐币数值
+     * @return 转换后的整数，输入无效时返回 0
+     */
     private int parseCoin(String value) {
         if (value == null) {
             return 0;
@@ -349,6 +415,7 @@ public final class FSHomeOverlayView extends FrameLayout {
         }
     }
 
+    /** 根据状态添加、更新或移除 Banner 头部。 */
     private void updateBanner(FSHomeViewState state) {
         boolean hasBanner = false;
         if (actionAdapter.getHeaderLayout() != null &&
@@ -368,6 +435,7 @@ public final class FSHomeOverlayView extends FrameLayout {
         }
     }
 
+    /** 根据登录状态添加或移除用户区域头部。 */
     private void updateRegion(FSHomeViewState state) {
         boolean hasRegion;
         if (actionAdapter.getHeaderLayout() == null) {
@@ -392,12 +460,14 @@ public final class FSHomeOverlayView extends FrameLayout {
         }
     }
 
+    /** 将视图从现有父容器中安全移除。 */
     private void detachFromParent(View view) {
         if (view != null && view.getParent() instanceof ViewGroup) {
             ((ViewGroup) view.getParent()).removeView(view);
         }
     }
 
+    /** 销毁首页并释放订阅及 ViewModel 资源。 */
     public void destroy() {
         if (destroyed) {
             return;
@@ -416,6 +486,7 @@ public final class FSHomeOverlayView extends FrameLayout {
         }
     }
 
+    /** 处理视图从窗口移除，确保资源释放逻辑执行。 */
     @Override
     protected void onDetachedFromWindow() {
         if (!destroyed) {

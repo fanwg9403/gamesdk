@@ -14,19 +14,24 @@ import com.wishfox.foxsdk.ui.viewstate.FoxSdkUiEffect;
 import io.reactivex.rxjava3.disposables.CompositeDisposable;
 
 /**
- * Common lifecycle boundary for pages rendered inside the host Activity.
+ * 宿主 Activity 内渲染的 SDK 二级页面基类。
  *
- * <p>These pages are views instead of Activities. They therefore keep the
- * Unity/Cocos Activity resumed while still reusing the SDK's existing XML
- * layouts, adapters and ViewModels.</p>
+ * <p>这些页面以 View 形式挂载，不再启动新的 Activity，因此可以让 Unity/Cocos
+ * 宿主 Activity 保持运行状态，同时继续复用 SDK 现有的 XML、Adapter 和 ViewModel。</p>
  */
 public abstract class FSOverlayPageView extends FrameLayout {
 
+    /**
+     * 二级页面与 Overlay 管理器之间的交互回调。
+     */
     public interface Callback {
+        /** 请求关闭当前页面并返回上一层。 */
         void onCloseRequested();
 
+        /** 请求打开指定 SDK 页面。 */
         void onOpenPage(FoxSdkOverlayManager.Page page);
 
+        /** 请求打开 SDK 内 WebView 页面。 */
         void onOpenWeb(String url, boolean showTitle);
     }
 
@@ -37,6 +42,9 @@ public abstract class FSOverlayPageView extends FrameLayout {
     private FSLoadingDialog loadingDialog;
     private boolean destroyed;
 
+    /**
+     * 初始化通用的页面属性和返回键拦截。
+     */
     protected FSOverlayPageView(Activity activity, Callback callback) {
         super(activity);
         this.activity = activity;
@@ -58,10 +66,16 @@ public abstract class FSOverlayPageView extends FrameLayout {
         });
     }
 
+    /**
+     * 处理实体返回键或系统返回手势。
+     */
     protected void handleBackPressed() {
         requestClose();
     }
 
+    /**
+     * 安全触发关闭回调，页面销毁后不再重复派发。
+     */
     protected final void requestClose() {
         if (!destroyed && callback != null) {
             callback.onCloseRequested();
@@ -69,26 +83,23 @@ public abstract class FSOverlayPageView extends FrameLayout {
     }
 
     /**
-     * The old Activity implementation used ImmersionBar to size this view.
-     * Overlay pages must apply the host window inset themselves without
-     * changing the host window flags.
+     * 旧 Activity 实现依赖 ImmersionBar 处理安全区。
+     * Overlay 页面需要自行读取宿主窗口安全区，不能修改宿主窗口标记。
      */
     protected final void applyTopInset(View topSafeView) {
         applyWindowInsets(topSafeView, null, null);
     }
 
     /**
-     * Applies the host Activity's actual system-bar and display-cutout insets.
-     * Landscape layouts must not reserve a fixed left margin: most game
-     * devices have no left cutout at all, while a notched device may need one.
+     * 应用宿主 Activity 当前真实的系统栏和挖孔屏安全区。
+     * 横屏布局不能写死左侧间距：大部分游戏设备左侧没有挖孔，少数挖孔设备才需要动态留白。
      */
     protected final void applyWindowInsets(View topSafeView, View startSafeView) {
         applyWindowInsets(topSafeView, startSafeView, null);
     }
 
     /**
-     * Applies insets and shifts the page content root without making the
-     * start-safe-area view a member of the horizontal weight chain.
+     * 应用安全区并移动页面内容根节点，避免把左侧安全区占位 View 加入横向权重链。
      */
     protected final void applyWindowInsets(
             View topSafeView,
@@ -107,12 +118,14 @@ public abstract class FSOverlayPageView extends FrameLayout {
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        // The overlay is attached after the host Activity has already
-        // dispatched its first insets pass. Request one more pass so pages
-        // added at runtime receive the actual immersive/cutout values.
+        // Overlay 通常在宿主 Activity 首次分发安全区之后才挂载，
+        // 这里主动再请求一次，保证运行时添加的页面能拿到真实的沉浸和挖孔参数。
         androidx.core.view.ViewCompat.requestApplyInsets(this);
     }
 
+    /**
+     * 绑定 ViewModel 的加载状态和一次性 UI 事件。
+     */
     protected final void bindViewModel(FoxSdkBaseMviViewModel<?, ?, ?> viewModel) {
         if (viewModel == null) {
             return;
@@ -120,17 +133,20 @@ public abstract class FSOverlayPageView extends FrameLayout {
         disposables.add(viewModel.getLoadingState().subscribe(
                 this::renderLoadingState,
                 throwable -> {
-                    // Loading UI must never break the page lifecycle.
+                    // 加载弹窗异常不能影响页面生命周期。
                 }
         ));
         disposables.add(viewModel.getUiEffect().subscribe(
                 effect -> handleEffect((FoxSdkUiEffect) effect),
                 throwable -> {
-                    // Effects are best-effort diagnostics/UI notifications.
+                    // UI 事件属于辅助提示，异常时忽略即可。
                 }
         ));
     }
 
+    /**
+     * 处理 ViewModel 发出的 UI 事件。
+     */
     private void handleEffect(FoxSdkUiEffect effect) {
         if (effect instanceof FoxSdkUiEffect.ShowToast) {
             Toaster.show(((FoxSdkUiEffect.ShowToast) effect).getMessage());
@@ -139,6 +155,9 @@ public abstract class FSOverlayPageView extends FrameLayout {
         }
     }
 
+    /**
+     * 根据加载状态展示或关闭加载弹窗。
+     */
     private void renderLoadingState(LoadingState loadingState) {
         if (loadingState instanceof LoadingState.Show) {
             showLoading(((LoadingState.Show) loadingState).getMessage());
@@ -147,6 +166,9 @@ public abstract class FSOverlayPageView extends FrameLayout {
         }
     }
 
+    /**
+     * 展示通用加载弹窗。
+     */
     protected final void showLoading(String message) {
         if (destroyed || activity == null || activity.isFinishing() || activity.isDestroyed()) {
             return;
@@ -161,6 +183,9 @@ public abstract class FSOverlayPageView extends FrameLayout {
         }
     }
 
+    /**
+     * 关闭并释放通用加载弹窗。
+     */
     protected final void dismissLoading() {
         if (loadingDialog != null) {
             loadingDialog.dismiss();
@@ -168,10 +193,16 @@ public abstract class FSOverlayPageView extends FrameLayout {
         }
     }
 
+    /**
+     * 判断当前 Overlay 页面是否已经销毁。
+     */
     public final boolean isDestroyedForOverlay() {
         return destroyed;
     }
 
+    /**
+     * 释放页面持有的订阅和弹窗资源。
+     */
     public void destroy() {
         if (destroyed) {
             return;
@@ -183,6 +214,7 @@ public abstract class FSOverlayPageView extends FrameLayout {
 
     @Override
     protected void onDetachedFromWindow() {
+        // 被宿主移除时兜底释放资源，避免页面订阅或弹窗泄漏。
         destroy();
         super.onDetachedFromWindow();
     }

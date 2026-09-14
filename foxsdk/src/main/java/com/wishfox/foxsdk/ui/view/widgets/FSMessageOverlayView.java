@@ -20,9 +20,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 消息页的宿主内 Overlay 实现。
+ * 消息页的宿主内 Overlay 实现，支持消息列表、已读处理和详情覆盖层。
  *
- * <p>消息布局同时提供了 portrait 和 landscape 资源：
+ * <p>消息布局同时提供了竖屏和横屏资源：
  * 竖屏详情覆盖消息列表；横屏详情位于列表右侧。详情返回只收起详情，
  * 列表返回才回到 SDK 首页。</p>
  */
@@ -34,10 +34,24 @@ public final class FSMessageOverlayView extends FSOverlayPageView {
     private boolean detailShown;
     private FSMessage detailMessage;
 
+    /**
+     * 创建消息页面并显示消息列表。
+     *
+     * @param activity 宿主 Activity
+     * @param callback Overlay 关闭回调
+     */
     public FSMessageOverlayView(Activity activity, Callback callback) {
         this(activity, callback, null, false);
     }
 
+    /**
+     * 创建消息页面，并按需恢复已打开的消息详情。
+     *
+     * @param activity 宿主 Activity
+     * @param callback Overlay 关闭回调
+     * @param detailMessage 需要恢复的消息详情
+     * @param detailShown 是否显示消息详情
+     */
     public FSMessageOverlayView(
             Activity activity,
             Callback callback,
@@ -64,6 +78,9 @@ public final class FSMessageOverlayView extends FSOverlayPageView {
         }
     }
 
+    /**
+     * 初始化安全区、导航按钮、刷新控件、列表和点击事件。
+     */
     private void initView() {
         applyWindowInsets(
                 binding.fsVTopSafeArea,
@@ -71,7 +88,7 @@ public final class FSMessageOverlayView extends FSOverlayPageView {
                 binding.fsMessageRoot
         );
         binding.fsMessageDetail.setOnClickListener(v -> {
-            // Consume clicks inside the detail page so they cannot close the SDK.
+            // 消费详情页内部点击，避免事件冒泡导致 SDK 被关闭。
         });
         FoxSdkViewExt.setOnClickListener(binding.fsTvDetailBack, v -> hideDetail());
         FoxSdkViewExt.setOnClickListener(binding.fsIvBack, v -> requestClose());
@@ -103,6 +120,11 @@ public final class FSMessageOverlayView extends FSOverlayPageView {
         binding.fsRv.setAdapter(adapter);
     }
 
+    /**
+     * 展示指定消息的详情内容。
+     *
+     * @param message 要展示的消息
+     */
     private void showDetail(FSMessage message) {
         if (message == null || isDestroyedForOverlay()) {
             return;
@@ -115,6 +137,9 @@ public final class FSMessageOverlayView extends FSOverlayPageView {
         binding.fsMessageDetail.setVisibility(View.VISIBLE);
     }
 
+    /**
+     * 收起当前消息详情并恢复列表视图。
+     */
     private void hideDetail() {
         if (!detailShown) {
             return;
@@ -124,14 +149,27 @@ public final class FSMessageOverlayView extends FSOverlayPageView {
         binding.fsMessageDetail.setVisibility(View.INVISIBLE);
     }
 
+    /**
+     * 获取当前正在展示的消息详情。
+     *
+     * @return 当前详情消息，没有详情时返回 {@code null}
+     */
     public FSMessage getDetailMessage() {
         return detailMessage;
     }
 
+    /**
+     * 判断消息详情是否处于显示状态。
+     *
+     * @return 显示详情时返回 {@code true}
+     */
     public boolean isDetailShown() {
         return detailShown;
     }
 
+    /**
+     * 处理返回键：优先收起详情，否则关闭页面。
+     */
     @Override
     protected void handleBackPressed() {
         if (detailShown) {
@@ -141,6 +179,11 @@ public final class FSMessageOverlayView extends FSOverlayPageView {
         }
     }
 
+    /**
+     * 根据 ViewModel 状态刷新消息列表并同步已读标记。
+     *
+     * @param state 当前消息页面状态
+     */
     private void renderState(FSMessageViewState state) {
         if (isDestroyedForOverlay() || state == null) {
             return;
@@ -187,6 +230,9 @@ public final class FSMessageOverlayView extends FSOverlayPageView {
         }
     }
 
+    /**
+     * 销毁页面并释放 ViewModel 订阅资源。
+     */
     @Override
     public void destroy() {
         super.destroy();

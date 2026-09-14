@@ -23,7 +23,7 @@ import com.wishfox.foxsdk.utils.FoxSdkViewExt;
 import java.util.ArrayList;
 
 /**
- * 赢狐币页的宿主内 Overlay 实现。
+ * 赢狐币页的宿主内 Overlay 实现，负责任务列表、分页和游戏跳转。
  */
 public final class FSWinFoxCoinOverlayView extends FSOverlayPageView {
 
@@ -31,6 +31,12 @@ public final class FSWinFoxCoinOverlayView extends FSOverlayPageView {
     private final FSWinFoxCoinViewModel viewModel;
     private final FSWinFoxCoinAdapter adapter;
 
+    /**
+     * 创建赢狐币页面并启动首次加载。
+     *
+     * @param activity 宿主 Activity
+     * @param callback Overlay 关闭回调
+     */
     public FSWinFoxCoinOverlayView(Activity activity, Callback callback) {
         super(activity, callback);
         binding = FsActivityWinFoxCoinBinding.inflate(LayoutInflater.from(activity), this, true);
@@ -50,6 +56,9 @@ public final class FSWinFoxCoinOverlayView extends FSOverlayPageView {
         viewModel.dispatch(new FSWinFoxCoinIntent.LoadInitial());
     }
 
+    /**
+     * 初始化导航、刷新分页控件、列表及任务点击处理。
+     */
     private void initView() {
         applyWindowInsets(
                 binding.fsTopView,
@@ -66,6 +75,11 @@ public final class FSWinFoxCoinOverlayView extends FSOverlayPageView {
         binding.fsRefresh.setRefreshHeader(new ClassicsHeader(activity));
         binding.fsRefresh.setRefreshFooter(new ClassicsFooter(activity));
         binding.fsRefresh.setOnRefreshLoadMoreListener(new OnRefreshLoadMoreListener() {
+            /**
+             * 处理下拉刷新请求，避免与已有加载任务并发。
+             *
+             * @param refreshLayout 当前刷新布局
+             */
             @Override
             public void onRefresh(RefreshLayout refreshLayout) {
                 FSWinFoxCoinViewState state = viewModel.getCurrentState();
@@ -75,6 +89,11 @@ public final class FSWinFoxCoinOverlayView extends FSOverlayPageView {
                 }
             }
 
+            /**
+             * 处理上拉加载更多请求，避免与已有加载任务并发。
+             *
+             * @param refreshLayout 当前刷新布局
+             */
             @Override
             public void onLoadMore(RefreshLayout refreshLayout) {
                 FSWinFoxCoinViewState state = viewModel.getCurrentState();
@@ -107,6 +126,11 @@ public final class FSWinFoxCoinOverlayView extends FSOverlayPageView {
         });
     }
 
+    /**
+     * 根据状态更新赢狐币任务列表和分页控件。
+     *
+     * @param state 当前赢狐币页面状态
+     */
     private void renderState(FSWinFoxCoinViewState state) {
         if (isDestroyedForOverlay() || state == null) {
             return;
@@ -141,6 +165,9 @@ public final class FSWinFoxCoinOverlayView extends FSOverlayPageView {
         }
     }
 
+    /**
+     * 销毁页面并释放 ViewModel 订阅资源。
+     */
     @Override
     public void destroy() {
         super.destroy();

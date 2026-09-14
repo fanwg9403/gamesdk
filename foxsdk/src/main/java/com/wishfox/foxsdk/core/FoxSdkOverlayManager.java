@@ -25,11 +25,10 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * Owns every SDK page rendered inside the host Activity.
+ * 统一管理挂载在宿主 Activity 内的所有 SDK 页面。
  *
- * <p>The page stack is view based. Switching from the home page to a record,
- * message, WebView, gift or fox-coin page therefore never starts another
- * Activity and cannot put the Unity/Cocos Activity into {@code onPause}.</p>
+ * <p>页面栈基于 View 实现，从首页切换到记录、消息、WebView、礼包或赢狐币页面时，
+ * 不再启动新的 Activity，因此不会触发 Unity/Cocos 宿主 Activity 进入 {@code onPause}。</p>
  */
 public final class FoxSdkOverlayManager {
 
@@ -147,9 +146,8 @@ public final class FoxSdkOverlayManager {
     }
 
     /**
-     * Application-level configuration callbacks do not carry an Activity
-     * instance. Snapshot the currently registered managers first, then route
-     * each rebuild through its host Activity's main thread.
+     * 应用级别的横竖屏变化回调不携带 Activity 实例。
+     * 这里先快照当前注册的管理器，再把重建逻辑派发回各自宿主 Activity 的主线程。
      */
     public static void onConfigurationChanged() {
         List<Activity> activities = new ArrayList<>();
@@ -437,11 +435,10 @@ public final class FoxSdkOverlayManager {
         View decor = activity.getWindow() == null ? null : activity.getWindow().getDecorView();
         if (decor instanceof ViewGroup) {
             /*
-             * Attach to the DecorView so an edge-to-edge/immersive host does
-             * not leave its landscape navigation-bar inset outside the SDK
-             * panel. The content root can already be offset by the host
-             * window policy, which would make every overlay start several
-             * dozen pixels from the physical screen edge.
+             * 直接挂载到 DecorView，避免沉浸式或边到边宿主在横屏时
+             * 把导航栏安全区留在 SDK 面板外侧。内容根节点可能已经被宿主
+             * 窗口策略偏移，如果挂到内容根节点上，会导致 SDK 页面距离物理屏幕边缘
+             * 多出几十像素。
              */
             return (ViewGroup) decor;
         }

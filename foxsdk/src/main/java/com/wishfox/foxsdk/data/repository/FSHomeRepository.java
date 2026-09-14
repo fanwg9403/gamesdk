@@ -88,6 +88,13 @@ public class FSHomeRepository extends FoxSdkBaseRepository {
         return executeCall(() -> service.getAdvertiseList(1, 10, position).blockingGet());
     }
 
+    /**
+     * 获取悬浮球图片资源地址。
+     */
+    public Single<FoxSdkNetworkResult<String>> getFloatImage() {
+        return executeCall(() -> service.getFloatImage().blockingGet());
+    }
+
     // 其他API方法可以根据需要添加
     public Single<FoxSdkNetworkResult<Object>> sendSmsCode(String phone) {
         Map<String, String> params = new HashMap<>();

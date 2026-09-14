@@ -203,4 +203,10 @@ public interface FoxSdkApiService {
      */
     @GET("/api/user/sdk_config")
     Single<FoxSdkBaseResponse<FSSdkConfig>> getSdkConfig();
+
+    /**
+     * 获取悬浮球图片资源地址
+     */
+    @GET("/api/user/sdk_config")
+    Single<FoxSdkBaseResponse<String>> getFloatImage();
 }
