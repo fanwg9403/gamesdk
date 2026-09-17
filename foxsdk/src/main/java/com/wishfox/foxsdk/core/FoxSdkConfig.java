@@ -27,6 +27,11 @@ public class FoxSdkConfig {
     // 悬浮球y轴偏移量，单位px
     private int floatXxOffset = 100;
     private boolean wechatTest = false;
+    /** H5 首页入口；为空时继续使用现有原生首页。 */
+    private String h5HomeUrl;
+    /** H5 可信 Origin，例如 https://sdk.example.com。 */
+    private String h5TrustedOrigin;
+    private java.util.List<String> h5MediaOrigins;
 
     //快钱支付宝支付配置
     private String kqFusedApplicationScheme;
@@ -53,6 +58,10 @@ public class FoxSdkConfig {
         this.floatXScale = builder.floatXScale;
         this.floatXxOffset = builder.floatXxOffset;
         this.wechatTest = builder.wechatTest;
+        this.h5HomeUrl = builder.h5HomeUrl;
+        this.h5TrustedOrigin = builder.h5TrustedOrigin;
+        this.h5MediaOrigins = java.util.Collections.unmodifiableList(
+                new java.util.ArrayList<>(builder.h5MediaOrigins));
         this.kqFusedApplicationScheme = builder.kqFusedApplicationScheme;
     }
 
@@ -96,6 +105,21 @@ public class FoxSdkConfig {
         return wechatTest;
     }
 
+    public String getH5HomeUrl() {
+        return h5HomeUrl;
+    }
+
+    public String getH5TrustedOrigin() {
+        return h5TrustedOrigin;
+    }
+
+    /** 原生媒体下载白名单，与 H5 Bridge Origin 分开配置。 */
+    public java.util.List<String> getH5MediaOrigins() { return h5MediaOrigins; }
+
+    public boolean isH5Enabled() {
+        return h5HomeUrl != null && !h5HomeUrl.trim().isEmpty();
+    }
+
     /**
      * Builder模式用于创建FoxSdkConfig实例
      */
@@ -113,6 +137,9 @@ public class FoxSdkConfig {
         private int floatXxOffset = 100;
         private String kqFusedApplicationScheme;
         private boolean wechatTest = false;
+        private String h5HomeUrl;
+        private String h5TrustedOrigin;
+        private java.util.List<String> h5MediaOrigins = new java.util.ArrayList<>();
 
         /**
          * 构造Builder，必需参数
@@ -183,6 +210,25 @@ public class FoxSdkConfig {
 
         public Builder setWechatTest(boolean wechatTest) {
             this.wechatTest = wechatTest;
+            return this;
+        }
+
+        public Builder setH5HomeUrl(String h5HomeUrl) {
+            this.h5HomeUrl = h5HomeUrl;
+            return this;
+        }
+
+        public Builder setH5TrustedOrigin(String h5TrustedOrigin) {
+            this.h5TrustedOrigin = h5TrustedOrigin;
+            return this;
+        }
+
+        public Builder setH5MediaOrigins(String... origins) {
+            java.util.ArrayList<String> checked = new java.util.ArrayList<>();
+            if (origins != null) for (String origin : origins) {
+                checked.add(com.wishfox.foxsdk.media.FSMediaPolicy.origin(origin));
+            }
+            this.h5MediaOrigins = checked;
             return this;
         }
 

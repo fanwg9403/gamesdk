@@ -1,0 +1,47 @@
+const assert = require('assert');
+const fs = require('fs');
+const vm = require('vm');
+const script = fs.readFileSync('foxsdk/src/main/assets/wishfox-media-bridge.js', 'utf8');
+const requests = [];
+const window = { WishFoxNative: { postMessage: raw => requests.push(JSON.parse(raw)) } };
+vm.runInNewContext(script, {window, Promise, setTimeout, clearTimeout});
+const sdk = window.WishFoxSDK;
+function respond(request, success, data, code) {
+  sdk.__dispatch({type:'response',id:request.id,success,data,code});
+}
+(async () => {
+  let count = 0;
+  const off = sdk.media.onPreviewChanged(event => { count++; assert.equal(event.data.state,'closed'); });
+  const promise = sdk.media.previewVideo({url:'https://media.example.com/video.mp4',muted:true});
+  assert.equal(requests[0].method,'media.previewVideo');
+  assert.equal(requests[0].version,'1.0');
+  assert.equal(requests[0].params.muted,true);
+  respond(requests[0],true,{accepted:true,previewId:'p1'});
+  assert.equal((await promise).previewId,'p1');
+  const close = sdk.media.closePreview('p1');
+  assert.equal(requests[1].params.previewId,'p1');
+  respond(requests[1],true,{accepted:true}); await close;
+  sdk.__dispatch({type:'event',event:'media.previewChanged',data:{state:'closed'}});
+  assert.equal(count,1); off();
+  sdk.__dispatch({type:'event',event:'media.previewChanged',data:{state:'closed'}});
+  assert.equal(count,1);
+  const image = sdk.media.previewImage({url:'https://media.example.com/image.png'});
+  respond(requests[2],false,null,'BUSY');
+  await assert.rejects(image,error => error.code === 'BUSY');
+  const previous = sdk.media.previewVideo;
+  vm.runInNewContext(script,{window,Promise,setTimeout,clearTimeout});
+  assert.equal(sdk.media.previewVideo,previous);
+  const other = {WishFoxSDK:{invoke:(method,params)=>Promise.resolve({method,params})}};
+  vm.runInNewContext(script,{window:other,Promise,setTimeout,clearTimeout});
+  assert.equal((await other.WishFoxSDK.media.previewImage({url:'x'})).method,'media.previewImage');
+  const unavailable = {};
+  vm.runInNewContext(script,{window:unavailable,Promise,setTimeout,clearTimeout});
+  await assert.rejects(unavailable.WishFoxSDK.media.previewImage({url:'x'}),error => error.code === 'BRIDGE_NOT_AVAILABLE');
+  let timeout;
+  const silent = {WishFoxNative:{postMessage:()=>{}}};
+  vm.runInNewContext(script,{window:silent,Promise,setTimeout:fn=>{timeout=fn;return 1;},clearTimeout:()=>{}});
+  const waiting = silent.WishFoxSDK.media.previewVideo({url:'x'});
+  timeout();
+  await assert.rejects(waiting,error => error.code === 'TIMEOUT');
+  console.log('media-bridge-check: request/response, events/unsubscribe, errors, timeout, unavailable transport and existing Bridge passed');
+})().catch(error => {console.error(error); process.exitCode=1;});

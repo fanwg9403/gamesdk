@@ -3,6 +3,7 @@ package com.wishfox.foxsdk.core;
 import android.app.Activity;
 import android.os.Build;
 import android.os.Looper;
+import android.text.TextUtils;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -15,6 +16,11 @@ import com.wishfox.foxsdk.ui.view.widgets.FSOverlayPageView;
 import com.wishfox.foxsdk.ui.view.widgets.FSRechargeRecordOverlayView;
 import com.wishfox.foxsdk.ui.view.widgets.FSStarterPackOverlayView;
 import com.wishfox.foxsdk.ui.view.widgets.FSWebOverlayView;
+import com.wishfox.foxsdk.ui.view.widgets.FSH5OverlayView;
+import com.wishfox.foxsdk.ui.view.dialog.FSLoginDialog;
+import com.wishfox.foxsdk.data.model.entity.FSLoginResult;
+import com.wishfox.foxsdk.di.FoxSdkRepositoryContainer;
+import com.hjq.toast.Toaster;
 import com.wishfox.foxsdk.ui.view.widgets.FSWinFoxCoinOverlayView;
 import com.wishfox.foxsdk.ui.viewstate.FSHomeViewState;
 
@@ -23,6 +29,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
+
+import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
+import io.reactivex.rxjava3.schedulers.Schedulers;
 
 /**
  * 统一管理挂载在宿主 Activity 内的所有 SDK 页面。
@@ -49,6 +58,7 @@ public final class FoxSdkOverlayManager {
     private ViewGroup hostRoot;
     private FSHomeOverlayView homeView;
     private FSOverlayPageView pageView;
+    private FSH5OverlayView h5View;
     private Page currentPage;
     private boolean destroyed;
     private boolean fallbackStarted;
@@ -71,7 +81,22 @@ public final class FoxSdkOverlayManager {
                 FoxSdkDiagnostics.record("overlay_show_ignored", activity, "sdk_not_initialized");
                 return;
             }
-            getOrCreate(activity).showHomeInternal();
+            FoxSdkOverlayManager manager = getOrCreate(activity);
+            if (WishFoxSdk.getConfig().isH5Enabled()) {
+                manager.showH5OrLoginInternal();
+            } else {
+                manager.showHomeInternal();
+            }
+        });
+    }
+
+    /** 显式打开 H5 首页；适用于宿主已完成登录态确认的入口。 */
+    public static void showH5(Activity activity) {
+        runOnMain(activity, () -> {
+            if (isActivityUsable(activity) && WishFoxSdk.isInitialized()
+                    && WishFoxSdk.getConfig().isH5Enabled()) {
+                getOrCreate(activity).showH5Internal();
+            }
         });
     }
 
@@ -119,7 +144,7 @@ public final class FoxSdkOverlayManager {
     public static boolean isShowing(Activity activity) {
         FoxSdkOverlayManager manager = find(activity);
         return manager != null &&
-                (manager.homeView != null || manager.pageView != null) &&
+                (manager.homeView != null || manager.pageView != null || manager.h5View != null) &&
                 !manager.destroyed;
     }
 
@@ -209,6 +234,82 @@ public final class FoxSdkOverlayManager {
 
     private void showHomeInternal() {
         showHomeInternal(null);
+    }
+
+    public static void onHostPaused(Activity activity) {
+        FoxSdkOverlayManager manager = find(activity);
+        if (manager != null && manager.h5View != null) manager.h5View.onHostPaused();
+    }
+
+    public static void onHostResumed(Activity activity) {
+        FoxSdkOverlayManager manager = find(activity);
+        if (manager != null && manager.h5View != null) manager.h5View.onHostResumed();
+    }
+
+    public static void onHostStopped(Activity activity) {
+        FoxSdkOverlayManager manager = find(activity);
+        if (manager != null && manager.h5View != null) manager.h5View.closeMediaPreview("host_stopped");
+    }
+
+    /** 游戏完全接管返回键时，先调用此入口；true 表示已关闭原生媒体预览。 */
+    public static boolean onHostBackPressed(Activity activity) {
+        FoxSdkOverlayManager manager = find(activity);
+        return manager != null && manager.h5View != null && manager.h5View.handleMediaBack();
+    }
+
+    private void showH5OrLoginInternal() {
+        if (!TextUtils.isEmpty(FSLoginResult.getTokenEd())) {
+            showH5Internal();
+            return;
+        }
+        Activity activity = activityReference.get();
+        if (!isActivityUsable(activity)) return;
+        try {
+            new FSLoginDialog(activity)
+                    .setOnLoginClickListener((phone, code, type, loading) ->
+                            FoxSdkRepositoryContainer.getHomeRepository().login(phone, code, type)
+                                    .subscribeOn(Schedulers.io())
+                                    .observeOn(AndroidSchedulers.mainThread())
+                                    .subscribe(result -> {
+                                        if (result.isSuccess()) {
+                                            FSLoginResult.save(result.getData());
+                                            FSLoginDialog.dismissInstance();
+                                            showH5Internal();
+                                        } else {
+                                            if (loading != null) loading.dismiss();
+                                            Toaster.show(result.getError());
+                                        }
+                                    }, throwable -> {
+                                        if (loading != null) loading.dismiss();
+                                        Toaster.show(throwable.getMessage());
+                                    }))
+                    .show();
+        } catch (Throwable throwable) {
+            FoxSdkDiagnostics.reportFailure(activity, "h5_login", "dialog_show_failed", throwable);
+        }
+    }
+
+    private void showH5Internal() {
+        Activity activity = activityReference.get();
+        if (destroyed || !isActivityUsable(activity) || !WishFoxSdk.getConfig().isH5Enabled()) return;
+        try {
+            WindowLifecycleControl.hideWindow(activity);
+            removeHomeView();
+            removePageView();
+            if (h5View != null) {
+                h5View.setVisibility(View.VISIBLE);
+                h5View.bringToFront();
+                return;
+            }
+            hostRoot = resolveHostRoot(activity);
+            h5View = new FSH5OverlayView(activity, this::hideInternal, WishFoxSdk.getConfig().getH5HomeUrl());
+            attachView(h5View);
+            FoxSdkDiagnostics.record("h5_overlay_show", activity, "home");
+        } catch (Throwable throwable) {
+            FoxSdkDiagnostics.reportFailure(activity, "h5_home", "create_failed", throwable);
+            removeH5View();
+            showHomeInternal();
+        }
     }
 
     private void showHomeInternal(FSHomeViewState preservedState) {
@@ -368,6 +469,11 @@ public final class FoxSdkOverlayManager {
             return;
         }
 
+        if (h5View != null) {
+            h5View.onConfigurationChanged();
+            return;
+        }
+
         boolean hadHome = homeView != null;
         FSHomeViewState homeState = hadHome ? homeView.getCurrentState() : null;
         Page page = currentPage;
@@ -480,6 +586,7 @@ public final class FoxSdkOverlayManager {
                     "hidden"
             );
         }
+        removeH5View();
         removeHomeView();
         removePageView();
         currentPage = null;
@@ -488,6 +595,18 @@ public final class FoxSdkOverlayManager {
         webShowTitle = false;
         webShowReport = false;
         WindowLifecycleControl.showWindow(activity);
+    }
+
+    private void removeH5View() {
+        if (h5View == null) return;
+        FSH5OverlayView view = h5View;
+        h5View = null;
+        try {
+            view.destroy();
+        } catch (Throwable throwable) {
+            FoxSdkDiagnostics.reportFailure(activityReference.get(), "h5_home", "destroy_failed", throwable);
+        }
+        removeFromParent(view);
     }
 
     private void removeHomeView() {
@@ -563,6 +682,7 @@ public final class FoxSdkOverlayManager {
 
     private void destroyInternal() {
         destroyed = true;
+        removeH5View();
         removeHomeView();
         removePageView();
         hostRoot = null;

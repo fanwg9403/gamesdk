@@ -278,6 +278,7 @@ final class WindowLifecycleControl
 
     @Override
     public void onActivityResumed(@NonNull Activity activity) {
+        FoxSdkOverlayManager.onHostResumed(activity);
         if (!isSdkActivity(activity) &&
                 !(activity instanceof FoxSdkBaseMviActivity) &&
                 WishFoxSdk.isFloatActive()) {
@@ -291,6 +292,7 @@ final class WindowLifecycleControl
 
     @Override
     public void onActivityPaused(@NonNull Activity activity) {
+        FoxSdkOverlayManager.onHostPaused(activity);
         if (FoxSdkOverlayManager.isShowing(activity)) {
             FoxSdkDiagnostics.record("host_paused_with_overlay", activity, null);
             FoxSdkDiagnostics.putContext(activity, "home", "host_paused");
@@ -299,7 +301,7 @@ final class WindowLifecycleControl
 
     @Override
     public void onActivityStopped(@NonNull Activity activity) {
-
+        FoxSdkOverlayManager.onHostStopped(activity);
     }
 
     @Override
