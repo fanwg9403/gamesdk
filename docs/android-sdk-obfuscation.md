@@ -19,6 +19,7 @@ SDK 自身目前仍为 `minifyEnabled false`。这不意味着宿主也不能混
 | 边界 | 保护方式与原因 |
 |---|---|
 | 初始化与 H5 配置 | 保留 WishFoxSdk、FoxSdkConfig/Builder/WishFoxActions 的公开入口、参数和返回类型名称 |
+| H5 会话交换（2026-09-18） | 保留 FoxSdkConfig.H5SessionTokenProvider 及其 Callback、FoxSdkOverlayManager.LoginCallback 的公开协议；内部 FSH5AuthSession/协议 Overlay 仍按 Java 可达性优化 |
 | Overlay 与游戏返回键 | 保留 FoxSdkOverlayManager 公开入口及 Page 枚举，供普通 Java 或 Unity/Cocos 字符串调用 |
 | 现有登录/支付接口 | 保留 FoxSdkLongingPayUtils、V1、嵌套回调/枚举、FoxSdkUtils、登录/支付 Dialog 公开接口 |
 | H5 Bridge | 保留 NavigationBridge 的类及全部 JavascriptInterface 方法，包含 postMessage/openInternal/closeSecondary/openExternal/closeOverlay；兼容旧 AndroidFunction Bridge |

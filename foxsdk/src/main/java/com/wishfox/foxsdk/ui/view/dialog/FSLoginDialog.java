@@ -21,8 +21,7 @@ import com.wishfox.foxsdk.data.model.entity.FSCreateOrder;
 import com.wishfox.foxsdk.data.network.FoxSdkNetworkExecutor;
 import com.wishfox.foxsdk.data.network.FoxSdkRetrofitManager;
 import com.wishfox.foxsdk.databinding.FsDialogLoginBinding;
-import com.wishfox.foxsdk.core.FoxSdkOverlayManager;
-import com.wishfox.foxsdk.ui.view.activity.FSWebActivity;
+import com.wishfox.foxsdk.ui.view.widgets.FSLoginAgreementView;
 import com.wishfox.foxsdk.ui.view.widgets.FSLoadingDialog;
 import com.wishfox.foxsdk.utils.FoxSdkUtils;
 import com.wishfox.foxsdk.utils.FoxSdkViewExt;
@@ -64,6 +63,10 @@ public class FSLoginDialog extends Dialog {
     private String phoneValue = "";
     private String verifyCodeValue = "";
     private String passwordValue = "";
+    private FSLoginAgreementView agreementView;
+    private boolean dismissed;
+    private boolean agreementDimmed;
+    private io.reactivex.rxjava3.disposables.Disposable smsRequest;
 
     public FSLoginDialog(@NonNull Context context) {
         super(context, R.style.FSLoadingDialog);
@@ -192,15 +195,66 @@ public class FSLoginDialog extends Dialog {
     }
 
     private void openAgreement(String url) {
-        if (ctx instanceof Activity &&
-                FoxSdkOverlayManager.isShowing((Activity) ctx)) {
-            // The agreement is rendered by the host overlay. Close this
-            // dialog first so its window cannot remain above the WebView.
-            dismiss();
-            FoxSdkOverlayManager.showWeb((Activity) ctx, url, false);
-        } else {
-            FSWebActivity.startWithUrl(ctx, url);
+        Activity host = hostActivity();
+        if (agreementView != null || dismissed || host == null || host.isFinishing() || host.isDestroyed()) return;
+        android.view.View decor = host.getWindow().getDecorView();
+        if (!(decor instanceof android.view.ViewGroup)) return;
+        try {
+            agreementView = new FSLoginAgreementView(host, url,
+                    url.contains("gameOfUser") ? "用户协议" : "隐私政策", () -> {
+                agreementView = null;
+                restoreLogin();
+            }, this::dismiss);
+            agreementView.setZ(1000001f);
+            // hide 保留表单、验证码倒计时及原始登录回调；不能 dismiss 后创建另一份登录流程。
+            if (getWindow() != null) {
+                agreementDimmed = (getWindow().getAttributes().flags
+                        & android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND) != 0;
+                getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+                android.view.inputmethod.InputMethodManager ime = (android.view.inputmethod.InputMethodManager)
+                        ctx.getSystemService(Context.INPUT_METHOD_SERVICE);
+                if (ime != null) ime.hideSoftInputFromWindow(getWindow().getDecorView().getWindowToken(), 0);
+            }
+            hide();
+            ((android.view.ViewGroup) decor).addView(agreementView, new android.view.ViewGroup.LayoutParams(-1, -1));
+        } catch (RuntimeException failure) {
+            if (agreementView != null) agreementView.close(false);
+            agreementView = null;
+            restoreLogin();
+            Toaster.show("协议页面暂时无法打开，请重试");
         }
+    }
+
+    private Activity hostActivity() {
+        Context value = ctx;
+        while (value instanceof android.content.ContextWrapper) {
+            if (value instanceof Activity) return (Activity) value;
+            Context base = ((android.content.ContextWrapper) value).getBaseContext();
+            if (base == value) break;
+            value = base;
+        }
+        return value instanceof Activity ? (Activity) value : null;
+    }
+
+    private void restoreLogin() {
+        Activity host = hostActivity();
+        if (dismissed || host == null || host.isFinishing() || host.isDestroyed()) return;
+        if (agreementDimmed && getWindow() != null)
+            getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND);
+        try { show(); }
+        catch (RuntimeException ignored) { dismiss(); }
+    }
+
+    /** 宿主游戏接管返回键时，优先回退登录协议页。 */
+    public static boolean handleAgreementBack(Activity host) {
+        if (_instance == null || _instance.hostActivity() != host || _instance.agreementView == null) return false;
+        _instance.agreementView.back();
+        return true;
+    }
+
+    /** 同一进程只允许一个登录弹窗（包含临时隐藏以阅读协议的情况）。 */
+    public static boolean hasActiveInstance() {
+        return _instance != null && !_instance.dismissed;
     }
 
     private void setupTextWatchers() {
@@ -235,12 +289,13 @@ public class FSLoginDialog extends Dialog {
         params.put("app_id", WishFoxSdk.getConfig().getAppId());
         params.put("user_name", userName);
 
-        FoxSdkNetworkExecutor.execute(() ->
+        smsRequest = FoxSdkNetworkExecutor.execute(() ->
                 FoxSdkRetrofitManager.getApiService().sendSmsCode(params).blockingGet()
         )
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(result -> {
+                    if (dismissed) return;
                     if (result.isSuccess()) {
                         loading.dismiss();
                         if (result.getCode() == 200) {
@@ -263,6 +318,7 @@ public class FSLoginDialog extends Dialog {
                         }
                     }
                 }, throwable -> {
+                    if (dismissed) return;
                     loading.dismiss();
                     String errorMsg = "网络请求失败";
                     if (throwable instanceof IOException) {
@@ -277,21 +333,24 @@ public class FSLoginDialog extends Dialog {
     }
 
     private void startTimeout() {
-        if (timeouter != null) return;
+        if (dismissed || timeouter != null) return;
 
         time = 60;
         timeouter = new Timer();
         timeouter.schedule(new TimerTask() {
             @Override
             public void run() {
-                if (time > 0) {
-                    mainHandler.post(() -> binding.fsTvSendVerifyCode.setText(time + "S"));
-                    time--;
-                } else {
-                    mainHandler.post(() -> binding.fsTvSendVerifyCode.setText(R.string.fs_send_verify_code));
-                    timeouter.cancel();
-                    timeouter = null;
-                }
+                mainHandler.post(() -> {
+                    if (dismissed || timeouter == null) return;
+                    if (time > 0) {
+                        binding.fsTvSendVerifyCode.setText(time + "S");
+                        time--;
+                    } else {
+                        binding.fsTvSendVerifyCode.setText(R.string.fs_send_verify_code);
+                        timeouter.cancel();
+                        timeouter = null;
+                    }
+                });
             }
         }, 0, 1000);
     }
@@ -332,11 +391,15 @@ public class FSLoginDialog extends Dialog {
 
     @Override
     public void dismiss() {
+        dismissed = true;
+        if (smsRequest != null) { smsRequest.dispose(); smsRequest = null; }
+        mainHandler.removeCallbacksAndMessages(null);
+        if (agreementView != null) { agreementView.close(false); agreementView = null; }
         super.dismiss();
         if (loading != null) {
             loading.dismiss();
         }
-        _instance = null;
+        if (_instance == this) _instance = null;
         if (timeouter != null) {
             timeouter.cancel();
             timeouter = null;

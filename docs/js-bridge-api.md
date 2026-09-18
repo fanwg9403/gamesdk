@@ -1,6 +1,6 @@
 # WishFox H5 与 Android JS Bridge 交互协议
 
-> 文档版本：1.2（2026-09-17：视频在线缓冲播放，协议仍为1.0）  
+> 文档版本：1.3（2026-09-18：协议页返回链路与 H5 短时 Token 刷新闭环，协议仍为1.0）
 > 协议版本：1.0  
 > 适用平台：WishFox Android SDK，API 21～35+  
 > 配套文档：[WishFox Android SDK H5 化技术实现方案](./android-h5-technical-design.md)
@@ -499,190 +499,182 @@ H5建议：
 - `overlay.restoring`：等待 `bridge.ready` 的 restoreState；
 - 不把生命周期事件当作支付成功依据。
 
-## 10. 登录
+## 10. 登录与短时会话（当前实现）
 
-### 10.0 悬浮球点击与首页启动规则
+### 10.0 启动与能力边界
 
-悬浮球点击的入口判断由 Android 原生完成：
+未登录点击悬浮球：原生登录弹窗 → 登录成功保存原生长期 Token → 打开 H5 首页。
+已登录点击悬浮球：直接打开 H5 首页。悬浮球远程图片获取仍独立运行。
 
-```text
-未登录 → 显示原生登录弹窗 → 登录成功后按配置决定是否打开首页
-已登录 → 创建 H5 Overlay → 加载 /home → bridge.ready
-```
+**首页首个 HTML 必须是可匿名加载的静态壳，不能要求先携带登录 Cookie。** H5 的 JS 就绪后，查询登录态并调用 `auth.refreshSession` 获取短时 Token，然后才加载受保护的业务接口。Secondary 中每次新文档也执行此初始化；原生不把 Token 拼入 URL、HTML 或首屏请求头。不要把“原生已登录”等同于“当前 H5 内存已有凭证”。
 
-未登录时 H5不会收到首页 WebView，也不会收到 `bridge.ready`。登录弹窗仍使用既有原生实现；H5只通过 `auth.changed` 或 `auth.getState`获知结果。登录成功并打开首页时，原生先完成 H5 session exchange，再创建 Primary WebView，保证首页首个请求具有正确会话。
+当前实现采用 `short_token`，取代旧稿的 exchangeCode/HttpOnly Cookie 交换方案。长期 Token 只在原生；短时 Token 只供 H5 内存使用。Android 尚无已定义的后端交换 API，因此必须由 SDK 原生集成方配置 `FoxSdkConfig.Builder.setH5SessionTokenProvider(...)` 接入真实服务端。未配置时不伪造成功、不透传长期 Token。
 
-原生可在登录完成但未打开首页的情况下发送以下事件到当前仍存在的 WebView：
+`bridge.getCapabilities` 和 `bridge.ready.data.capabilities` 增加：
 
-```json
-{
-  "type": "event",
-  "event": "auth.changed",
-  "data": {
-    "status": "authenticated",
-    "openHomeAfterLogin": false,
-    "user": { "userId": "u_123", "maskedMobile": "188****4782" }
-  }
-}
-```
+| 字段 | 类型 | 当前意义 |
+|---|---|---|
+| authGetState | boolean | true，支持查询 |
+| authLogin | boolean | true，支持原生登录 |
+| h5SessionExchange | boolean | 是否配置交换器；不代表网络或服务端当前一定可用 |
+| authRefreshSession | boolean | 与 h5SessionExchange 一致 |
+| authLogout | boolean | false，本轮未开放 Bridge 登出 |
 
-悬浮球远程图片下载与 H5页面加载无关。图片使用内置默认图、旧缓存和新下载结果的优先级；下载失败不影响登录、首页创建或 Bridge ready。
+`bridge.ready.data.authState` 返回下节状态对象。旧稿其他环境/恢复字段仍属于全量协议设计，当前不能假定都已实现。
 
 ### 10.1 `auth.getState`
 
-用途：查询当前原生登录状态。
-
-请求参数：空对象。
-
-响应，已登录：
+请求参数：`{}`。不弹窗、不交换凭证、不返回 Token。响应 data 示例：
 
 ```json
 {
-  "success": true,
-  "data": {
-    "status": "authenticated",
-    "user": {
-      "id": "10001",
-      "nickname": "WishFox用户",
-      "avatar": "https://static.wishfoxs.com/avatar.png"
-    },
-    "sessionMode": "http_only_cookie"
-  }
+  "status": "authenticated",
+  "user": { "id": "10001", "maskedMobile": "188****4782" },
+  "sessionMode": "short_token",
+  "sessionStatus": "none",
+  "sessionExpiresIn": 0
 }
 ```
 
-响应，未登录：
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| status | string | 原生本地状态：anonymous / authenticated；不表示服务器已验证长期凭证仍有效 |
+| user | object/null | 未登录为 null；已登录仅有 id（openId，可能 null）与 maskedMobile（不可脱敏则空串） |
+| sessionMode | string | short_token 表示已配置交换器；none 表示未配置，不表示是否已换取 Token |
+| sessionStatus | string | 当前 WebView 文档的会话元信息：none / valid / expired |
+| sessionExpiresIn | number | 原生单调时钟计算的剩余秒数，向下取整且不小于 0；不是绝对时间戳 |
 
-```json
-{
-  "success": true,
-  "data": {
-    "status": "anonymous",
-    "user": null,
-    "sessionMode": "none"
-  }
-}
-```
-
-`status`：
-
-- `anonymous`
-- `authenticating`
-- `authenticated`
-- `expired`
-
-不得返回：
-
-- 原生长期 token；
-- 密码；
-- 验证码；
-- 完整手机号；
-- 原生 SharedPreferences内容。
+页面导航/销毁会清除该文档元信息；原生保存/清除登录结果后，旧世代会话变为 none。
+`sessionStatus=valid` 也不保证 H5 内存里仍有 Token（例如业务主动清除了内存）；此时仍需刷新获取。到期不自动广播定时事件，H5 自行根据 expiresIn 或服务端明确的凭证过期错误刷新。
 
 ### 10.2 `auth.login`
 
-用途：展示原生登录弹窗。
-
-请求：
+用途：没有原生登录态时展示既有登录弹窗；已登录时不重复弹窗，直接返回状态或进行会话交换。
 
 ```json
 {
+  "version": "1.0",
+  "type": "request",
+  "id": "auth-login-001",
   "method": "auth.login",
-  "params": {
-    "reason": "payment",
-    "exchangeH5Session": true
-  }
+  "params": { "reason": "user_action", "exchangeH5Session": true }
 }
 ```
 
-参数：
+| 参数 | 类型 | 必填 | 默认/说明 |
+|---|---|---|---|
+| reason | string | 否 | 业务原因说明，最多 128 字符；可用 user_action/payment/session_expired；不是权限依据 |
+| exchangeH5Session | boolean | 否 | true；false 仅原生登录，不返回 sessionToken/expiresIn |
 
-| 字段 | 类型 | 必填 | 默认值 | 说明 |
-|---|---|---:|---|---|
-| `reason` | string | 否 | `user_action` | `user_action`、`payment`、`session_expired` |
-| `exchangeH5Session` | boolean | 否 | true | 是否换取 H5一次性会话码 |
-
-成功响应：
+成功时 data 包含 10.1 的全部字段；交换成功额外包含：
 
 ```json
 {
-  "success": true,
-  "data": {
-    "status": "authenticated",
-    "user": {
-      "id": "10001",
-      "nickname": "WishFox用户",
-      "avatar": "https://static.wishfoxs.com/avatar.png"
-    },
-    "exchangeCode": "one_time_code",
-    "exchangeCodeExpiresIn": 60
-  }
+  "status": "authenticated",
+  "user": { "id": "10001", "maskedMobile": "188****4782" },
+  "sessionMode": "short_token",
+  "sessionStatus": "valid",
+  "sessionExpiresIn": 299,
+  "sessionToken": "server_issued_short_lived_token",
+  "expiresIn": 300
 }
 ```
 
-H5收到 `exchangeCode` 后应立即调用服务端交换 HttpOnly Cookie。不得把 exchangeCode持久化到 LocalStorage。
+expiresIn 为有效期秒数，范围 1～3600；300 秒为建议值，不是 SDK 写死的有效期。
+H5 按服务端约定在业务请求中携带 `Authorization: Bearer <sessionToken>`。SDK 不会替 H5 自动加请求头。
 
-可能错误：
+登录 Promise 不设置普通 10 秒网络超时。验证码错误/登录网络失败留在同一个原生弹窗内提示并允许重试；用户最终关闭返回 USER_CANCELLED，成功仅完成一次。阅读协议及返回不算取消，不会结束这个 Promise。登录完成后的交换阶段有独立的 15 秒超时。
 
-- `USER_CANCELLED`
-- `BUSY`
-- `ACTIVITY_UNAVAILABLE`
-- `NETWORK_ERROR`
-- `LOGIN_FAILED`
-- `SESSION_EXCHANGE_FAILED`
+默认 exchangeH5Session=true 但未配置交换器时，在弹窗前返回 SESSION_EXCHANGE_NOT_CONFIGURED。交换失败时，已成功的原生登录不回滚，H5 可以稍后 refreshSession；只有明确 AUTH_REQUIRED 才表示需要重新登录。
 
-### 10.3 `auth.logout`
+### 10.3 `auth.refreshSession`
 
-请求：
+用途：使用原生本地长期 Token 换取新的短时 Token；绝不主动弹登录框。
 
 ```json
 {
-  "method": "auth.logout",
-  "params": {
-    "confirm": true
-  }
+  "version": "1.0",
+  "type": "request",
+  "id": "auth-refresh-001",
+  "method": "auth.refreshSession",
+  "params": { "reason": "session_expired" }
 }
 ```
 
-参数：
+params 可为空对象。可选 reason 的约束同 10.2。该方法总是交换，传 exchangeH5Session=false 不会跳过交换。成功 data 与 10.2 交换成功完全相同。
 
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---:|---|
-| `confirm` | boolean | 否 | 是否展示原生确认弹窗，默认 true |
+处理闭环：
 
-成功响应：
+1. 当前文档启动、H5 内存无 Token、即将过期，或业务接口明确报告短时凭证过期：调用 refreshSession。
+2. H5 同一文档合并并发刷新为一个 Promise；其他业务请求等待该 Promise。
+3. 成功：替换内存 Token。建议提前 min(30秒, expiresIn 的20%) 刷新，不能用固定提前60秒导致短有效期死循环。
+4. AUTH_REQUIRED：清空 H5 内存 Token，给用户重新登录入口；通过 auth.login 完成原生登录与重新交换。
+5. NETWORK_ERROR/TIMEOUT/RATE_LIMITED：提示或有限退避重试，不注销原生登录；过期 Token 不再用于业务接口。
+6. AUTH_STATE_CHANGED：旧请求所属账号已变化，丢弃旧 Token，重新 getState，按新状态发起新操作。
+7. 登录/刷新只解决鉴权，不代表原业务已成功。只允许安全、幂等请求最多重试一次；创建订单、支付、领取等操作必须查业务状态/使用服务端幂等键，不能盲目重放。
 
-```json
-{
-  "success": true,
-  "data": {
-    "status": "anonymous"
-  }
-}
+并发与生命周期：
+
+- 原生每个文档至多一个登录/交换操作；不同请求 ID 并发返回 BUSY。
+- 同一在途 ID 重发不重复执行；认证完成只保存最近 128 个 ID，不保存带 Token 的响应。重复已完成 ID 返回 DUPLICATE_REQUEST；重试必须用新 ID。
+- Primary/Secondary 的短时凭证分别获取；共用 Overlay sessionId，但不共享 JS 全局变量。后端必须允许同一原生会话多个短时凭证同时有效，不能刷新右侧就撤销左侧。
+- 原生交换在 IO 线程发起，15 秒截止；前端 refresh 等待 20 秒。重复/迟到回调丢弃。
+- 导航、关闭来源 WebView、宿主销毁后取消订阅、清除状态，不把旧结果送给下一文档。
+- Activity 原实例仅尺寸/方向变化不销毁文档，不主动刷新 Token；Activity 重建产生新文档重新初始化。
+- 回后台不主动弹窗或重试；已发起交换可以完成，回前台重新检查剩余有效期。
+
+### 10.4 错误码与登出边界
+
+| code | 意义与处理 |
+|---|---|
+| AUTH_REQUIRED | 本地无长期凭证，或交换后端明确认定长期凭证失效；用户重新登录 |
+| AUTH_STATE_CHANGED | 交换期间账号/登录世代变化；丢弃结果后重新查询 |
+| SESSION_EXCHANGE_NOT_CONFIGURED | 未配置原生交换器，接入配置错误，不循环弹登录 |
+| SESSION_EXCHANGE_FAILED | 交换器异常、服务端失败或未识别的错误码 |
+| INVALID_SESSION_RESPONSE | Token 空/过长/等于长期 Token，或有效期不在 1～3600 秒 |
+| NETWORK_ERROR / TIMEOUT / RATE_LIMITED | 网络失败 / 交换超时 / 限流；有限重试 |
+| USER_CANCELLED | 用户关闭原生登录弹窗 |
+| BUSY | 当前文档在执行认证，或已有其他原生登录窗口 |
+| HOST_NOT_RESUMED / ACTIVITY_UNAVAILABLE | 宿主不适合发起操作；等待可用状态 |
+| INVALID_ARGUMENT | 已知字段类型不正确或 reason 超长 |
+| DUPLICATE_REQUEST | 最近已完成的认证 ID 被复用，改用新 ID |
+| METHOD_NOT_SUPPORTED | 未实现的方法，包括当前 auth.logout |
+| PAGE_UNLOADED | JS 辅助库在 pagehide 时拒绝未完成 Promise（前端本地错误） |
+
+`auth.logout` 在旧稿为规划能力，目前**未接入**完整的原生确认、服务端登出及宿主回调流程，capability=false，返回 METHOD_NOT_SUPPORTED。不要通过简单清除 SP 模拟退出成功；既有原生退出逻辑保持不变。
+
+### 10.5 事件 `auth.changed`
+
+认证操作完成后，原生向仍存在的可信 Primary/Secondary 发送各自的状态快照，data 为 10.1 状态对象加上：
+`reason: "auth_operation_completed"`。广播不含 sessionToken，不以事件代替请求响应。
+
+当前实现不是全局账户监听器：游戏直接调用其他原生登录/退出入口时，不保证立刻发事件；H5 在进入/恢复页面、收到事件及业务报鉴权错误时主动 getState。短时 Token 自然到期也不承诺定时事件。原生的 save/clear 会推进登录世代，随后状态查询/交换结果校验会发现变化。
+
+### 10.6 登录协议页
+
+用户协议/隐私政策使用专用只读 Overlay WebView，不走首页 Primary/Secondary 业务路由、不依赖用户登录、没有 JS Bridge。
+
+- 临时 hide 原登录 Dialog 并去除其蒙层，不 dismiss、不重新创建表单；账号、验证码、密码、勾选状态、倒计时和原登录回调都保留。
+- 协议页只提供一个原生返回图标，复用项目现有切图 `fs_right_back`，不显示额外的文字返回或关闭按钮。返回优先回退协议页网页历史，无历史恢复原登录弹窗。
+- 隐藏期间页面不被旧 Dialog 蒙层覆盖；返回后恢复登录窗口原有蒙层。不会打开首页或把 auth.login 当取消。
+- 不新增 Activity，不主动触发游戏 onPause、不改宿主方向；协议页仅布局随宿主变化。
+- 宿主销毁时释放协议 WebView 和原登录实例，不恢复旧 Activity 的 Dialog；系统真正重建 Activity 后不能保留旧 View 实例。
+- AndroidX/系统返回分发做兼容处理；游戏完全接管返回键时仍应优先调用 FoxSdkOverlayManager.onHostBackPressed(activity)。原生可见按钮不依赖这项集成。
+- 协议内容限定 HTTPS 同源，禁用 JS、文件/Content 访问，不开放下载或外部 Scheme；加载/证书失败也能随时返回。
+
+### 10.7 H5 辅助库接入
+
+将仓库 `foxsdk/src/main/assets/wishfox-auth-bridge.js` 同步到 H5 工程，业务 JS 之前加载（不是原生自动注入）。它提供：
+
+```javascript
+WishFoxSDK.auth.getState();                  // Promise<状态>
+WishFoxSDK.auth.login({ exchangeH5Session: true }); // Promise<状态+短时Token>
+WishFoxSDK.auth.refreshSession({ reason: 'bootstrap' }); // Promise<状态+短时Token>
+var off = WishFoxSDK.auth.onChanged(function (event) { /* 使用 event.data */ });
+off();                                     // 解除监听
 ```
 
-原生同时发送 `auth.changed`。
-
-### 10.4 事件 `auth.changed`
-
-```json
-{
-  "event": "auth.changed",
-  "data": {
-    "status": "expired",
-    "reason": "server_rejected",
-    "user": null
-  }
-}
-```
-
-触发：
-
-- 登录成功；
-- 主动退出；
-- 服务端返回登录失效；
-- 原生登录信息被清除；
-- 账号切换。
+辅助库内部为 login/refresh 分别合并在途 Promise，不跨 WebView 合并，不缓存 Token。包含响应/事件分发，可与 wishfox-media-bridge.js 组合，任一加载顺序均可；重复加载不重复安装。旧 WebView 必须先加载 Promise polyfill；下方 async/await 示例需要构建转译。若已有完整 Bridge，请统一其方法命名和超时语义，避免再覆盖这些认证方法。
 
 ## 11. Toast
 
@@ -1589,7 +1581,8 @@ class WishFoxBridgeError extends Error {
 | `layout.setMode` | 10秒 |
 | `auth.getState` | 5秒 |
 | `auth.login` | 不设置普通超时，由用户交互结束 |
-| `auth.logout` | 15秒 |
+| `auth.refreshSession` | 原生交换15秒，JS等待20秒 |
+| `auth.logout` | 当前未实现 |
 | `payment.start` | 仅等待 accepted，15秒 |
 | `payment.query` | 15秒 |
 | `miniProgram.openScheme` | 10秒 |
@@ -1650,33 +1643,51 @@ async function startWishFoxPage() {
 }
 ```
 
-## 23. 登录调用示例
+## 23. 登录与刷新调用示例
+
+以下示例只保存内存变量；并发首次初始化也复用同一个 Promise。实际 HTTP 客户端收到**明确的短时凭证过期码**后，将 memoryToken 清空，再调用 ensureSession，不要把所有 401/403 都当作可刷新错误。
 
 ```javascript
-async function ensureLogin() {
-  const state = await window.WishFoxSDK.auth.getState();
-  if (state.status === 'authenticated') {
-    return state.user;
-  }
+let memoryToken = null;
+let refreshAt = 0;
+let initialization = null;
 
+async function ensureSession() {
+  if (memoryToken && performance.now() < refreshAt) return memoryToken;
+  if (initialization) return initialization;
+  initialization = (async () => {
+    const state = await WishFoxSDK.auth.getState();
+    const result = state.status === 'authenticated'
+      ? await WishFoxSDK.auth.refreshSession({ reason: 'bootstrap_or_expired' })
+      : await WishFoxSDK.auth.login({ reason: 'user_action', exchangeH5Session: true });
+    const early = Math.min(30, result.expiresIn * 0.2);
+    memoryToken = result.sessionToken;
+    refreshAt = performance.now() + (result.expiresIn - early) * 1000;
+    return memoryToken;
+  })();
   try {
-    const result = await window.WishFoxSDK.auth.login({
-      reason: 'user_action',
-      exchangeH5Session: true
-    });
-
-    if (result.exchangeCode) {
-      await exchangeCodeForHttpOnlyCookie(result.exchangeCode);
-    }
-    return result.user;
+    return await initialization;
   } catch (error) {
-    if (error.code === 'USER_CANCELLED') {
-      return null;
-    }
+    memoryToken = null;
+    refreshAt = 0;
+    // AUTH_REQUIRED：展示重新登录按钮，由用户触发 auth.login。
+    // USER_CANCELLED：停留当前页面，不自动再次弹登录框。
+    // 网络错误：提示重试，不无限递归。
     throw error;
+  } finally {
+    initialization = null;
   }
 }
+
+WishFoxSDK.auth.onChanged(function (event) {
+  if (event.data.status === 'anonymous' || event.data.sessionStatus === 'none') {
+    memoryToken = null;
+    refreshAt = 0;
+  }
+});
 ```
+
+短时 Token 对应原生登录世代；页面恢复时查询状态，账号变化时清理所有业务缓存。勿自动重放支付/订单等副作用请求。
 
 ## 24. 支付调用示例
 
@@ -1839,8 +1850,8 @@ H5必须遵守：
 - 设置严格 CSP；
 - 禁止不可信 iframe；
 - 禁止把 Bridge对象转交给第三方脚本；
-- 不将 token、exchangeCode、支付密文或完整 scheme写入日志；
-- exchangeCode只在内存中短期存在；
+- 不将 token、sessionToken、支付密文或完整 scheme写入日志；
+- sessionToken只在内存中短期存在，不存入通用 Bridge 响应重放缓存；
 - 不通过 URL query传长期 token；
 - 不向 `media.saveImage` 传任意第三方 URL；
 - 支付金额和订单状态以服务端为准；
@@ -1950,7 +1961,8 @@ bridge.getCapabilities
 environment.get
 auth.getState
 auth.login
-auth.logout
+auth.refreshSession
+auth.logout（规划，当前不支持）
 ui.toast
 ui.close
 navigation.updateState

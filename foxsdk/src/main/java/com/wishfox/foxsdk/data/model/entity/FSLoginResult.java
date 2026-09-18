@@ -15,6 +15,11 @@ import com.wishfox.foxsdk.utils.FoxSdkSPUtils;
  * @date: 2025年10月28日 16:54
  */
 public class FSLoginResult {
+    private static final java.util.concurrent.atomic.AtomicLong SESSION_REVISION =
+            new java.util.concurrent.atomic.AtomicLong();
+
+    /** 进程内登录世代，用于丢弃退出/重新登录前发起的异步会话交换结果。 */
+    public static long getSessionRevision() { return SESSION_REVISION.get(); }
 
     @SerializedName("app_id")
     private Long appId;
@@ -83,10 +88,11 @@ public class FSLoginResult {
     /**
      * 保存到SP
      */
-    public static void save(FSLoginResult loginResult) {
+    public static synchronized void save(FSLoginResult loginResult) {
         if (loginResult != null) {
             String json = new Gson().toJson(loginResult);
             FoxSdkSPUtils.getInstance().put(FoxSdkSPKeys.LOGIN_RESULT, json);
+            SESSION_REVISION.incrementAndGet();
         }
     }
 
@@ -101,7 +107,15 @@ public class FSLoginResult {
     /**
      * 清除SP中的数据
      */
-    public static void clear() {
+    public static synchronized void clear() {
         FoxSdkSPUtils.getInstance().remove(FoxSdkSPKeys.LOGIN_RESULT);
+        SESSION_REVISION.incrementAndGet();
+    }
+
+    /** 原子地清除指定世代的失效登录，避免异步错误清除其他线程刚保存的新账号。 */
+    public static synchronized boolean clearIfSessionMatches(long revision, String token) {
+        if (SESSION_REVISION.get() != revision || !TextUtils.equals(token, getTokenEd())) return false;
+        clear();
+        return true;
     }
 }

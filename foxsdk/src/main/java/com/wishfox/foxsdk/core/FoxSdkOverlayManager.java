@@ -50,6 +50,18 @@ public final class FoxSdkOverlayManager {
         WEB
     }
 
+    /** H5 请求原生登录后的结果回调。回调始终在主线程触发。 */
+    public interface LoginCallback {
+        /** 登录成功，长期 Token 仅留在原生侧，调用方不得向 H5 暴露。 */
+        void onSuccess(FSLoginResult result);
+
+        /** 用户关闭登录弹窗且未完成登录。 */
+        void onCancelled();
+
+        /** 无法启动/继续登录操作；可重试的表单错误在原生弹窗内提示。 */
+        void onFailure(String code);
+    }
+
     private static final Map<Activity, WeakReference<FoxSdkOverlayManager>> INSTANCES =
             new WeakHashMap<>();
     private static final String ROUTE_HOME = "home";
@@ -66,6 +78,7 @@ public final class FoxSdkOverlayManager {
     private String webHtml;
     private boolean webShowTitle;
     private boolean webShowReport;
+    private LoginAttempt loginAttempt;
 
     private FoxSdkOverlayManager(Activity activity) {
         activityReference = new WeakReference<>(activity);
@@ -236,6 +249,28 @@ public final class FoxSdkOverlayManager {
         showHomeInternal(null);
     }
 
+    /** H5 Bridge 请求展示原生登录弹窗。 */
+    public static void requestLogin(Activity activity, LoginCallback callback) {
+        Runnable action = () -> {
+            if (!isActivityUsable(activity) || !WishFoxSdk.isInitialized()) {
+                if (callback != null) callback.onFailure("ACTIVITY_UNAVAILABLE");
+                return;
+            }
+            getOrCreate(activity).showLoginInternal(callback);
+        };
+        if (Looper.myLooper() == Looper.getMainLooper()) action.run();
+        else new android.os.Handler(Looper.getMainLooper()).post(action);
+    }
+
+    /** 仅取消此调用方拥有的登录，避免页面销毁时误关宿主发起的登录。 */
+    public static void cancelLogin(Activity activity, LoginCallback callback) {
+        runOnMain(activity, () -> {
+            FoxSdkOverlayManager manager = find(activity);
+            if (manager != null && manager.loginAttempt != null
+                    && manager.loginAttempt.callback == callback) manager.cancelLoginInternal();
+        });
+    }
+
     public static void onHostPaused(Activity activity) {
         FoxSdkOverlayManager manager = find(activity);
         if (manager != null && manager.h5View != null) manager.h5View.onHostPaused();
@@ -251,8 +286,9 @@ public final class FoxSdkOverlayManager {
         if (manager != null && manager.h5View != null) manager.h5View.closeMediaPreview("host_stopped");
     }
 
-    /** 游戏完全接管返回键时，先调用此入口；true 表示已关闭原生媒体预览。 */
+    /** 游戏接管返回键时先调用；true 表示协议页或原生媒体预览已处理返回。 */
     public static boolean onHostBackPressed(Activity activity) {
+        if (FSLoginDialog.handleAgreementBack(activity)) return true;
         FoxSdkOverlayManager manager = find(activity);
         return manager != null && manager.h5View != null && manager.h5View.handleMediaBack();
     }
@@ -262,30 +298,84 @@ public final class FoxSdkOverlayManager {
             showH5Internal();
             return;
         }
+        showLoginInternal(null);
+    }
+
+    private static final class LoginAttempt {
+        final LoginCallback callback;
+        final long revision = FSLoginResult.getSessionRevision();
+        FSLoginDialog dialog;
+        io.reactivex.rxjava3.disposables.Disposable request;
+        boolean submitting;
+        LoginAttempt(LoginCallback callback) { this.callback = callback; }
+    }
+
+    private void cancelLoginInternal() {
+        LoginAttempt previous = loginAttempt;
+        loginAttempt = null;
+        if (previous == null) return;
+        if (previous.request != null) previous.request.dispose();
+        if (previous.dialog != null) previous.dialog.dismiss();
+    }
+
+    private void showLoginInternal(LoginCallback callback) {
         Activity activity = activityReference.get();
-        if (!isActivityUsable(activity)) return;
+        if (destroyed || !isActivityUsable(activity)) {
+            if (callback != null) callback.onFailure("ACTIVITY_UNAVAILABLE");
+            return;
+        }
+        if (loginAttempt != null || FSLoginDialog.hasActiveInstance()) {
+            if (callback != null) callback.onFailure("BUSY");
+            return;
+        }
+        LoginAttempt attempt = new LoginAttempt(callback);
+        loginAttempt = attempt;
         try {
-            new FSLoginDialog(activity)
-                    .setOnLoginClickListener((phone, code, type, loading) ->
-                            FoxSdkRepositoryContainer.getHomeRepository().login(phone, code, type)
-                                    .subscribeOn(Schedulers.io())
-                                    .observeOn(AndroidSchedulers.mainThread())
-                                    .subscribe(result -> {
-                                        if (result.isSuccess()) {
-                                            FSLoginResult.save(result.getData());
-                                            FSLoginDialog.dismissInstance();
-                                            showH5Internal();
-                                        } else {
-                                            if (loading != null) loading.dismiss();
-                                            Toaster.show(result.getError());
-                                        }
-                                    }, throwable -> {
-                                        if (loading != null) loading.dismiss();
-                                        Toaster.show(throwable.getMessage());
-                                    }))
-                    .show();
-        } catch (Throwable throwable) {
-            FoxSdkDiagnostics.reportFailure(activity, "h5_login", "dialog_show_failed", throwable);
+            attempt.dialog = new FSLoginDialog(activity).setOnLoginClickListener((phone, code, type, loading) -> {
+                if (loginAttempt != attempt || attempt.submitting) {
+                    if (loading != null) loading.dismiss();
+                    return;
+                }
+                attempt.submitting = true;
+                attempt.request = FoxSdkRepositoryContainer.getHomeRepository().login(phone, code, type)
+                        .subscribeOn(Schedulers.io())
+                        .observeOn(AndroidSchedulers.mainThread())
+                        .subscribe(result -> {
+                            if (loginAttempt != attempt || destroyed || !isActivityUsable(activity)) return;
+                            attempt.submitting = false;
+                            if (loading != null) loading.dismiss();
+                            if (attempt.revision != FSLoginResult.getSessionRevision()) {
+                                cancelLoginInternal();
+                                if (callback != null) callback.onFailure("AUTH_STATE_CHANGED");
+                                return;
+                            }
+                            FSLoginResult data = result.getData();
+                            if (result.isSuccess() && data != null && !TextUtils.isEmpty(data.getToken())) {
+                                FSLoginResult.save(data);
+                                cancelLoginInternal();
+                                if (callback != null) callback.onSuccess(data);
+                                else showH5Internal();
+                            } else {
+                                // 失败仍在同一弹窗内重试；只有关闭/成功才结束 Bridge Promise。
+                                Toaster.show("登录失败，请检查输入后重试");
+                            }
+                        }, error -> {
+                            if (loginAttempt != attempt || destroyed || !isActivityUsable(activity)) return;
+                            attempt.submitting = false;
+                            if (loading != null) loading.dismiss();
+                            Toaster.show("登录请求失败，请稍后重试");
+                        });
+            });
+            attempt.dialog.setOnDismissListener(ignored -> {
+                if (loginAttempt != attempt) return;
+                cancelLoginInternal();
+                if (callback != null) callback.onCancelled();
+            });
+            attempt.dialog.show();
+        } catch (RuntimeException failure) {
+            cancelLoginInternal();
+            if (callback != null) callback.onFailure("ACTIVITY_UNAVAILABLE");
+            FoxSdkDiagnostics.reportFailure(activity, "h5_login", "dialog_show_failed", failure);
         }
     }
 
@@ -682,6 +772,9 @@ public final class FoxSdkOverlayManager {
 
     private void destroyInternal() {
         destroyed = true;
+        LoginCallback pendingLogin = loginAttempt == null ? null : loginAttempt.callback;
+        cancelLoginInternal();
+        if (pendingLogin != null) pendingLogin.onFailure("ACTIVITY_UNAVAILABLE");
         removeH5View();
         removeHomeView();
         removePageView();

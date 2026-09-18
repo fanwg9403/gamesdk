@@ -27,6 +27,7 @@ import java.util.UUID;
 import androidx.annotation.Nullable;
 
 import com.wishfox.foxsdk.core.FoxSdkConfig;
+import com.wishfox.foxsdk.auth.FSH5AuthSession;
 
 /**
  * H5 业务页面的 Overlay 容器。
@@ -226,6 +227,7 @@ public final class FSH5OverlayView extends FrameLayout {
     private void destroyWebView(@Nullable WebView view) {
         if (view == null) return;
         NavigationBridge bridge = bridges.remove(view);
+        if (bridge != null) bridge.auth.reset();
         if (previewOwner == bridge) closeMediaPreview("source_destroyed");
         try {
             view.stopLoading();
@@ -245,6 +247,9 @@ public final class FSH5OverlayView extends FrameLayout {
             if (bridge != null) {
                 if (previewOwner == bridge) closeMediaPreview("source_navigation");
                 bridge.generation++;
+                bridge.auth.reset();
+                bridge.authPending.clear();
+                bridge.authCompleted.clear();
                 bridge.responses.clear();
             }
         }
@@ -274,6 +279,10 @@ public final class FSH5OverlayView extends FrameLayout {
         private final WebView owner;
         private volatile long generation;
         private final LinkedHashMap<String, JSONObject> responses = new LinkedHashMap<>();
+        private final FSH5AuthSession auth = new FSH5AuthSession(activity,
+                com.wishfox.foxsdk.core.WishFoxSdk.getConfig(), sessionId);
+        private final java.util.Set<String> authPending = new java.util.HashSet<>();
+        private final java.util.LinkedHashSet<String> authCompleted = new java.util.LinkedHashSet<>();
         NavigationBridge(WebView owner) { this.owner = owner; }
 
         boolean valid(long epoch) {
@@ -282,8 +291,10 @@ public final class FSH5OverlayView extends FrameLayout {
 
         void send(JSONObject message, long epoch) {
             if (!valid(epoch)) return;
-            owner.evaluateJavascript("window.WishFoxSDK && window.WishFoxSDK.__dispatch && window.WishFoxSDK.__dispatch(JSON.parse("
-                    + JSONObject.quote(message.toString()) + "));", null);
+            try {
+                owner.evaluateJavascript("window.WishFoxSDK && window.WishFoxSDK.__dispatch && window.WishFoxSDK.__dispatch(JSON.parse("
+                        + JSONObject.quote(message.toString()) + "));", null);
+            } catch (RuntimeException ignored) { /* 已失效的 WebView 不影响宿主，也不记录含 Token 的载荷。 */ }
         }
 
         @JavascriptInterface
@@ -343,6 +354,9 @@ public final class FSH5OverlayView extends FrameLayout {
     private JSONObject capabilities() throws JSONException {
         return new JSONObject().put("mediaPreviewImage", true).put("mediaPreviewVideo", isHardwareAccelerated())
                 .put("mediaPreviewClose", true).put("mediaPreviewMode", "streaming_native")
+                .put("authGetState", true).put("authLogin", true).put("authLogout", false)
+                .put("authRefreshSession", com.wishfox.foxsdk.core.WishFoxSdk.getConfig().getH5SessionTokenProvider() != null)
+                .put("h5SessionExchange", com.wishfox.foxsdk.core.WishFoxSdk.getConfig().getH5SessionTokenProvider() != null)
                 .put("videoDiskCache", false)
                 .put("maxPreviewImageBytes", FSMediaPolicy.IMAGE_BYTES);
     }
@@ -352,8 +366,14 @@ public final class FSH5OverlayView extends FrameLayout {
                 .put("id", request.getString("id")).put("method", request.optString("method"))
                 .put("success", "OK".equals(code)).put("code", code).put("message", code)
                 .put("timestamp", System.currentTimeMillis()).put("data", data == null ? JSONObject.NULL : data);
-        bridge.responses.put(request.getString("id"), result);
-        if (bridge.responses.size() > 128) bridge.responses.remove(bridge.responses.keySet().iterator().next());
+        if (request.optString("method").startsWith("auth.")) {
+            // 认证响应可能包含凭证：只记录已完成 ID，不进入普通响应重放缓存。
+            bridge.authCompleted.add(request.getString("id"));
+            if (bridge.authCompleted.size() > 128) bridge.authCompleted.remove(bridge.authCompleted.iterator().next());
+        } else {
+            bridge.responses.put(request.getString("id"), result);
+            if (bridge.responses.size() > 128) bridge.responses.remove(bridge.responses.keySet().iterator().next());
+        }
         bridge.send(result, epoch);
     }
 
@@ -365,6 +385,39 @@ public final class FSH5OverlayView extends FrameLayout {
                     .put("event", "media.previewChanged").put("timestamp", System.currentTimeMillis())
                     .put("webViewId", bridge.owner == primary ? "primary" : "secondary").put("data", data), epoch);
         } catch (JSONException ignored) { }
+    }
+
+    private void authChanged() {
+        // 双窗口各自持有会话元信息，广播中永不包含任何 Token。
+        for (NavigationBridge target : new ArrayList<>(bridges.values())) {
+            try {
+                target.send(new JSONObject().put("version", "1.0").put("type", "event")
+                        .put("event", "auth.changed").put("timestamp", System.currentTimeMillis())
+                        .put("webViewId", target.owner == primary ? "primary" : "secondary")
+                        .put("data", target.auth.state().put("reason", "auth_operation_completed")), target.generation);
+            } catch (JSONException ignored) { }
+        }
+    }
+
+    private void handleAuthRequest(NavigationBridge bridge, JSONObject request, long epoch) throws JSONException {
+        String id = request.getString("id");
+        String method = request.optString("method");
+        if (bridge.authPending.contains(id)) return; // 同一在途请求不重复弹窗/交换。
+        if (bridge.authCompleted.contains(id)) {
+            reply(bridge, request, epoch, "DUPLICATE_REQUEST", null); return;
+        }
+        if (!"auth.getState".equals(method) && (!hostResumed || !isShown()
+                || activity.isFinishing() || activity.isDestroyed())) {
+            reply(bridge, request, epoch, "HOST_NOT_RESUMED", null); return;
+        }
+        bridge.authPending.add(id);
+        bridge.auth.handle(method, request.getJSONObject("params"), (code, data) -> {
+            bridge.authPending.remove(id);
+            if (!bridge.valid(epoch)) return;
+            try { reply(bridge, request, epoch, code, data); }
+            catch (JSONException ignored) { }
+            if (!"auth.getState".equals(method)) authChanged();
+        });
     }
 
     private void handleMediaRequest(NavigationBridge bridge, JSONObject request, long epoch) throws JSONException {
@@ -382,7 +435,12 @@ public final class FSH5OverlayView extends FrameLayout {
         if ("bridge.ready".equals(method)) {
             reply(bridge, request, epoch, "OK", new JSONObject().put("selectedProtocolVersion", "1.0")
                     .put("sessionId", sessionId).put("webViewId", bridge.owner == primary ? "primary" : "secondary")
-                    .put("bridgeMode", "restricted_js_interface").put("capabilities", capabilities())); return;
+                    .put("bridgeMode", "restricted_js_interface").put("authState", bridge.auth.state())
+                    .put("capabilities", capabilities())); return;
+        }
+        if (method.startsWith("auth.")) {
+            handleAuthRequest(bridge, request, epoch);
+            return;
         }
         if ("media.closePreview".equals(method)) {
             if (preview == null || previewOwner != bridge || !TextUtils.equals(previewId, params.optString("previewId"))) {

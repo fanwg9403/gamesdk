@@ -21,6 +21,9 @@
     public *;
 }
 -keep class com.wishfox.foxsdk.core.FoxSdkConfig$WishFoxActions { public *; }
+-keep public interface com.wishfox.foxsdk.core.FoxSdkConfig$H5SessionTokenProvider { *; }
+-keep public interface com.wishfox.foxsdk.core.FoxSdkConfig$H5SessionTokenProvider$Callback { *; }
+-keep public interface com.wishfox.foxsdk.core.FoxSdkOverlayManager$LoginCallback { *; }
 -keep,includedescriptorclasses class com.wishfox.foxsdk.core.FoxSdkOverlayManager {
     public *;
 }

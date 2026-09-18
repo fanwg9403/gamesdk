@@ -1,6 +1,6 @@
 # WishFox Android SDK H5 化技术实现方案
 
-> 文档版本：1.3（2026-09-17：补充消费方混淆保护；沿用1.2视频在线缓冲方案）  
+> 文档版本：1.4（2026-09-18：登录协议 Overlay、短时 Token 刷新、Builder 中文接入说明）
 > 适用 SDK：WishFox Android SDK 1.4.0 及后续版本  
 > 目标系统：Android API 21～35+  
 > 配套协议：[WishFox JS Bridge 交互协议](./js-bridge-api.md)
@@ -299,7 +299,7 @@ SDK.initialize(config)
 - 未登录点击悬浮球不得短暂显示首页、不得先创建 WebView再等待登录；
 - 登录态判断只使用原生安全存储中的会话摘要，过期或校验失败按未登录处理；
 - 登录弹窗由现有原生实现承载，弹窗关闭、旋转和 Activity销毁均由原有逻辑处理；
-- 登录成功后如果立即打开首页，先完成 H5 session exchange，再创建 Primary WebView，避免首页首屏出现未授权请求；
+- 登录成功后打开可匿名加载的 H5 静态壳；JS 就绪后通过 auth.refreshSession 获取短时 Token，再请求受保护接口；不在首屏 URL 传递登录凭证；
 - 已登录点击悬浮球只创建一个 Overlay；重复点击在 CREATING/LOADING阶段应被忽略；
 - 悬浮球远程图片下载与首页是否打开解耦，初始化时可并行执行，点击时使用“内置图→旧缓存→新缓存”的可用资源；
 - 图片下载不得阻塞登录弹窗或首页 WebView创建，失败只记录诊断并使用旧缓存/默认图。
@@ -381,10 +381,10 @@ settings.setMediaPlaybackRequiresUserGesture(true);
 
 - 允许 WishFox H5自身的一方 Cookie；
 - 默认关闭第三方 Cookie：`CookieManager.setAcceptThirdPartyCookies(webView, false)`；
-- H5登录使用 HttpOnly、Secure、SameSite Cookie；
+- 当前认证使用 Bridge 返回的内存短时 Token，不再使用旧稿的 exchangeCode/HttpOnly Cookie 交换；普通非认证 Cookie 应按服务端策略设置安全属性；
 - 登出时只清理 WishFox域名和指定 Cookie名称；
 - 禁止把原生 token 放入 URL、LocalStorage或日志；
-- 两个 WishFox WebView共享同源 Cookie，不通过 Bridge同步 token。
+- 两个 WishFox WebView 可能共享系统 Cookie 存储，但认证短时 Token 各自在 H5 内存持有、各自申请；不依赖 Cookie 共享完成认证。
 
 ### 7.3 Origin 白名单
 
@@ -628,35 +628,116 @@ H5关闭/外部区域点击/返回键关闭
 - API 33+：注册 `OnBackInvokedDispatcher`；
 - AndroidX ComponentActivity：使用 `OnBackPressedDispatcher`；
 - 普通 Activity/Unity/Cocos：在主副 WebView和 Overlay根 View上处理 KeyEvent；
-- 如果某类宿主完全截获返回键，提供可选的 `WishFoxSdk.onHostBackPressed(Activity)` 集成入口。
+- 如果某类宿主完全截获返回键，提供可选的 `FoxSdkOverlayManager.onHostBackPressed(Activity)` 集成入口。
 
-## 13. 登录实现
+## 13. 登录、协议页与短时会话（当前代码）
 
-### 13.1 推荐流程
+### 13.1 原生登录及 H5 初始化
 
 ```text
-H5 auth.login
-  → 原生检查是否已有登录操作
-  → 展示 FSLoginDialog
-  → 登录接口成功
-  → 保存 FSLoginResult / FSUserProfile
-  → 原生用 token 请求 H5 session exchange
-  → 获得一次性 exchangeCode
-  → 回传用户概要和 exchangeCode
-  → H5调用服务端换取 HttpOnly Cookie
-  → auth.changed(authenticated)
+浮球点击 → 原生长期 Token 存在？
+  否 → FSLoginDialog → 登录成功 → FSLoginResult.save
+  是 / 登录成功 → 创建 Primary、加载匿名静态壳
+H5 bridge.ready / auth.getState
+  → auth.refreshSession
+  → FSH5AuthSession → 原生 H5SessionTokenProvider
+  → 后端校验长期 Token、签发短时 Token
+  → H5 内存保存 sessionToken + expiresIn
+  → 使用短时 Token 请求业务接口
+短时 Token 临近过期/服务端明确拒绝
+  → 合并一次 refreshSession → 更新内存 → 安全请求至多重试一次
+长期 Token 失效
+  → AUTH_REQUIRED → 清理 H5 凭证 → 用户触发 auth.login
 ```
 
-### 13.2 安全要求
+已登录调用 auth.login 默认只交换，不重复展示登录框。exchangeH5Session=false 可仅登录原生，但不能据此请求受保护 H5 API。无交换器时默认 login/refresh 返回 SESSION_EXCHANGE_NOT_CONFIGURED，不将长期 Token 当作短时 Token。
 
-- 不向 H5返回长期 token；
-- 不把 token放在 H5 URL；
-- 不把 token打印到日志；
-- exchangeCode短时有效、一次性使用；
-- exchangeCode绑定 appId、channelId、用户和 H5 session；
-- 登出同时清理原生登录模型和指定 H5 Cookie；
-- 登录过程中重复 `auth.login` 返回 `BUSY`；
-- 用户关闭登录弹窗返回 `USER_CANCELLED`。
+FoxSdkOverlayManager 管理一个 LoginAttempt，防止重复提交及不同入口重复打开登录框。登录接口失败留在原弹窗重试；成功、用户关闭、宿主不可用才终结请求。保存登录前校验开始时的登录世代，页面销毁取消自身操作；不使用静态 dismissInstance 误关其他调用方弹窗。
+
+### 13.2 协议页层级与返回
+
+根因：原生 Dialog 是独立 Window，往 Activity DecorView 加普通业务 Overlay 不能越过仍显示的 Dialog。单纯 bringToFront/提高业务 View 的 Z 无法解决跨 Window 层级。
+
+实现：
+- FSLoginDialog 持有 FSLoginAgreementView。点击协议后创建只读专用 Overlay，临时清除登录 Window 的 DIM_BEHIND 并 hide 原 Dialog，再将协议页挂在宿主 DecorView 最高的 SDK 页面层。
+- 不 dismiss 原 Dialog、不覆盖原 OnDismissListener/登录监听器、不替换原首页/Secondary。手机、验证码、密码、勾选状态、验证码倒计时及回调原样保留。
+- 原生固定标题栏只保留一个返回图标，复用项目现有切图 `fs_right_back`（20dp 图标、48dp 点击区域），不使用系统文字按钮，不提供额外关闭按钮。返回优先 WebView 历史，无历史再恢复原 Dialog 及其蒙层。H5 不需要添加返回 JS。
+- 协议页禁用 JavaScript、不注入 WishFoxNative，只允许入口 HTTPS 同源导航；关闭 file/content 和 mixed content，SSL 错误拒绝加载。协议 HTML 应为服务端可直接阅读的静态内容。
+- 不新增 Activity、不调整宿主方向。横竖屏都使用宿主窗口安全区内的全尺寸协议页；仅尺寸变化重排布局，不重新创建 WebView。
+- 通过 ActivityLifecycleCallbacks 转发协议 WebView onPause/onResume；不调用影响所有 WebView 的 pauseTimers。关闭/宿主销毁注销生命周期和返回回调，销毁自身 WebView，不清全局缓存/Cookie。
+- AndroidX/Android 33+ 返回处理沿用媒体 Overlay 兼容思路；游戏抢占返回键时宿主仍需调用 FoxSdkOverlayManager.onHostBackPressed。原生返回图标始终存在。
+- Activity 真正重建时关闭旧协议及登录窗口，不把旧 Activity/View 留给新实例；不承诺跨 Activity 重建保留密码或验证码，避免旧回调绑定新宿主。
+
+Android 官方 API 说明：[Dialog.hide 保留实例而非 dismiss](https://developer.android.com/reference/android/app/Dialog#hide())；[WebView.pauseTimers 影响所有 WebView](https://developer.android.com/reference/android/webkit/WebView#pauseTimers())，本实现不调用它。
+
+### 13.3 原生短时 Token 交换器接入
+
+新增配置接口：
+```java
+FoxSdkConfig.Builder builder = new FoxSdkConfig.Builder(appId, channelId, payScheme);
+builder.setH5SessionTokenProvider(new FoxSdkConfig.H5SessionTokenProvider() {
+    @Override
+    public void exchange(String nativeToken, String sessionId, Callback callback) {
+        // 在 SDK 原生安全网络层调用真实的交换接口。
+        // request 中使用 nativeToken 鉴权，携带 appId/channelId/sessionId。
+        // 成功：callback.onSuccess(response.shortToken, response.expiresInSeconds);
+        // 网络失败：callback.onFailure("NETWORK_ERROR");
+        // 后端明确认定长期 Token 已失效：callback.onFailure("AUTH_REQUIRED");
+        // 不能回调原来的 nativeToken，不能在这里打印请求/响应凭证。
+    }
+});
+```
+
+上面仅为接线示意，不是可直接上线的网络实现。**当前仓库 FoxSdkApiService 未定义短时会话后端接口，本轮不杜撰 URL/请求签名。需 SDK 原生维护方接入真实接口，再由后端联调验收。** 交换器可由 SDK 自己提供，第三方游戏不必接触原生长期 Token；Builder 是可注入的适配边界，不是要求 H5 完成交换。
+
+后端最小契约：
+
+| 项目 | 要求 |
+|---|---|
+| 认证输入 | 原生长期 Token 仅传受信任 HTTPS 后端；appId/channelId 使用配置，sessionId 由原生生成 |
+| 绑定校验 | 校验长期 Token 用户及所属游戏/渠道，短时凭证绑定用户、应用、渠道和 H5 会话用途 |
+| 输出 | 独立非空短时 Token（最多8192字符）和剩余秒数1～3600，建议300秒 |
+| 多窗口 | 同一会话允许多个并行有效短时凭证；一次刷新不能立即废除另一 WebView 的凭证 |
+| 错误 | AUTH_REQUIRED 只代表长期凭证无效；NETWORK_ERROR/RATE_LIMITED/SESSION_EXCHANGE_FAILED 不清登录态 |
+| 安全 | 不将 Token 写 URL、日志、埋点、磁盘缓存或错误文本；限制签发频率、防重放、限定业务权限 |
+
+SDK 在 IO 线程调用 provider，15 秒超时，回调统一切主线程；回调多次仅接受首个结果。未知 provider 错误统一归一化，禁止原样回传后端异常文本。校验 Token 非空、不等于长期 Token、长度及有效期，失败返回 INVALID_SESSION_RESPONSE。
+
+注意：Rx 订阅取消/超时只保证 SDK 不再消费结果，不会自动取消 provider 自己创建的外部异步网络请求。provider 必须自行配置网络超时并关闭响应体，不持有 Activity；后续若需要强制传输取消，可扩展专门的取消句柄，不能声称当前已中止底层网络。
+
+### 13.4 竞态、生命周期与凭证存储
+
+- 每个 NavigationBridge 文档独立 FSH5AuthSession，持有操作引用、到期时间、登录世代，不存储短时 Token 本体。
+- FSLoginResult.save/clear 推进进程内世代。交换完成验证世代和长期 Token 均未改变；否则返回 AUTH_STATE_CHANGED。退出后再登录即便服务器给出相同字符串，也不接受之前的结果。
+- getState.status 是原生登录状态，sessionStatus 才是当前文档短时会话 none/valid/expired，二者不可混淆。
+- 只保存认证完成 ID（最多128），不把含凭证的响应放入通用 responses 缓存。同一在途 ID 不重复执行；完成 ID 重发返回 DUPLICATE_REQUEST。
+- 导航/销毁重置认证状态、取消订阅及该请求拥有的登录弹窗，旧 generation 不回调新文档；普通布局改变不重置会话。
+- 普通交换失败/超时不清除原生登录；只有后端明确 AUTH_REQUIRED 才清除，且只清除仍属于本次请求的账号。
+- auth.changed 向可信存活窗口广播各自状态（无 Token），不是完整原生账户事件总线；宿主通过其他原生入口变更登录后，H5 需在恢复、进入及鉴权失败时主动查询。
+- H5 只在内存保存短时 Token，页面新建/重载后重新交换；SDK 不做后台定时刷新，H5 不做无限重试或支付请求盲目重放。
+- 当前 Bridge 仍是 restricted_js_interface：addJavascriptInterface 不能证明 iframe 来源，H5 必须是审核通过的自有 HTTPS 页面，不嵌入不可信 iframe/脚本，服务端设置严格 CSP。短时 Token 不能修复页面 XSS；域名白名单不等于 iframe 身份校验。
+- auth.logout 的完整服务端/原生确认/宿主回调链尚未实现，此能力明确返回 false，不新增“只删 SP 就算退出”的捷径。
+
+### 13.5 Builder 中文说明与发布
+
+本轮补齐每个 Builder 参数的中文含义、默认值、单位、返回值及约束。尤其：
+
+- timeout 为毫秒，默认30000，与会话交换15秒超时分开。
+- screenOrientation 使用 ActivityInfo 常量，不要把历史 FoxSdkConfig.ORIENTATION_LANDSCAPE=2 当成 ActivityInfo 的横屏0；H5/预览跟随宿主，不主动旋转。
+- setFloatXScale/setFloatXxOffset 是历史 FloatingX 字段，当前原生悬浮球流程未读取；不能将保留接口误写成已生效的配置。旧 offset 调用按 dp 转 px。
+- setWechatTest 选择既有支付的小程序 trial/release，不是全局环境切换。
+- H5 首页/可信 Origin/媒体 Origin 分别配置；媒体域名不取得 Bridge 权限。
+- 新 provider/Callback、LoginCallback 的 consumer keep 规则随 AAR 提供，内部认证状态类仍可正常压缩混淆。
+
+### 13.6 本轮验收清单（不编译构建）
+
+1. 未登录/已登录，从浮球和 H5 auth.login 两种入口阅读协议；返回后表单、勾选、倒计时保留，取消/成功各一次回调。
+2. 横/竖屏、有网页历史/无历史、网络失败/证书失败、返回图标/系统返回/游戏抢占返回；检查无旧蒙层遮挡和误回首页。
+3. 宿主暂停恢复、真实重建、退出游戏、协议页渲染进程退出；无旧窗口恢复、Activity 泄漏或 SDK 主动重启宿主。
+4. 正常交换、未配置 provider、空/长期 Token 回传、超长/非法有效期、provider 异常/多次回调/永不回调。
+5. 并发刷新、重复 ID、不同窗口分别刷新、完成前导航/关闭、交换中退出并登录新账号（含同 Token 情况）。
+6. 短时 Token 过期而原生有效：只刷新；长期 Token 无效：明确 AUTH_REQUIRED；网络失败不注销。
+7. 源码静态检查和 JS helper 模拟测试可本地执行；按用户要求不执行 Gradle/javac/R8/设备运行。实际 Android 设备、Release 混淆与真实后端联调由接入方验证。
 
 ## 14. 支付实现
 
@@ -1178,7 +1259,7 @@ targetSdk = 与发布策略一致，建议 35 或更高
 ### 26.6 验收标准
 
 1. 未登录点击悬浮球只显示原生登录弹窗，不创建首页 WebView；
-2. 登录成功且配置自动打开时，完成 session exchange后才创建首页 WebView；
+2. 登录成功后创建首页静态壳，H5 就绪后获取短时 Token，首次业务请求等待交换完成；
 3. 已登录点击悬浮球打开首页，宿主不触发 `onPause()`；
 4. 登录弹窗、支付弹窗和 Toast不触发宿主 `onPause()`；
 5. 横屏内部链接创建/复用右侧 Secondary，竖屏内部链接创建/复用等宽 stacked窗口；
@@ -1348,7 +1429,7 @@ SDK不创建视频下载任务、不预取整个商单列表、不启用视频�
 
 本轮实现的是原生媒体预览扩展及其 `postMessage`传输、媒体 capability和局部 ready。原有完整 Bridge方案中的登录会话交换、支付意图、媒体保存、恢复事件等并非本轮全部落地，不能因为预览 capability存在就认为整套协议已实现。H5可加载 assets中的 `wishfox-media-bridge.js`（复制到自己的构建产物；原生不会自动注入这个文件），通过 `media.getPreviewCapabilities`查询实际支持能力。旧 WebView由 H5补齐 Promise polyfill。
 
-`bridge.ready`在当前预览实现仅返回 selectedProtocolVersion/sessionId/webViewId/bridgeMode/capabilities；全量协议的 authState/environment/restoreState字段还需后续主 Bridge实现补齐，联调暂用媒体专用 capability方法，不依赖缺失字段。入口仍需配置真实 H5/CDN地址，示例域名不是可上线地址。
+`bridge.ready` 当前返回 selectedProtocolVersion/sessionId/webViewId/bridgeMode/capabilities/authState；其中 authState 为本轮实现的原生登录及当前文档短时会话元信息。全量协议的 environment/restoreState 字段仍需后续实现，不能依赖缺失字段。入口仍需配置真实 H5/CDN地址，示例域名不是可上线地址。
 
 ### 29.8 验收矩阵
 
