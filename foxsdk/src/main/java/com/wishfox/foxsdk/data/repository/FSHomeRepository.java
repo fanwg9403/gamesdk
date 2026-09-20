@@ -3,6 +3,7 @@ package com.wishfox.foxsdk.data.repository;
 import com.wishfox.foxsdk.core.FoxSdkConfig;
 import com.wishfox.foxsdk.core.WishFoxSdk;
 import com.wishfox.foxsdk.data.model.entity.FSCoinInfo;
+import com.wishfox.foxsdk.data.model.entity.FSFloatIcon;
 import com.wishfox.foxsdk.data.model.entity.FSGameRecord;
 import com.wishfox.foxsdk.data.model.entity.FSHomeBanner;
 import com.wishfox.foxsdk.data.model.entity.FSLoginResult;
@@ -91,7 +92,7 @@ public class FSHomeRepository extends FoxSdkBaseRepository {
     /**
      * 获取悬浮球图片资源地址。
      */
-    public Single<FoxSdkNetworkResult<String>> getFloatImage() {
+    public Single<FoxSdkNetworkResult<FSFloatIcon>> getFloatImage() {
         return executeCall(() -> service.getFloatImage().blockingGet());
     }
 

@@ -7,6 +7,8 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
+import java.util.Iterator;
+import java.util.Locale;
 
 import okhttp3.Interceptor;
 import okhttp3.Request;
@@ -79,7 +81,8 @@ public class FoxSdkLoggingInterceptor implements Interceptor {
                 logBuilder.append("║ \n");
                 logBuilder.append("║ Headers:\n");
                 for (String name : request.headers().names()) {
-                    logBuilder.append("║   ").append(name).append(": ").append(request.header(name)).append("\n");
+                    logBuilder.append("║   ").append(name).append(": ")
+                            .append(isSensitiveName(name) ? "***" : request.header(name)).append("\n");
                 }
             }
 
@@ -153,7 +156,8 @@ public class FoxSdkLoggingInterceptor implements Interceptor {
                 logBuilder.append("║ \n");
                 logBuilder.append("║ Headers:\n");
                 for (String name : response.headers().names()) {
-                    logBuilder.append("║   ").append(name).append(": ").append(response.header(name)).append("\n");
+                    logBuilder.append("║   ").append(name).append(": ")
+                            .append(isSensitiveName(name) ? "***" : response.header(name)).append("\n");
                 }
             }
 
@@ -255,10 +259,14 @@ public class FoxSdkLoggingInterceptor implements Interceptor {
      */
     private String formatJson(String jsonString) {
         try {
-            return new JSONObject(jsonString).toString(2);
+            JSONObject value = new JSONObject(jsonString);
+            redact(value);
+            return value.toString(2);
         } catch (Exception e1) {
             try {
-                return new JSONArray(jsonString).toString(2);
+                JSONArray value = new JSONArray(jsonString);
+                redact(value);
+                return value.toString(2);
             } catch (Exception e2) {
                 return jsonString;
             }
@@ -286,12 +294,40 @@ public class FoxSdkLoggingInterceptor implements Interceptor {
         for (String param : params) {
             String[] parts = param.split("=");
             if (parts.length == 2) {
-                result.append(parts[0]).append(": ").append(parts[1]).append("\n║     ");
+                result.append(parts[0]).append(": ")
+                        .append(isSensitiveName(parts[0]) ? "***" : parts[1]).append("\n║     ");
             } else {
                 result.append(param).append("\n║     ");
             }
         }
         return result.toString();
+    }
+
+    private static boolean isSensitiveName(String name) {
+        if (name == null) return false;
+        String normalized = name.toLowerCase(Locale.US);
+        return normalized.contains("token") || normalized.contains("password")
+                || "authorization".equals(normalized) || "cookie".equals(normalized)
+                || "set-cookie".equals(normalized);
+    }
+
+    private static void redact(JSONObject value) throws Exception {
+        Iterator<String> keys = value.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            Object child = value.opt(key);
+            if (isSensitiveName(key)) value.put(key, "***");
+            else if (child instanceof JSONObject) redact((JSONObject) child);
+            else if (child instanceof JSONArray) redact((JSONArray) child);
+        }
+    }
+
+    private static void redact(JSONArray value) throws Exception {
+        for (int index = 0; index < value.length(); index++) {
+            Object child = value.opt(index);
+            if (child instanceof JSONObject) redact((JSONObject) child);
+            else if (child instanceof JSONArray) redact((JSONArray) child);
+        }
     }
 
     /**

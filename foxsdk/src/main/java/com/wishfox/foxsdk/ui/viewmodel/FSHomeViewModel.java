@@ -12,8 +12,6 @@ import com.wishfox.foxsdk.ui.base.FoxSdkBaseMviViewModel;
 import com.wishfox.foxsdk.ui.view.dialog.FSLoginDialog;
 import com.wishfox.foxsdk.ui.viewstate.FSHomeViewState;
 import com.wishfox.foxsdk.ui.viewstate.FoxSdkUiEffect;
-import com.wishfox.foxsdk.core.WishFoxSdk;
-import com.wishfox.foxsdk.utils.FSFloatImageManager;
 import com.wishfox.foxsdk.utils.FoxSdkConstant;
 import com.wishfox.foxsdk.utils.FoxSdkSPUtils;
 
@@ -95,9 +93,6 @@ public class FSHomeViewModel extends FoxSdkBaseMviViewModel<FSHomeViewState, FSH
     }
 
     private void handleInit() {
-        // 获取悬浮球图片；失败时由悬浮窗读取上一次成功的缓存或预置图片
-        getFloatImage();
-
         // 获取广告列表
         Disposable initDisposable = repository.getAdvertiseList()
                 .subscribeOn(Schedulers.io())
@@ -128,21 +123,6 @@ public class FSHomeViewModel extends FoxSdkBaseMviViewModel<FSHomeViewState, FSH
                 });
 
         disposables.add(initDisposable);
-    }
-
-    /**
-     * 请求悬浮球图片并刷新本地缓存。
-     */
-    private void getFloatImage() {
-        Disposable floatImageDisposable = repository.getFloatImage()
-                .subscribeOn(Schedulers.io())
-                .subscribe(result -> {
-                    String imageUrl = result != null && result.isSuccess() ? result.getData() : null;
-                    FSFloatImageManager.refreshCache(WishFoxSdk.getContext(), imageUrl);
-                }, throwable -> {
-                    // 保留之前的缓存，供悬浮窗继续使用。
-                });
-        disposables.add(floatImageDisposable);
     }
 
     private void getUserVirtualInfoAndUpdateState(List<FSHomeBanner> banners) {

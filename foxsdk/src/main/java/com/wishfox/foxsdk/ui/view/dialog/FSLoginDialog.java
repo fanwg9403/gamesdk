@@ -390,7 +390,20 @@ public class FSLoginDialog extends Dialog {
     }
 
     @Override
+    public void show() {
+        Activity host = hostActivity();
+        WishFoxSdk.hideFloatingWindow(host);
+        try {
+            super.show();
+        } catch (RuntimeException failure) {
+            WishFoxSdk.showFloatingWindow(host);
+            throw failure;
+        }
+    }
+
+    @Override
     public void dismiss() {
+        Activity host = hostActivity();
         dismissed = true;
         if (smsRequest != null) { smsRequest.dispose(); smsRequest = null; }
         mainHandler.removeCallbacksAndMessages(null);
@@ -404,6 +417,7 @@ public class FSLoginDialog extends Dialog {
             timeouter.cancel();
             timeouter = null;
         }
+        WishFoxSdk.showFloatingWindow(host);
     }
 
     /**

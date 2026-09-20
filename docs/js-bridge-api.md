@@ -508,7 +508,7 @@ H5建议：
 
 **首页首个 HTML 必须是可匿名加载的静态壳，不能要求先携带登录 Cookie。** H5 的 JS 就绪后，查询登录态并调用 `auth.refreshSession` 获取短时 Token，然后才加载受保护的业务接口。Secondary 中每次新文档也执行此初始化；原生不把 Token 拼入 URL、HTML 或首屏请求头。不要把“原生已登录”等同于“当前 H5 内存已有凭证”。
 
-当前实现采用 `short_token`，取代旧稿的 exchangeCode/HttpOnly Cookie 交换方案。长期 Token 只在原生；短时 Token 只供 H5 内存使用。Android 尚无已定义的后端交换 API，因此必须由 SDK 原生集成方配置 `FoxSdkConfig.Builder.setH5SessionTokenProvider(...)` 接入真实服务端。未配置时不伪造成功、不透传长期 Token。
+当前实现采用 `short_token`，取代旧稿的 exchangeCode/HttpOnly Cookie 交换方案。长期 Token 只在原生；短时 Token 只供 H5 内存使用。SDK 默认调用 `FoxSdkApiService.getShortLogin()` 获取短时 Token；宿主无需额外接线，也不会把长期 Token 透传给 H5。
 
 `bridge.getCapabilities` 和 `bridge.ready.data.capabilities` 增加：
 
@@ -516,8 +516,8 @@ H5建议：
 |---|---|---|
 | authGetState | boolean | true，支持查询 |
 | authLogin | boolean | true，支持原生登录 |
-| h5SessionExchange | boolean | 是否配置交换器；不代表网络或服务端当前一定可用 |
-| authRefreshSession | boolean | 与 h5SessionExchange 一致 |
+| h5SessionExchange | boolean | true，SDK 已内置短时 Token 接口；不代表网络或服务端当前一定可用 |
+| authRefreshSession | boolean | true，支持主动刷新短时 Token |
 | authLogout | boolean | false，本轮未开放 Bridge 登出 |
 
 `bridge.ready.data.authState` 返回下节状态对象。旧稿其他环境/恢复字段仍属于全量协议设计，当前不能假定都已实现。
@@ -540,7 +540,7 @@ H5建议：
 |---|---|---|
 | status | string | 原生本地状态：anonymous / authenticated；不表示服务器已验证长期凭证仍有效 |
 | user | object/null | 未登录为 null；已登录仅有 id（openId，可能 null）与 maskedMobile（不可脱敏则空串） |
-| sessionMode | string | short_token 表示已配置交换器；none 表示未配置，不表示是否已换取 Token |
+| sessionMode | string | short_token，表示使用短时 Token 模式；不表示当前是否已获取 Token |
 | sessionStatus | string | 当前 WebView 文档的会话元信息：none / valid / expired |
 | sessionExpiresIn | number | 原生单调时钟计算的剩余秒数，向下取整且不小于 0；不是绝对时间戳 |
 
@@ -585,7 +585,7 @@ H5 按服务端约定在业务请求中携带 `Authorization: Bearer <sessionTok
 
 登录 Promise 不设置普通 10 秒网络超时。验证码错误/登录网络失败留在同一个原生弹窗内提示并允许重试；用户最终关闭返回 USER_CANCELLED，成功仅完成一次。阅读协议及返回不算取消，不会结束这个 Promise。登录完成后的交换阶段有独立的 15 秒超时。
 
-默认 exchangeH5Session=true 但未配置交换器时，在弹窗前返回 SESSION_EXCHANGE_NOT_CONFIGURED。交换失败时，已成功的原生登录不回滚，H5 可以稍后 refreshSession；只有明确 AUTH_REQUIRED 才表示需要重新登录。
+默认 exchangeH5Session=true。短时 Token 接口交换失败时，已成功的原生登录不回滚，H5 可以稍后 refreshSession；只有明确 AUTH_REQUIRED 才表示需要重新登录。
 
 ### 10.3 `auth.refreshSession`
 
@@ -629,7 +629,6 @@ params 可为空对象。可选 reason 的约束同 10.2。该方法总是交换
 |---|---|
 | AUTH_REQUIRED | 本地无长期凭证，或交换后端明确认定长期凭证失效；用户重新登录 |
 | AUTH_STATE_CHANGED | 交换期间账号/登录世代变化；丢弃结果后重新查询 |
-| SESSION_EXCHANGE_NOT_CONFIGURED | 未配置原生交换器，接入配置错误，不循环弹登录 |
 | SESSION_EXCHANGE_FAILED | 交换器异常、服务端失败或未识别的错误码 |
 | INVALID_SESSION_RESPONSE | Token 空/过长/等于长期 Token，或有效期不在 1～3600 秒 |
 | NETWORK_ERROR / TIMEOUT / RATE_LIMITED | 网络失败 / 交换超时 / 限流；有限重试 |

@@ -569,7 +569,23 @@ public class FSPayDialog extends Dialog {
             Toaster.show("请检查参数");
             return;
         }
-        super.show();
+        android.app.Activity host = context instanceof android.app.Activity
+                ? (android.app.Activity) context : null;
+        WishFoxSdk.hideFloatingWindow(host);
+        try {
+            super.show();
+        } catch (RuntimeException failure) {
+            WishFoxSdk.showFloatingWindow(host);
+            throw failure;
+        }
+    }
+
+    @Override
+    public void dismiss() {
+        android.app.Activity host = context instanceof android.app.Activity
+                ? (android.app.Activity) context : null;
+        super.dismiss();
+        WishFoxSdk.showFloatingWindow(host);
     }
 
     // 设置支付名称

@@ -281,7 +281,7 @@ HIDDEN
 SDK.initialize(config)
   → 校验 appId/channel/可信 H5 origin
   → 注册 ActivityLifecycleCallbacks
-  → 创建或恢复 FoxSdkBootstrapCoordinator
+  → 初始化 WishFoxSdk 网络与生命周期组件
   → 读取本地登录态（不访问网络）
   → 启动悬浮球图片缓存刷新（异步、去重、失败回退）
   → 绑定当前前台 Activity 的悬浮球
@@ -640,7 +640,7 @@ H5关闭/外部区域点击/返回键关闭
   是 / 登录成功 → 创建 Primary、加载匿名静态壳
 H5 bridge.ready / auth.getState
   → auth.refreshSession
-  → FSH5AuthSession → 原生 H5SessionTokenProvider
+  → FSH5AuthSession → FoxSdkApiService.getShortLogin()
   → 后端校验长期 Token、签发短时 Token
   → H5 内存保存 sessionToken + expiresIn
   → 使用短时 Token 请求业务接口
@@ -650,7 +650,7 @@ H5 bridge.ready / auth.getState
   → AUTH_REQUIRED → 清理 H5 凭证 → 用户触发 auth.login
 ```
 
-已登录调用 auth.login 默认只交换，不重复展示登录框。exchangeH5Session=false 可仅登录原生，但不能据此请求受保护 H5 API。无交换器时默认 login/refresh 返回 SESSION_EXCHANGE_NOT_CONFIGURED，不将长期 Token 当作短时 Token。
+已登录调用 auth.login 默认只交换，不重复展示登录框。exchangeH5Session=false 可仅登录原生，但不能据此请求受保护 H5 API。login/refresh 默认调用 SDK 内置短时 Token 接口，不将长期 Token 当作短时 Token。
 
 FoxSdkOverlayManager 管理一个 LoginAttempt，防止重复提交及不同入口重复打开登录框。登录接口失败留在原弹窗重试；成功、用户关闭、宿主不可用才终结请求。保存登录前校验开始时的登录世代，页面销毁取消自身操作；不使用静态 dismissInstance 误关其他调用方弹窗。
 
@@ -670,25 +670,9 @@ FoxSdkOverlayManager 管理一个 LoginAttempt，防止重复提交及不同入�
 
 Android 官方 API 说明：[Dialog.hide 保留实例而非 dismiss](https://developer.android.com/reference/android/app/Dialog#hide())；[WebView.pauseTimers 影响所有 WebView](https://developer.android.com/reference/android/webkit/WebView#pauseTimers())，本实现不调用它。
 
-### 13.3 原生短时 Token 交换器接入
+### 13.3 原生短时 Token 接口
 
-新增配置接口：
-```java
-FoxSdkConfig.Builder builder = new FoxSdkConfig.Builder(appId, channelId, payScheme);
-builder.setH5SessionTokenProvider(new FoxSdkConfig.H5SessionTokenProvider() {
-    @Override
-    public void exchange(String nativeToken, String sessionId, Callback callback) {
-        // 在 SDK 原生安全网络层调用真实的交换接口。
-        // request 中使用 nativeToken 鉴权，携带 appId/channelId/sessionId。
-        // 成功：callback.onSuccess(response.shortToken, response.expiresInSeconds);
-        // 网络失败：callback.onFailure("NETWORK_ERROR");
-        // 后端明确认定长期 Token 已失效：callback.onFailure("AUTH_REQUIRED");
-        // 不能回调原来的 nativeToken，不能在这里打印请求/响应凭证。
-    }
-});
-```
-
-上面仅为接线示意，不是可直接上线的网络实现。**当前仓库 FoxSdkApiService 未定义短时会话后端接口，本轮不杜撰 URL/请求签名。需 SDK 原生维护方接入真实接口，再由后端联调验收。** 交换器可由 SDK 自己提供，第三方游戏不必接触原生长期 Token；Builder 是可注入的适配边界，不是要求 H5 完成交换。
+SDK 默认通过 `POST /api/user/token/short`（`FoxSdkApiService.getShortLogin()`）获取短时 Token。原生长期 Token 由统一请求拦截器放入 Authorization，请求成功后只把 `short_token` 和有效期回传给发起请求的 H5 文档。`expires_in` 优先作为剩余秒数；缺失时由 `expire_at` 推导。保留 `setH5SessionTokenProvider(...)` 仅用于宿主明确需要覆盖默认交换实现的兼容场景。
 
 后端最小契约：
 
@@ -701,7 +685,7 @@ builder.setH5SessionTokenProvider(new FoxSdkConfig.H5SessionTokenProvider() {
 | 错误 | AUTH_REQUIRED 只代表长期凭证无效；NETWORK_ERROR/RATE_LIMITED/SESSION_EXCHANGE_FAILED 不清登录态 |
 | 安全 | 不将 Token 写 URL、日志、埋点、磁盘缓存或错误文本；限制签发频率、防重放、限定业务权限 |
 
-SDK 在 IO 线程调用 provider，15 秒超时，回调统一切主线程；回调多次仅接受首个结果。未知 provider 错误统一归一化，禁止原样回传后端异常文本。校验 Token 非空、不等于长期 Token、长度及有效期，失败返回 INVALID_SESSION_RESPONSE。
+SDK 在 IO 线程调用接口，15 秒超时，结果统一切主线程；页面销毁会取消 Retrofit 订阅。接口与可选 provider 的错误均统一归一化，禁止原样回传后端异常文本。校验 Token 非空、不等于长期 Token、长度及有效期，失败返回 INVALID_SESSION_RESPONSE。
 
 注意：Rx 订阅取消/超时只保证 SDK 不再消费结果，不会自动取消 provider 自己创建的外部异步网络请求。provider 必须自行配置网络超时并关闭响应体，不持有 Activity；后续若需要强制传输取消，可扩展专门的取消句柄，不能声称当前已中止底层网络。
 
@@ -953,7 +937,7 @@ resolver.update(uri, values, null, null);
 - 缓存损坏回退内置图；
 - 文件使用临时文件原子替换。
 
-必须将刷新触发从 `FSHomeViewModel` 解耦到 `FoxSdkBootstrapCoordinator`：
+必须将刷新触发从 `FSHomeViewModel` 解耦到 `WishFoxSdk.initialize`：
 
 - SDK初始化后异步刷新；
 - App进入前台时按 TTL刷新；

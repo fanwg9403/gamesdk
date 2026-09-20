@@ -33,16 +33,22 @@ import com.wishfox.foxsdk.utils.FoxSdkCommonExt;
 import com.wishfox.foxsdk.utils.FoxSdkLogger;
 import com.wishfox.foxsdk.utils.FoxSdkUtils;
 import com.wishfox.foxsdk.utils.FoxSdkViewExt;
+import com.wishfox.foxsdk.utils.FSFloatImageManager;
+import com.wishfox.foxsdk.data.model.entity.FSFloatIcon;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.File;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import io.reactivex.rxjava3.disposables.Disposable;
+import io.reactivex.rxjava3.schedulers.Schedulers;
 
 /**
  * 主要功能:
@@ -58,6 +64,7 @@ public class WishFoxSdk {
     private static boolean isInitialized = false;
     private static FoxSdkConfig config;
     private static Context context;
+    private static Disposable floatImageDisposable;
 
     private static boolean floatMove = false;
     private static boolean floatActive = true;
@@ -66,6 +73,26 @@ public class WishFoxSdk {
         WishFoxSdk.floatActive = floatActive;
         if (!floatActive) {
             WindowLifecycleControl.hideAllWindows();
+        }
+    }
+
+    /** SDK 原生弹窗显示前隐藏悬浮球，避免弹窗与悬浮球同时可见。 */
+    public static void hideFloatingWindow(@Nullable Activity activity) {
+        if (!isInitialized || activity == null) return;
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            WindowLifecycleControl.hideWindow(activity);
+        } else {
+            new Handler(Looper.getMainLooper()).post(() -> WindowLifecycleControl.hideWindow(activity));
+        }
+    }
+
+    /** SDK 原生弹窗关闭后恢复悬浮球；恢复时会重新启动半隐计时。 */
+    public static void showFloatingWindow(@Nullable Activity activity) {
+        if (!isInitialized || activity == null) return;
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            WindowLifecycleControl.showWindow(activity);
+        } else {
+            new Handler(Looper.getMainLooper()).post(() -> WindowLifecycleControl.showWindow(activity));
         }
     }
 
@@ -109,9 +136,43 @@ public class WishFoxSdk {
 //        initFloatingWindow(context);
         WindowLifecycleControl.with((Application) context);
 
+        // 悬浮球图片属于 SDK 全局资源，不依赖旧版 Home 首页；H5 首页场景也需要在
+        // SDK 初始化完成后立即刷新，失败时由 FSFloatImageManager 保留旧缓存/预置图。
+        refreshFloatImage();
+
         if (config.isEnableLog()) {
             FoxSdkLogger.d(TAG, "WishFoxSDK 初始化成功！");
         }
+    }
+
+    /** 初始化阶段获取悬浮球图片并刷新本地缓存。重复初始化时取消上一次请求。 */
+    private static void refreshFloatImage() {
+        if (floatImageDisposable != null) {
+            floatImageDisposable.dispose();
+        }
+        floatImageDisposable = FoxSdkRetrofitManager.getApiService().getFloatImage()
+                .subscribeOn(Schedulers.io())
+                .subscribe(response -> {
+                    FSFloatIcon icon = response != null && response.isSuccess()
+                            ? response.getData() : null;
+                    if (config.isEnableLog()) {
+                        FoxSdkLogger.d(TAG, "悬浮球图片接口响应: code="
+                                + (response == null ? "null" : response.getCode())
+                                + ", version=" + (icon == null ? "null" : icon.getVersion())
+                                + ", hasUrl=" + (icon != null && icon.getFloatIcon() != null));
+                    }
+                    String imageUrl = icon == null ? null : icon.getFloatIcon();
+                    File cache = FSFloatImageManager.refreshCache(
+                            context, imageUrl, icon == null ? null : icon.getVersion());
+                    if (cache != null) {
+                        // 请求/下载在线程池完成，View/Glide 刷新必须回到主线程；否则已显示的
+                        // 悬浮球会继续保留创建时的旧图，直到下次 Activity 重建。
+                        new Handler(Looper.getMainLooper())
+                                .post(WindowLifecycleControl::refreshFloatImages);
+                    }
+                }, throwable -> {
+                    // 请求或下载失败时保留上一次成功的缓存，由悬浮球加载时回退到预置图片。
+                });
     }
 
     /**
@@ -414,6 +475,28 @@ final class WindowLifecycleControl
                 window.recycle();
             } catch (Throwable throwable) {
                 FoxSdkDiagnostics.reportFailure(null, "floating_ball", "hide_all_failed", throwable);
+            }
+        }
+    }
+
+    /** 在主线程重新加载当前存活悬浮球的图片缓存。 */
+    static void refreshFloatImages() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            new Handler(Looper.getMainLooper()).post(WindowLifecycleControl::refreshFloatImages);
+            return;
+        }
+        List<FSSemiStealthWindow> windows = new ArrayList<>();
+        synchronized (WINDOWS) {
+            for (WeakReference<FSSemiStealthWindow> reference : WINDOWS.values()) {
+                FSSemiStealthWindow window = reference == null ? null : reference.get();
+                if (window != null) windows.add(window);
+            }
+        }
+        for (FSSemiStealthWindow window : windows) {
+            try {
+                window.reloadFloatImage();
+            } catch (Throwable throwable) {
+                FoxSdkDiagnostics.reportFailure(null, "floating_ball", "image_reload_failed", throwable);
             }
         }
     }

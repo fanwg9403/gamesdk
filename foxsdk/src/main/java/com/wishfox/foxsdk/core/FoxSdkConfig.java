@@ -119,7 +119,7 @@ public class FoxSdkConfig {
     public java.util.List<String> getH5MediaOrigins() { return h5MediaOrigins; }
 
     /**
-     * 获取 H5 短时会话 Token 交换器。
+     * 获取可选的 H5 短时会话 Token 交换器覆盖实现。
      *
      * <p>交换器只在原生进程内接收长期登录 Token，不能把该 Token 回传给 H5、写入日志
      * 或持久化；成功后只应通过回调返回短时 Token。</p>
@@ -287,13 +287,13 @@ public class FoxSdkConfig {
         }
 
         /**
-         * 设置 H5 短时会话 Token 交换器。
+         * 设置 H5 短时会话 Token 交换器覆盖实现。
          *
          * <p>H5 调用 auth.login 或 auth.refreshSession 时，SDK 会在原生侧使用已登录的长期
          * Token 调用该交换器。回调中的 shortToken 必须是绑定 appId、channelId、用户和
          * H5 sessionId 的短时凭证，SDK 不会将长期 Token 暴露给 H5。</p>
          *
-         * @param provider 原生侧会话交换实现；传 null 表示未配置 H5 会话交换能力
+         * @param provider 自定义会话交换实现；传 null 使用 SDK 内置 getShortLogin 接口
          * @return Builder 实例
          */
         public Builder setH5SessionTokenProvider(H5SessionTokenProvider provider) {

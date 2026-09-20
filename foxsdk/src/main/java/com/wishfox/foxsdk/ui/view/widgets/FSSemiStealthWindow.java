@@ -101,6 +101,14 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
         setOnWindowLifecycleCallback(this);
     }
 
+    /** 远程图片缓存更新后刷新当前已显示的悬浮球。 */
+    public void reloadFloatImage() {
+        View floatImage = findViewById(android.R.id.icon);
+        if (floatImage instanceof ImageView) {
+            FSFloatImageManager.loadInto((ImageView) floatImage);
+        }
+    }
+
     /**
      * 发送贴边显示任务
      */

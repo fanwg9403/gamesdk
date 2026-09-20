@@ -3,6 +3,7 @@ package com.wishfox.foxsdk.data.network;
 import com.wishfox.foxsdk.data.model.entity.FSCheckOrder;
 import com.wishfox.foxsdk.data.model.entity.FSCoinInfo;
 import com.wishfox.foxsdk.data.model.entity.FSCreateOrder;
+import com.wishfox.foxsdk.data.model.entity.FSFloatIcon;
 import com.wishfox.foxsdk.data.model.entity.FSGameRecord;
 import com.wishfox.foxsdk.data.model.entity.FSHomeBanner;
 import com.wishfox.foxsdk.data.model.entity.FSLoginResult;
@@ -10,6 +11,7 @@ import com.wishfox.foxsdk.data.model.entity.FSMessage;
 import com.wishfox.foxsdk.data.model.entity.FSPageContainer;
 import com.wishfox.foxsdk.data.model.entity.FSRechargeRecord;
 import com.wishfox.foxsdk.data.model.entity.FSSdkConfig;
+import com.wishfox.foxsdk.data.model.entity.FSShortLogin;
 import com.wishfox.foxsdk.data.model.entity.FSStarterPack;
 import com.wishfox.foxsdk.data.model.entity.FSUserProfile;
 import com.wishfox.foxsdk.data.model.entity.FSWechatScheme;
@@ -158,6 +160,7 @@ public interface FoxSdkApiService {
             @Query("env_version") String env_version,
             @Query("app_name") String app_name
     );
+
     /**
      * 获取微信密文URL Scheme
      */
@@ -167,6 +170,7 @@ public interface FoxSdkApiService {
             @Query("env_version") String env_version,
             @Query("app_name") String app_name
     );
+
     @GET("/api/wechat/encrypted_scheme")
     Single<FoxSdkBaseResponse<FSWechatScheme>> getWechatSchemeEncrypted(
             @QueryMap Map<String, Object> params
@@ -207,6 +211,12 @@ public interface FoxSdkApiService {
     /**
      * 获取悬浮球图片资源地址
      */
-    @GET("/api/user/sdk_config")
-    Single<FoxSdkBaseResponse<String>> getFloatImage();
+    @GET("/api/sdk_config/personal_center/float_icon")
+    Single<FoxSdkBaseResponse<FSFloatIcon>> getFloatImage();
+
+    /**
+     * 获取短时Token
+     */
+    @POST("/api/user/token/short")
+    Single<FoxSdkBaseResponse<FSShortLogin>> getShortLogin();
 }

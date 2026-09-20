@@ -355,8 +355,8 @@ public final class FSH5OverlayView extends FrameLayout {
         return new JSONObject().put("mediaPreviewImage", true).put("mediaPreviewVideo", isHardwareAccelerated())
                 .put("mediaPreviewClose", true).put("mediaPreviewMode", "streaming_native")
                 .put("authGetState", true).put("authLogin", true).put("authLogout", false)
-                .put("authRefreshSession", com.wishfox.foxsdk.core.WishFoxSdk.getConfig().getH5SessionTokenProvider() != null)
-                .put("h5SessionExchange", com.wishfox.foxsdk.core.WishFoxSdk.getConfig().getH5SessionTokenProvider() != null)
+                .put("authRefreshSession", true)
+                .put("h5SessionExchange", true)
                 .put("videoDiskCache", false)
                 .put("maxPreviewImageBytes", FSMediaPolicy.IMAGE_BYTES);
     }

@@ -25,7 +25,7 @@ public class MyApp extends Application {
                         "1",
                         "billcomwishfoxdemoe"
                 )
-                        .setBaseUrl("http://192.168.150.240:9113")
+                        .setBaseUrl("https://test-api-game.wishfoxs.com")
                         .setH5HomeUrl("https://sdk.example.com/home")
                         .setH5TrustedOrigin("https://sdk.example.com")
 //                        .setBaseUrl("https://api-game-pre.wishfoxs.com")
