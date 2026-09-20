@@ -25,6 +25,8 @@ public class FoxSdkHeaderInterceptor implements okhttp3.Interceptor {
         okhttp3.Request original = chain.request();
 
         // 使用配置信息
+        String authorization = original.header("Authorization");
+        if (authorization == null) authorization = FSLoginResult.getTokenEd();
         okhttp3.Request.Builder requestBuilder = original.newBuilder()
                 .header("Lang", Locale.getDefault().getLanguage() == "zh" ? "zh_CN" : "en_US")
                 .header("Content-Type", "multipart/form-data")
@@ -33,7 +35,7 @@ public class FoxSdkHeaderInterceptor implements okhttp3.Interceptor {
                 .header("Platform-Type", "USER")
                 .header("AppId", config.getAppId())
                 .header("ChannelId", config.getChannelId())
-                .header("Authorization", FSLoginResult.getTokenEd())
+                .header("Authorization", authorization)
                 .header("Version", "1.5.5");
 
         return chain.proceed(requestBuilder.method(original.method(), original.body()).build());

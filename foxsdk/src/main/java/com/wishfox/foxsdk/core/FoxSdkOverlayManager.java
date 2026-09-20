@@ -23,6 +23,14 @@ import com.wishfox.foxsdk.di.FoxSdkRepositoryContainer;
 import com.hjq.toast.Toaster;
 import com.wishfox.foxsdk.ui.view.widgets.FSWinFoxCoinOverlayView;
 import com.wishfox.foxsdk.ui.viewstate.FSHomeViewState;
+import com.wishfox.foxsdk.data.model.entity.FSUserProfile;
+import com.wishfox.foxsdk.data.model.entity.FSCoinInfo;
+import com.wishfox.foxsdk.utils.FoxSdkConstant;
+import com.wishfox.foxsdk.utils.FoxSdkSPUtils;
+import com.wishfox.foxsdk.ui.view.dialog.FSAlertDialog;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
@@ -79,6 +87,8 @@ public final class FoxSdkOverlayManager {
     private boolean webShowTitle;
     private boolean webShowReport;
     private LoginAttempt loginAttempt;
+    private LogoutAttempt logoutAttempt;
+    private io.reactivex.rxjava3.disposables.Disposable logoutRequest;
 
     private FoxSdkOverlayManager(Activity activity) {
         activityReference = new WeakReference<>(activity);
@@ -310,6 +320,16 @@ public final class FoxSdkOverlayManager {
         LoginAttempt(LoginCallback callback) { this.callback = callback; }
     }
 
+    private static final class LogoutAttempt {
+        final FSH5OverlayView.LogoutCompletion completion;
+        FSAlertDialog dialog;
+        boolean completed;
+
+        LogoutAttempt(FSH5OverlayView.LogoutCompletion completion) {
+            this.completion = completion;
+        }
+    }
+
     private void cancelLoginInternal() {
         LoginAttempt previous = loginAttempt;
         loginAttempt = null;
@@ -392,7 +412,17 @@ public final class FoxSdkOverlayManager {
                 return;
             }
             hostRoot = resolveHostRoot(activity);
-            h5View = new FSH5OverlayView(activity, this::hideInternal, WishFoxSdk.getConfig().getH5HomeUrl());
+            h5View = new FSH5OverlayView(activity, new FSH5OverlayView.Callback() {
+                @Override
+                public void onClose() {
+                    hideInternal();
+                }
+
+                @Override
+                public void onLogoutRequested(FSH5OverlayView.LogoutCompletion completion) {
+                    showLogoutInternal(completion);
+                }
+            }, WishFoxSdk.getConfig().getH5HomeUrl());
             attachView(h5View);
             FoxSdkDiagnostics.record("h5_overlay_show", activity, "home");
         } catch (Throwable throwable) {
@@ -687,6 +717,88 @@ public final class FoxSdkOverlayManager {
         WindowLifecycleControl.showWindow(activity);
     }
 
+    /** H5 发起的登出必须由原生确认；确认后清理本地登录态并关闭所有 H5 页面。 */
+    private void showLogoutInternal(FSH5OverlayView.LogoutCompletion completion) {
+        Activity activity = activityReference.get();
+        if (completion == null) return;
+        if (destroyed || !isActivityUsable(activity)) {
+            completion.complete("ACTIVITY_UNAVAILABLE", null);
+            return;
+        }
+        if (logoutAttempt != null) {
+            completion.complete("BUSY", null);
+            return;
+        }
+        LogoutAttempt attempt = new LogoutAttempt(completion);
+        logoutAttempt = attempt;
+        try {
+            attempt.dialog = new FSAlertDialog.Builder(activity)
+                    .setTitle("提示")
+                    .setMessage("确定要退出登录吗？")
+                    .setPositive("确定", () -> {
+                        if (logoutAttempt != attempt || attempt.completed) return;
+                        attempt.completed = true;
+                        logoutAttempt = null;
+                        String token = FSLoginResult.getTokenEd();
+                        startServerLogout(activity, token);
+                        clearLocalAuthState();
+                        try {
+                            JSONObject data = new JSONObject()
+                                    .put("status", "anonymous")
+                                    .put("user", JSONObject.NULL)
+                                    .put("sessionMode", "short_token")
+                                    .put("sessionStatus", "none")
+                                    .put("sessionExpiresIn", 0);
+                            completion.complete("OK", data);
+                        } catch (JSONException ignored) {
+                            completion.complete("OK", null);
+                        }
+                    })
+                    .setNegative("取消", null)
+                    .setOnDismissListener(() -> {
+                        if (logoutAttempt != attempt || attempt.completed) return;
+                        attempt.completed = true;
+                        logoutAttempt = null;
+                        completion.complete("USER_CANCELLED", null);
+                    })
+                    .build();
+            attempt.dialog.show();
+        } catch (RuntimeException failure) {
+            logoutAttempt = null;
+            completion.complete("ACTIVITY_UNAVAILABLE", null);
+            FoxSdkDiagnostics.reportFailure(activity, "h5_logout", "dialog_show_failed", failure);
+        }
+    }
+
+    /** 清理长期登录态、兼容旧存储键和所有进程内 H5 短 Token。 */
+    private void clearLocalAuthState() {
+        FSUserProfile.clear();
+        FSLoginResult.clear();
+        FSCoinInfo.clear();
+        FoxSdkSPUtils.getInstance().remove(FoxSdkConstant.AUTHORIZATION);
+        // H5 短 Token 只存在各 FSH5AuthSession 的内存中；随后销毁整个 H5 Overlay，
+        // 会调用每个 WebView bridge.auth.reset()，从而同步清空 expiresAt 和在途交换。
+    }
+
+    /** 服务端登出是尽力而为，不阻塞 H5 响应和 Overlay 关闭；本地状态已经立即清理。 */
+    private void startServerLogout(Activity activity, String token) {
+        try {
+            if (TextUtils.isEmpty(token)) return;
+            if (logoutRequest != null) logoutRequest.dispose();
+            logoutRequest = FoxSdkRepositoryContainer.getHomeRepository().logout(token)
+                    .subscribeOn(Schedulers.io())
+                    .observeOn(AndroidSchedulers.mainThread())
+                    .subscribe(result -> logoutRequest = null,
+                            error -> {
+                                logoutRequest = null;
+                                FoxSdkDiagnostics.record("h5_logout_server_failed", activity,
+                                        error == null ? "unknown" : error.getClass().getSimpleName());
+                            });
+        } catch (RuntimeException failure) {
+            FoxSdkDiagnostics.reportFailure(activity, "h5_logout", "server_logout_start_failed", failure);
+        }
+    }
+
     private void removeH5View() {
         if (h5View == null) return;
         FSH5OverlayView view = h5View;
@@ -772,6 +884,17 @@ public final class FoxSdkOverlayManager {
 
     private void destroyInternal() {
         destroyed = true;
+        if (logoutRequest != null) {
+            logoutRequest.dispose();
+            logoutRequest = null;
+        }
+        if (logoutAttempt != null) {
+            LogoutAttempt pendingLogout = logoutAttempt;
+            logoutAttempt = null;
+            pendingLogout.completed = true;
+            if (pendingLogout.dialog != null) pendingLogout.dialog.dismiss();
+            pendingLogout.completion.complete("ACTIVITY_UNAVAILABLE", null);
+        }
         LoginCallback pendingLogin = loginAttempt == null ? null : loginAttempt.callback;
         cancelLoginInternal();
         if (pendingLogin != null) pendingLogin.onFailure("ACTIVITY_UNAVAILABLE");

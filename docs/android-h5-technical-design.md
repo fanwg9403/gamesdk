@@ -642,7 +642,7 @@ H5 bridge.ready / auth.getState
   → auth.refreshSession
   → FSH5AuthSession → FoxSdkApiService.getShortLogin()
   → 后端校验长期 Token、签发短时 Token
-  → H5 内存保存 sessionToken + expiresIn
+  → H5 内存保存 sessionToken + expiresIn + appId + channelId
   → 使用短时 Token 请求业务接口
 短时 Token 临近过期/服务端明确拒绝
   → 合并一次 refreshSession → 更新内存 → 安全请求至多重试一次
@@ -672,7 +672,7 @@ Android 官方 API 说明：[Dialog.hide 保留实例而非 dismiss](https://dev
 
 ### 13.3 原生短时 Token 接口
 
-SDK 默认通过 `POST /api/user/token/short`（`FoxSdkApiService.getShortLogin()`）获取短时 Token。原生长期 Token 由统一请求拦截器放入 Authorization，请求成功后只把 `short_token` 和有效期回传给发起请求的 H5 文档。`expires_in` 优先作为剩余秒数；缺失时由 `expire_at` 推导。保留 `setH5SessionTokenProvider(...)` 仅用于宿主明确需要覆盖默认交换实现的兼容场景。
+SDK 默认通过 `POST /api/user/token/short`（`FoxSdkApiService.getShortLogin()`）获取短时 Token。原生长期 Token 由统一请求拦截器放入 Authorization，请求成功后把 `short_token`、有效期以及当前配置的 `appId`/`channelId` 回传给发起请求的 H5 文档。`expires_in` 优先作为剩余秒数；缺失时由 `expire_at` 推导。保留 `setH5SessionTokenProvider(...)` 仅用于宿主明确需要覆盖默认交换实现的兼容场景。
 
 后端最小契约：
 
@@ -680,7 +680,7 @@ SDK 默认通过 `POST /api/user/token/short`（`FoxSdkApiService.getShortLogin(
 |---|---|
 | 认证输入 | 原生长期 Token 仅传受信任 HTTPS 后端；appId/channelId 使用配置，sessionId 由原生生成 |
 | 绑定校验 | 校验长期 Token 用户及所属游戏/渠道，短时凭证绑定用户、应用、渠道和 H5 会话用途 |
-| 输出 | 独立非空短时 Token（最多8192字符）和剩余秒数1～3600，建议300秒 |
+| 输出 | 独立非空短时 Token（最多8192字符）、剩余秒数1～3600，及当前配置的 appId/channelId；有效期建议300秒 |
 | 多窗口 | 同一会话允许多个并行有效短时凭证；一次刷新不能立即废除另一 WebView 的凭证 |
 | 错误 | AUTH_REQUIRED 只代表长期凭证无效；NETWORK_ERROR/RATE_LIMITED/SESSION_EXCHANGE_FAILED 不清登录态 |
 | 安全 | 不将 Token 写 URL、日志、埋点、磁盘缓存或错误文本；限制签发频率、防重放、限定业务权限 |
@@ -700,7 +700,7 @@ SDK 在 IO 线程调用接口，15 秒超时，结果统一切主线程；页面
 - auth.changed 向可信存活窗口广播各自状态（无 Token），不是完整原生账户事件总线；宿主通过其他原生入口变更登录后，H5 需在恢复、进入及鉴权失败时主动查询。
 - H5 只在内存保存短时 Token，页面新建/重载后重新交换；SDK 不做后台定时刷新，H5 不做无限重试或支付请求盲目重放。
 - 当前 Bridge 仍是 restricted_js_interface：addJavascriptInterface 不能证明 iframe 来源，H5 必须是审核通过的自有 HTTPS 页面，不嵌入不可信 iframe/脚本，服务端设置严格 CSP。短时 Token 不能修复页面 XSS；域名白名单不等于 iframe 身份校验。
-- auth.logout 的完整服务端/原生确认/宿主回调链尚未实现，此能力明确返回 false，不新增“只删 SP 就算退出”的捷径。
+- auth.logout 由 H5 发起，Android 原生确认后尽力调用服务端登出接口，清理用户信息、长期 Token、兼容 Authorization 存储键及所有 H5 文档内存中的短时 Token，并关闭整个 H5 Overlay、恢复悬浮球；取消确认返回 USER_CANCELLED。不得由 H5 侧只清除自己的状态模拟登出成功。
 
 ### 13.5 Builder 中文说明与发布
 

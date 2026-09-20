@@ -195,6 +195,8 @@ public class FSHomeViewModel extends FoxSdkBaseMviViewModel<FSHomeViewState, FSH
     }
 
     private void handleLogout() {
+        // 显式保存凭证供服务端登出请求使用；本地清理后全局拦截器已无法再读取长期 Token。
+        String token = FSLoginResult.getTokenEd();
         // 清除本地数据
         FSUserProfile.clear();
         FSLoginResult.clear();
@@ -202,7 +204,7 @@ public class FSHomeViewModel extends FoxSdkBaseMviViewModel<FSHomeViewState, FSH
         FSCoinInfo.clear();
 
         // 调用退出登录API
-        Disposable logoutDisposable = repository.logout()
+        Disposable logoutDisposable = repository.logout(token)
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(result -> {

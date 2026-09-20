@@ -78,6 +78,10 @@ public class FSHomeRepository extends FoxSdkBaseRepository {
         return executeCall(() -> service.logout().blockingGet());
     }
 
+    public Single<FoxSdkNetworkResult<Object>> logout(String token) {
+        return executeCall(() -> service.logoutWithToken(token).blockingGet());
+    }
+
     public Single<FoxSdkNetworkResult<FSCoinInfo>> getUserVirtualInfo() {
         return executeCall(() -> service.getUserVirtualInfo().blockingGet());
     }

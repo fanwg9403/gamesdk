@@ -518,9 +518,11 @@ H5建议：
 | authLogin | boolean | true，支持原生登录 |
 | h5SessionExchange | boolean | true，SDK 已内置短时 Token 接口；不代表网络或服务端当前一定可用 |
 | authRefreshSession | boolean | true，支持主动刷新短时 Token |
-| authLogout | boolean | false，本轮未开放 Bridge 登出 |
+| authLogout | boolean | true，支持原生二次确认登出；确认后清理原生登录态并关闭 H5 Overlay |
 
-`bridge.ready.data.authState` 返回下节状态对象。旧稿其他环境/恢复字段仍属于全量协议设计，当前不能假定都已实现。
+当前 Android 修复版同时返回以下基础能力字段：`environmentGet`、`uiToast`、`uiClose`、`navigationOpenInternal`、`navigationOpenExternal`、`navigationUpdateState`、`navigationResolveBack`、`layoutSetMode`、`layoutCloseSecondary`。H5 仍应以实际 capability 值为准，不应仅根据 SDK 版本猜测能力。
+
+`bridge.ready.data.authState` 返回下节状态对象。支付、小游戏 Scheme、媒体保存/取消/沙盒删除和 diagnostics 等全量协议能力仍可能返回 `METHOD_NOT_SUPPORTED`。
 
 ### 10.1 `auth.getState`
 
@@ -576,12 +578,14 @@ H5建议：
   "sessionStatus": "valid",
   "sessionExpiresIn": 299,
   "sessionToken": "server_issued_short_lived_token",
-  "expiresIn": 300
+  "expiresIn": 300,
+  "appId": "10001",
+  "channelId": "20001"
 }
 ```
 
 expiresIn 为有效期秒数，范围 1～3600；300 秒为建议值，不是 SDK 写死的有效期。
-H5 按服务端约定在业务请求中携带 `Authorization: Bearer <sessionToken>`。SDK 不会替 H5 自动加请求头。
+`appId` 和 `channelId` 与本次短时 Token 一起由 Android 从 `FoxSdkConfig.getAppId()` / `getChannelId()` 传回，供 H5 组装业务请求参数、埋点上下文或校验当前业务环境。H5 按服务端约定在业务请求中携带 `Authorization: Bearer <sessionToken>`。SDK 不会替 H5 自动加请求头。
 
 登录 Promise 不设置普通 10 秒网络超时。验证码错误/登录网络失败留在同一个原生弹窗内提示并允许重试；用户最终关闭返回 USER_CANCELLED，成功仅完成一次。阅读协议及返回不算取消，不会结束这个 Promise。登录完成后的交换阶段有独立的 15 秒超时。
 
@@ -601,7 +605,7 @@ H5 按服务端约定在业务请求中携带 `Authorization: Bearer <sessionTok
 }
 ```
 
-params 可为空对象。可选 reason 的约束同 10.2。该方法总是交换，传 exchangeH5Session=false 不会跳过交换。成功 data 与 10.2 交换成功完全相同。
+params 可为空对象。可选 reason 的约束同 10.2。该方法总是交换，传 exchangeH5Session=false 不会跳过交换。成功 data 与 10.2 交换成功完全相同，包含 `sessionToken`、`expiresIn`、`appId` 和 `channelId`。
 
 处理闭环：
 
@@ -637,10 +641,10 @@ params 可为空对象。可选 reason 的约束同 10.2。该方法总是交换
 | HOST_NOT_RESUMED / ACTIVITY_UNAVAILABLE | 宿主不适合发起操作；等待可用状态 |
 | INVALID_ARGUMENT | 已知字段类型不正确或 reason 超长 |
 | DUPLICATE_REQUEST | 最近已完成的认证 ID 被复用，改用新 ID |
-| METHOD_NOT_SUPPORTED | 未实现的方法，包括当前 auth.logout |
+| METHOD_NOT_SUPPORTED | 未实现的方法 |
 | PAGE_UNLOADED | JS 辅助库在 pagehide 时拒绝未完成 Promise（前端本地错误） |
 
-`auth.logout` 在旧稿为规划能力，目前**未接入**完整的原生确认、服务端登出及宿主回调流程，capability=false，返回 METHOD_NOT_SUPPORTED。不要通过简单清除 SP 模拟退出成功；既有原生退出逻辑保持不变。
+`auth.logout` 由 H5 发起，Android 弹出原生二次确认框。用户确认后，Android 尽力调用服务端登出接口，并立即清理用户信息、长期 Token、兼容 Authorization 存储键及当前所有 H5 文档内存中的短时 Token；随后返回成功响应并关闭整个 H5 Overlay，恢复悬浮球。用户取消返回 `USER_CANCELLED`，不清理登录态。H5 不得自行清理 Token 模拟登出，也不得在成功响应前假设页面仍然存在。
 
 ### 10.5 事件 `auth.changed`
 
@@ -1581,7 +1585,7 @@ class WishFoxBridgeError extends Error {
 | `auth.getState` | 5秒 |
 | `auth.login` | 不设置普通超时，由用户交互结束 |
 | `auth.refreshSession` | 原生交换15秒，JS等待20秒 |
-| `auth.logout` | 当前未实现 |
+| `auth.logout` | 原生二次确认后清理登录态并关闭 H5 Overlay |
 | `payment.start` | 仅等待 accepted，15秒 |
 | `payment.query` | 15秒 |
 | `miniProgram.openScheme` | 10秒 |
@@ -1961,7 +1965,7 @@ environment.get
 auth.getState
 auth.login
 auth.refreshSession
-auth.logout（规划，当前不支持）
+auth.logout
 ui.toast
 ui.close
 navigation.updateState

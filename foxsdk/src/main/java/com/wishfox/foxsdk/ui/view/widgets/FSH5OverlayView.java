@@ -15,6 +15,8 @@ import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 import android.view.ViewGroup;
 import android.graphics.Bitmap;
+import android.widget.Toast;
+import android.util.DisplayMetrics;
 import com.wishfox.foxsdk.media.FSMediaPolicy;
 import org.json.JSONObject;
 import org.json.JSONException;
@@ -41,6 +43,16 @@ public final class FSH5OverlayView extends FrameLayout {
 
     public interface Callback {
         void onClose();
+
+        /**
+         * H5 请求退出登录。原生负责二次确认、清理登录态并在成功后关闭整个 H5 Overlay。
+         * Completion 必须只回调一次；取消确认时回传 USER_CANCELLED。
+         */
+        void onLogoutRequested(LogoutCompletion completion);
+    }
+
+    public interface LogoutCompletion {
+        void complete(String code, JSONObject data);
     }
 
     private final Activity activity;
@@ -161,19 +173,34 @@ public final class FSH5OverlayView extends FrameLayout {
 
     /** 路由内部 H5 链接到方向对应的 Secondary WebView。 */
     public void openInternal(String value) {
-        if (destroyed) return;
+        openInternalResult(value);
+    }
+
+    private JSONObject openInternalResult(String value) {
+        if (destroyed) return null;
         final String url = resolveUrl(value);
-        if (!isTrusted(url)) return;
+        if (!isTrusted(url)) return null;
+        boolean created = false;
         if (secondary == null) {
             secondary = createWebView();
             secondaryUrl = url;
             addView(secondary, secondaryParams());
+            created = true;
         } else {
             secondaryUrl = url;
         }
         secondary.loadUrl(url);
         secondary.bringToFront();
         if (!isLandscape()) secondary.bringToFront();
+        try {
+            return new JSONObject().put("requestedUrl", value)
+                    .put("actualUrl", url)
+                    .put("webViewId", "secondary")
+                    .put("layoutMode", isLandscape() ? "split" : "stacked")
+                    .put("created", created);
+        } catch (JSONException ignored) {
+            return null;
+        }
     }
 
     public void closeSecondary() {
@@ -183,6 +210,46 @@ public final class FSH5OverlayView extends FrameLayout {
         secondary = null;
         secondaryUrl = null;
         if (primary != null) primary.bringToFront();
+    }
+
+    private String layoutMode() {
+        return secondary == null ? "single" : (isLandscape() ? "split" : "stacked");
+    }
+
+    private JSONObject environment(String webViewId) throws JSONException {
+        DisplayMetrics metrics = getResources().getDisplayMetrics();
+        int widthPx = getWidth() > 0 ? getWidth() : metrics.widthPixels;
+        int heightPx = getHeight() > 0 ? getHeight() : metrics.heightPixels;
+        float density = metrics.density <= 0 ? 1f : metrics.density;
+        float fontScale = getResources().getConfiguration().fontScale;
+        JSONObject safeArea = new JSONObject().put("top", 0).put("right", 0)
+                .put("bottom", 0).put("left", 0);
+        if (android.os.Build.VERSION.SDK_INT >= 23) {
+            android.view.WindowInsets insets = getRootWindowInsets();
+            if (insets != null) {
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    android.graphics.Insets system = insets.getInsets(android.view.WindowInsets.Type.systemBars());
+                    safeArea.put("top", system.top).put("right", system.right)
+                            .put("bottom", system.bottom).put("left", system.left);
+                } else {
+                    safeArea.put("top", insets.getSystemWindowInsetTop())
+                            .put("right", insets.getSystemWindowInsetRight())
+                            .put("bottom", insets.getSystemWindowInsetBottom())
+                            .put("left", insets.getSystemWindowInsetLeft());
+                }
+            }
+        }
+        return new JSONObject()
+                .put("orientation", isLandscape() ? "landscape" : "portrait")
+                .put("widthPx", widthPx).put("heightPx", heightPx)
+                .put("widthDp", Math.round(widthPx / density))
+                .put("heightDp", Math.round(heightPx / density))
+                .put("density", density).put("fontScale", fontScale)
+                .put("apiLevel", android.os.Build.VERSION.SDK_INT)
+                .put("safeArea", safeArea).put("layoutMode", layoutMode())
+                .put("webViewId", webViewId)
+                .put("locale", java.util.Locale.getDefault().toLanguageTag())
+                .put("sdkVersion", com.wishfox.foxsdk.BuildConfig.XYH_GAME_SDK_VERSION_NAME);
     }
 
     public void openExternal(String value) {
@@ -197,10 +264,13 @@ public final class FSH5OverlayView extends FrameLayout {
 
     public void onConfigurationChanged() {
         if (destroyed) return;
+        String previousMode = secondary == null ? "single" : (isLandscape() ? "stacked" : "split");
         if (primary != null) primary.setLayoutParams(primaryParams());
         if (secondary != null) secondary.setLayoutParams(secondaryParams());
         requestLayout();
         invalidate();
+        sendEnvironmentChanged();
+        sendLayoutChanged(previousMode, "orientation");
     }
 
     @Override
@@ -302,6 +372,10 @@ public final class FSH5OverlayView extends FrameLayout {
                 com.wishfox.foxsdk.core.WishFoxSdk.getConfig(), sessionId);
         private final java.util.Set<String> authPending = new java.util.HashSet<>();
         private final java.util.LinkedHashSet<String> authCompleted = new java.util.LinkedHashSet<>();
+        private String route = "/";
+        private String title = "";
+        private boolean canGoBack;
+        private boolean hasUnsavedChanges;
         NavigationBridge(WebView owner) { this.owner = owner; }
 
         boolean valid(long epoch) {
@@ -318,12 +392,27 @@ public final class FSH5OverlayView extends FrameLayout {
 
         @JavascriptInterface
         public void postMessage(String message) {
-            if (message == null || message.length() > 32768) return;
+            if (message == null) {
+                com.wishfox.foxsdk.core.FoxSdkDiagnostics.record("h5_bridge_drop", activity, "null_message");
+                return;
+            }
+            if (message.length() > 32768) {
+                com.wishfox.foxsdk.core.FoxSdkDiagnostics.record("h5_bridge_drop", activity, "payload_too_large");
+                return;
+            }
             final long epoch = generation;
             post(() -> {
-                if (!valid(epoch)) return;
-                try { handleMediaRequest(this, new JSONObject(message), epoch); }
-                catch (JSONException ignored) { /* Invalid envelope has no trustworthy request ID. */ }
+                if (!valid(epoch)) {
+                    com.wishfox.foxsdk.core.FoxSdkDiagnostics.record("h5_bridge_drop", activity,
+                            "invalid_webview_or_origin");
+                    return;
+                }
+                try {
+                    handleMediaRequest(this, new JSONObject(message), epoch);
+                } catch (JSONException ignored) {
+                    com.wishfox.foxsdk.core.FoxSdkDiagnostics.record("h5_bridge_drop", activity,
+                            "invalid_json");
+                }
             });
         }
 
@@ -373,8 +462,13 @@ public final class FSH5OverlayView extends FrameLayout {
     private JSONObject capabilities() throws JSONException {
         return new JSONObject().put("mediaPreviewImage", true).put("mediaPreviewVideo", isHardwareAccelerated())
                 .put("mediaPreviewClose", true).put("mediaPreviewMode", "streaming_native")
-                .put("authGetState", true).put("authLogin", true).put("authLogout", false)
+                .put("environmentGet", true)
+                .put("authGetState", true).put("authLogin", true).put("authLogout", true)
                 .put("authRefreshSession", true)
+                .put("uiToast", true).put("uiClose", true)
+                .put("navigationOpenInternal", true).put("navigationOpenExternal", true)
+                .put("navigationUpdateState", true).put("navigationResolveBack", true)
+                .put("layoutSetMode", true).put("layoutCloseSecondary", true)
                 .put("h5SessionExchange", true)
                 .put("videoDiskCache", false)
                 .put("maxPreviewImageBytes", FSMediaPolicy.IMAGE_BYTES);
@@ -418,6 +512,42 @@ public final class FSH5OverlayView extends FrameLayout {
         }
     }
 
+    private void sendEnvironmentChanged() {
+        for (NavigationBridge target : new ArrayList<>(bridges.values())) {
+            try {
+                target.send(new JSONObject().put("version", "1.0").put("type", "event")
+                        .put("event", "environment.changed").put("timestamp", System.currentTimeMillis())
+                        .put("webViewId", target.owner == primary ? "primary" : "secondary")
+                        .put("data", environment(target.owner == primary ? "primary" : "secondary")),
+                        target.generation);
+            } catch (JSONException ignored) { }
+        }
+    }
+
+    private void sendLayoutChanged(String previousMode, String reason) {
+        for (NavigationBridge target : new ArrayList<>(bridges.values())) {
+            try {
+                target.send(new JSONObject().put("version", "1.0").put("type", "event")
+                        .put("event", "layout.changed").put("timestamp", System.currentTimeMillis())
+                        .put("webViewId", target.owner == primary ? "primary" : "secondary")
+                        .put("data", new JSONObject().put("previousMode", previousMode)
+                                .put("actualMode", layoutMode()).put("reason", reason)), target.generation);
+            } catch (JSONException ignored) { }
+        }
+    }
+
+    private void sendSecondaryClosed(String reason, String route) {
+        for (NavigationBridge target : new ArrayList<>(bridges.values())) {
+            try {
+                target.send(new JSONObject().put("version", "1.0").put("type", "event")
+                        .put("event", "layout.secondaryClosed").put("timestamp", System.currentTimeMillis())
+                        .put("webViewId", target.owner == primary ? "primary" : "secondary")
+                        .put("data", new JSONObject().put("route", route == null ? "" : route)
+                                .put("reason", reason)), target.generation);
+            } catch (JSONException ignored) { }
+        }
+    }
+
     private void handleAuthRequest(NavigationBridge bridge, JSONObject request, long epoch) throws JSONException {
         String id = request.getString("id");
         String method = request.optString("method");
@@ -430,6 +560,25 @@ public final class FSH5OverlayView extends FrameLayout {
             reply(bridge, request, epoch, "HOST_NOT_RESUMED", null); return;
         }
         bridge.authPending.add(id);
+        if ("auth.logout".equals(method)) {
+            if (callback == null) {
+                bridge.authPending.remove(id);
+                reply(bridge, request, epoch, "METHOD_NOT_SUPPORTED", null);
+                return;
+            }
+            callback.onLogoutRequested((code, data) -> post(() -> {
+                bridge.authPending.remove(id);
+                if (!bridge.valid(epoch)) return;
+                try {
+                    if ("OK".equals(code)) authChanged();
+                    reply(bridge, request, epoch, code, data);
+                    if ("OK".equals(code) && callback != null) {
+                        postDelayed(() -> { if (!destroyed) callback.onClose(); }, 0L);
+                    }
+                } catch (JSONException ignored) { }
+            }));
+            return;
+        }
         bridge.auth.handle(method, request.getJSONObject("params"), (code, data) -> {
             bridge.authPending.remove(id);
             if (!bridge.valid(epoch)) return;
@@ -459,6 +608,136 @@ public final class FSH5OverlayView extends FrameLayout {
         }
         if (method.startsWith("auth.")) {
             handleAuthRequest(bridge, request, epoch);
+            return;
+        }
+        if ("environment.get".equals(method)) {
+            reply(bridge, request, epoch, "OK", environment(bridge.owner == primary ? "primary" : "secondary"));
+            return;
+        }
+        if ("ui.toast".equals(method)) {
+            String message = params.optString("message", "").trim();
+            String duration = params.optString("duration", "short");
+            if (message.length() < 1 || message.length() > 200
+                    || (!"short".equals(duration) && !"long".equals(duration))) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
+            Toast.makeText(activity, message,
+                    "long".equals(duration) ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT).show();
+            reply(bridge, request, epoch, "OK", new JSONObject().put("shown", true));
+            return;
+        }
+        if ("ui.close".equals(method)) {
+            if (params.has("force") && !(params.opt("force") instanceof Boolean)) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
+            reply(bridge, request, epoch, "OK", new JSONObject().put("accepted", true));
+            postDelayed(() -> { if (!destroyed && callback != null) callback.onClose(); }, 0L);
+            return;
+        }
+        if ("navigation.openInternal".equals(method)) {
+            String url = params.optString("url", "");
+            String target = params.optString("target", "auto");
+            if (url.length() < 1 || url.length() > 1024 || !"auto".equals(target)) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
+            JSONObject result = openInternalResult(url);
+            if (result == null) {
+                reply(bridge, request, epoch, isTrusted(resolveUrl(url))
+                        ? "INVALID_URL" : "ORIGIN_NOT_ALLOWED", null);
+                return;
+            }
+            reply(bridge, request, epoch, "OK", result);
+            return;
+        }
+        if ("navigation.openExternal".equals(method)) {
+            String url = params.optString("url", "");
+            Uri uri = Uri.parse(url);
+            String scheme = uri.getScheme();
+            if (url.length() < 1 || url.length() > 2048
+                    || (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme))) {
+                reply(bridge, request, epoch, "INVALID_URL", null);
+                return;
+            }
+            try {
+                activity.startActivity(new Intent(Intent.ACTION_VIEW, uri));
+                reply(bridge, request, epoch, "OK", new JSONObject().put("accepted", true));
+            } catch (Throwable failure) {
+                reply(bridge, request, epoch, "EXTERNAL_OPEN_FAILED", null);
+            }
+            return;
+        }
+        if ("navigation.updateState".equals(method)) {
+            String route = params.optString("route", "");
+            if (route.length() < 1 || route.length() > 512
+                    || !route.startsWith("/")
+                    || !(params.opt("canGoBack") instanceof Boolean)) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
+            bridge.route = route;
+            bridge.title = params.optString("title", "");
+            bridge.canGoBack = params.optBoolean("canGoBack", false);
+            bridge.hasUnsavedChanges = params.optBoolean("hasUnsavedChanges", false);
+            reply(bridge, request, epoch, "OK", new JSONObject().put("saved", true));
+            return;
+        }
+        if ("navigation.resolveBack".equals(method)) {
+            if (!(params.opt("backRequestId") instanceof String)
+                    || !(params.opt("handled") instanceof Boolean)) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
+            boolean handled = params.optBoolean("handled", false);
+            reply(bridge, request, epoch, "OK", new JSONObject().put("accepted", true));
+            if (!handled) {
+                postDelayed(() -> {
+                    if (destroyed) return;
+                    if (bridge.owner == secondary) closeSecondary();
+                    else if (bridge.owner.canGoBack()) bridge.owner.goBack();
+                    else if (callback != null) callback.onClose();
+                }, 0L);
+            }
+            return;
+        }
+        if ("layout.closeSecondary".equals(method)) {
+            String previous = layoutMode();
+            String closedRoute = secondary == null ? "" : secondaryUrl;
+            reply(bridge, request, epoch, "OK", new JSONObject().put("actualMode", "single"));
+            closeSecondary();
+            if (!"single".equals(previous)) sendSecondaryClosed("js_close", closedRoute);
+            return;
+        }
+        if ("layout.setMode".equals(method)) {
+            String requested = params.optString("mode", "");
+            if (!"single".equals(requested) && !"split".equals(requested)
+                    && !"stacked".equals(requested)) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
+            String previous = layoutMode();
+            if ("single".equals(requested)) {
+                String closedRoute = secondary == null ? "" : secondaryUrl;
+                reply(bridge, request, epoch, "OK", new JSONObject().put("requestedMode", requested)
+                        .put("actualMode", "single").put("primaryWebViewId", "primary"));
+                closeSecondary();
+                if (!"single".equals(previous)) sendSecondaryClosed("mode_single", closedRoute);
+            } else {
+                JSONObject secondaryConfig = params.optJSONObject("secondary");
+                String route = secondaryConfig == null ? "" : secondaryConfig.optString("route", "");
+                JSONObject result = openInternalResult(route);
+                if (result == null) {
+                    reply(bridge, request, epoch, "INVALID_URL", null);
+                    return;
+                }
+                String actual = isLandscape() ? "split" : "stacked";
+                reply(bridge, request, epoch, "OK", new JSONObject().put("requestedMode", requested)
+                        .put("actualMode", actual).put("primaryWebViewId", "primary")
+                        .put("secondaryWebViewId", "secondary"));
+            }
+            if (!previous.equals(layoutMode())) sendLayoutChanged(previous, "js_request");
             return;
         }
         if ("media.closePreview".equals(method)) {

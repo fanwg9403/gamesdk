@@ -28,6 +28,7 @@ public final class FSH5AuthSession {
     public interface Result { void complete(String code, JSONObject data); }
 
     private final Activity host;
+    private final FoxSdkConfig config;
     private final FoxSdkConfig.H5SessionTokenProvider provider;
     private final String sessionId;
     private Operation pending;
@@ -54,6 +55,7 @@ public final class FSH5AuthSession {
 
     public FSH5AuthSession(Activity host, FoxSdkConfig config, String sessionId) {
         this.host = host;
+        this.config = config;
         this.provider = config.getH5SessionTokenProvider();
         this.sessionId = sessionId;
     }
@@ -221,7 +223,12 @@ public final class FSH5AuthSession {
     private void succeed(Operation op, String token, long seconds) {
         try {
             JSONObject data = state();
-            if (token != null) data.put("sessionToken", token).put("expiresIn", seconds);
+            if (token != null) {
+                data.put("sessionToken", token)
+                        .put("expiresIn", seconds)
+                        .put("appId", config.getAppId())
+                        .put("channelId", config.getChannelId());
+            }
             finish(op, "OK", data);
         } catch (JSONException ignored) { finish(op, "SESSION_EXCHANGE_FAILED", null); }
     }

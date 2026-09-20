@@ -98,6 +98,15 @@ public interface FoxSdkApiService {
     Single<FoxSdkBaseResponse<Object>> logout();
 
     /**
+     * 退出登录的显式凭证版本。登出流程会先清理本地长期凭证，
+     * 因此不能再依赖全局 Authorization 拦截器读取 FSLoginResult。
+     */
+    @DELETE("/api/user/logout")
+    Single<FoxSdkBaseResponse<Object>> logoutWithToken(
+            @retrofit2.http.Header("Authorization") String authorization
+    );
+
+    /**
      * 获取游戏记录列表（分页）
      */
     @GET("/api/user/game_play_log_list")
