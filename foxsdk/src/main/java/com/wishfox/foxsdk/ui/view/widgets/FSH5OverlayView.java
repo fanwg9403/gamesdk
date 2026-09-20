@@ -3,6 +3,7 @@ package com.wishfox.foxsdk.ui.view.widgets;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.net.Uri;
 import android.text.TextUtils;
 import android.view.Gravity;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Locale;
 import java.util.UUID;
 
 import androidx.annotation.Nullable;
@@ -60,8 +62,9 @@ public final class FSH5OverlayView extends FrameLayout {
         this.activity = activity;
         this.callback = callback;
         FoxSdkConfig config = com.wishfox.foxsdk.core.WishFoxSdk.getConfig();
-        this.trustedOrigin = FSMediaPolicy.origin(TextUtils.isEmpty(config.getH5TrustedOrigin())
+        this.trustedOrigin = h5Origin(TextUtils.isEmpty(config.getH5TrustedOrigin())
                 ? homeUrl : config.getH5TrustedOrigin());
+        if (trustedOrigin == null) throw new IllegalArgumentException("Invalid H5 trusted origin");
         if (!isTrusted(homeUrl)) throw new IllegalArgumentException("Untrusted H5 home URL");
         setClickable(true);
         setFocusable(true);
@@ -126,10 +129,26 @@ public final class FSH5OverlayView extends FrameLayout {
 
     private boolean isTrusted(String url) {
         if (TextUtils.isEmpty(url)) return false;
-        Uri uri = Uri.parse(url);
-        if (!"https".equalsIgnoreCase(uri.getScheme())) return false;
-        try { return trustedOrigin.equals(FSMediaPolicy.origin(url)); }
-        catch (IllegalArgumentException ignored) { return false; }
+        return trustedOrigin.equals(h5Origin(url));
+    }
+
+    /** 生产环境只允许 HTTPS；可调试宿主额外允许精确匹配的 HTTP 本地开发地址。 */
+    private String h5Origin(String value) {
+        if (TextUtils.isEmpty(value) || value.length() > 4096) return null;
+        Uri uri = Uri.parse(value);
+        String scheme = uri.getScheme();
+        String host = uri.getHost();
+        if (scheme == null || host == null || uri.getUserInfo() != null) return null;
+        scheme = scheme.toLowerCase(Locale.ROOT);
+        boolean debuggable = (activity.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+        if (!"https".equals(scheme) && !(debuggable && "http".equals(scheme))) return null;
+        int port = uri.getPort();
+        if (port == 0 || port > 65535) return null;
+        boolean defaultPort = port == -1
+                || ("https".equals(scheme) && port == 443)
+                || ("http".equals(scheme) && port == 80);
+        return scheme + "://" + host.toLowerCase(Locale.ROOT)
+                + (defaultPort ? "" : ":" + port);
     }
 
     private String resolveUrl(String value) {
