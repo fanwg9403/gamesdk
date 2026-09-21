@@ -29,7 +29,7 @@ public class FoxSdkHeaderInterceptor implements okhttp3.Interceptor {
         if (authorization == null) authorization = FSLoginResult.getTokenEd();
         okhttp3.Request.Builder requestBuilder = original.newBuilder()
                 .header("Lang", Locale.getDefault().getLanguage() == "zh" ? "zh_CN" : "en_US")
-                .header("Content-Type", "multipart/form-data")
+//                .header("Content-Type", "multipart/form-data")
                 .header("Platform", "android")
                 .header("SysSource", "wishfoxSdk")
                 .header("Platform-Type", "USER")

@@ -329,7 +329,7 @@ public class FoxSdkConfig {
             /**
              * 交换成功；同一次请求只能回调一次，重复结果会被 SDK 丢弃。
              * @param shortToken 返回给 H5 的非空短时 Token，最长 8192 字符，不能等于原生长期 Token
-             * @param expiresInSeconds 从本次响应开始计算的剩余有效期（秒），范围 1～3600，建议 300
+             * @param expiresInSeconds 从本次响应开始计算的剩余有效期（秒），可选；原生不依赖该值判断短 Token 是否有效
              */
             void onSuccess(String shortToken, long expiresInSeconds);
 

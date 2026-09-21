@@ -535,7 +535,7 @@ H5建议：
 
 **首页首个 HTML 必须是可匿名加载的静态壳，不能要求先携带登录 Cookie。** H5 的 JS 就绪后，查询登录态并调用 `auth.refreshSession` 获取短时 Token，然后才加载受保护的业务接口。Secondary 中每次新文档也执行此初始化；原生不把 Token 拼入 URL、HTML 或首屏请求头。不要把“原生已登录”等同于“当前 H5 内存已有凭证”。
 
-当前实现采用 `short_token`，取代旧稿的 exchangeCode/HttpOnly Cookie 交换方案。长期 Token 只在原生；短时 Token 只供 H5 内存使用。SDK 默认调用 `FoxSdkApiService.getShortLogin()` 获取短时 Token；宿主无需额外接线，也不会把长期 Token 透传给 H5。
+当前实现采用 `short_token`，取代旧稿的 exchangeCode/HttpOnly Cookie 交换方案。长期 Token 只在原生；短时 Token 只供 H5 内存使用。SDK 默认调用 `FoxSdkApiService.getShortLogin()` 获取短时 Token；宿主无需额外接线，也不会把长期 Token 透传给 H5。接口字段推荐使用 `short_token`，Android 同时兼容 `shortToken`。
 
 `bridge.getCapabilities` 和 `bridge.ready.data.capabilities` 增加：
 
@@ -595,7 +595,7 @@ H5建议：
 | reason | string | 否 | 业务原因说明，最多 128 字符；可用 user_action/payment/session_expired；不是权限依据 |
 | exchangeH5Session | boolean | 否 | true；false 仅原生登录，不返回 sessionToken/expiresIn |
 
-成功时 data 包含 10.1 的全部字段；交换成功额外包含：
+成功时 data 包含 10.1 的全部字段；交换成功额外包含短时 Token：
 
 ```json
 {
@@ -609,7 +609,7 @@ H5建议：
 }
 ```
 
-expiresIn 为有效期秒数，范围 1～3600；300 秒为建议值，不是 SDK 写死的有效期。
+`sessionToken` 是必填结果。`expiresIn` 是服务端提供的可选元数据；原生不会因为缺少、超过 3600 秒或无法推导该字段而拒绝短 Token。短 Token 的真实失效由服务端业务接口判定，H5 收到业务接口的 Token 失效响应后重新调用 `auth.refreshSession`。如果返回 `expiresIn`，H5 可以用它做提前刷新提示，但不能把它当作唯一有效性依据。
 H5 按服务端约定在业务请求中携带 `Authorization: Bearer <sessionToken>`。SDK 不会替 H5 自动加请求头。应用/渠道标识不在此响应重复返回，统一使用 `bridge.ready.data.appId/channelId`。
 
 登录 Promise 不设置普通 10 秒网络超时。验证码错误/登录网络失败留在同一个原生弹窗内提示并允许重试；用户最终关闭返回 USER_CANCELLED，成功仅完成一次。阅读协议及返回不算取消，不会结束这个 Promise。登录完成后的交换阶段有独立的 15 秒超时。
@@ -630,13 +630,13 @@ H5 按服务端约定在业务请求中携带 `Authorization: Bearer <sessionTok
 }
 ```
 
-params 可为空对象。可选 reason 的约束同 10.2。该方法总是交换，传 exchangeH5Session=false 不会跳过交换。成功 data 与 10.2 交换成功完全相同，包含 `sessionToken` 和 `expiresIn`。
+params 可为空对象。可选 reason 的约束同 10.2。该方法总是交换，传 exchangeH5Session=false 不会跳过交换。成功 data 与 10.2 交换成功完全相同，必须包含 `sessionToken`；如果服务端提供有效期，则额外包含 `expiresIn`。
 
 处理闭环：
 
 1. 当前文档启动、H5 内存无 Token、即将过期，或业务接口明确报告短时凭证过期：调用 refreshSession。
 2. H5 同一文档合并并发刷新为一个 Promise；其他业务请求等待该 Promise。
-3. 成功：替换内存 Token。建议提前 min(30秒, expiresIn 的20%) 刷新，不能用固定提前60秒导致短有效期死循环。
+3. 成功：替换内存 Token。若响应包含 `expiresIn`，可据此做提前刷新；无论是否包含该字段，业务接口明确报告短时凭证失效时都应调用 refreshSession。
 4. AUTH_REQUIRED：清空 H5 内存 Token，给用户重新登录入口；通过 auth.login 完成原生登录与重新交换。
 5. NETWORK_ERROR/TIMEOUT/RATE_LIMITED：提示或有限退避重试，不注销原生登录；过期 Token 不再用于业务接口。
 6. AUTH_STATE_CHANGED：旧请求所属账号已变化，丢弃旧 Token，重新 getState，按新状态发起新操作。
@@ -659,7 +659,7 @@ params 可为空对象。可选 reason 的约束同 10.2。该方法总是交换
 | AUTH_REQUIRED | 本地无长期凭证，或交换后端明确认定长期凭证失效；用户重新登录 |
 | AUTH_STATE_CHANGED | 交换期间账号/登录世代变化；丢弃结果后重新查询 |
 | SESSION_EXCHANGE_FAILED | 交换器异常、服务端失败或未识别的错误码 |
-| INVALID_SESSION_RESPONSE | Token 空/过长/等于长期 Token，或有效期不在 1～3600 秒 |
+| INVALID_SESSION_RESPONSE | Token 为空、过长或意外等于原生长期 Token；有效期缺失或超出范围不会导致此错误 |
 | NETWORK_ERROR / TIMEOUT / RATE_LIMITED | 网络失败 / 交换超时 / 限流；有限重试 |
 | USER_CANCELLED | 用户关闭原生登录弹窗 |
 | BUSY | 当前文档在执行认证，或已有其他原生登录窗口 |
@@ -1723,9 +1723,13 @@ async function ensureSession() {
     const result = state.status === 'authenticated'
       ? await WishFoxSDK.auth.refreshSession({ reason: 'bootstrap_or_expired' })
       : await WishFoxSDK.auth.login({ reason: 'user_action', exchangeH5Session: true });
-    const early = Math.min(30, result.expiresIn * 0.2);
     memoryToken = result.sessionToken;
-    refreshAt = performance.now() + (result.expiresIn - early) * 1000;
+    if (Number.isFinite(result.expiresIn) && result.expiresIn > 0) {
+      const early = Math.min(30, result.expiresIn * 0.2);
+      refreshAt = performance.now() + Math.max(1, result.expiresIn - early) * 1000;
+    } else {
+      refreshAt = 0; // 由业务接口返回 Token 失效后再 refreshSession
+    }
     return memoryToken;
   })();
   try {

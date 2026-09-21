@@ -642,7 +642,7 @@ H5 bridge.ready / auth.getState
   → auth.refreshSession
   → FSH5AuthSession → FoxSdkApiService.getShortLogin()
   → 后端校验长期 Token、签发短时 Token
-  → H5 内存保存 sessionToken + expiresIn；appId/channelId 使用 bridge.ready 返回的固定配置
+  → H5 内存保存 sessionToken（expiresIn 若服务端提供则作为可选提示）；appId/channelId 使用 bridge.ready 返回的固定配置
   → 使用短时 Token 请求业务接口
 短时 Token 临近过期/服务端明确拒绝
   → 合并一次 refreshSession → 更新内存 → 安全请求至多重试一次
@@ -672,7 +672,7 @@ Android 官方 API 说明：[Dialog.hide 保留实例而非 dismiss](https://dev
 
 ### 13.3 原生短时 Token 接口
 
-SDK 默认通过 `POST /api/user/token/short`（`FoxSdkApiService.getShortLogin()`）获取短时 Token。原生长期 Token 由统一请求拦截器放入 Authorization，请求成功后只把 `short_token` 和有效期回传给发起请求的 H5 文档；固定的 `appId`/`channelId` 在 `bridge.ready` 响应中返回，不随认证交换重复传递。`expires_in` 优先作为剩余秒数；缺失时由 `expire_at` 推导。保留 `setH5SessionTokenProvider(...)` 仅用于宿主明确需要覆盖默认交换实现的兼容场景。
+SDK 默认通过 `POST /api/user/token/short`（`FoxSdkApiService.getShortLogin()`）获取短时 Token。原生长期 Token 由统一请求拦截器放入 Authorization，请求成功后把非空 `short_token`（兼容 `shortToken`）回传给发起请求的 H5 文档；`expires_in`/`expire_at` 如果存在则作为可选元数据回传。固定的 `appId`/`channelId` 在 `bridge.ready` 响应中返回，不随认证交换重复传递。短 Token 的真实失效由后端业务接口判定，H5 收到失效响应后再次调用 refreshSession。保留 `setH5SessionTokenProvider(...)` 仅用于宿主明确需要覆盖默认交换实现的兼容场景。
 
 后端最小契约：
 
@@ -680,12 +680,12 @@ SDK 默认通过 `POST /api/user/token/short`（`FoxSdkApiService.getShortLogin(
 |---|---|
 | 认证输入 | 原生长期 Token 仅传受信任 HTTPS 后端；appId/channelId 使用配置，sessionId 由原生生成 |
 | 绑定校验 | 校验长期 Token 用户及所属游戏/渠道，短时凭证绑定用户、应用、渠道和 H5 会话用途 |
-| 输出 | 独立非空短时 Token（最多8192字符）和剩余秒数1～3600，建议300秒 |
+| 输出 | 独立非空短时 Token（最多8192字符）；`expires_in`/`expire_at` 可选 |
 | 多窗口 | 同一会话允许多个并行有效短时凭证；一次刷新不能立即废除另一 WebView 的凭证 |
 | 错误 | AUTH_REQUIRED 只代表长期凭证无效；NETWORK_ERROR/RATE_LIMITED/SESSION_EXCHANGE_FAILED 不清登录态 |
 | 安全 | 不将 Token 写 URL、日志、埋点、磁盘缓存或错误文本；限制签发频率、防重放、限定业务权限 |
 
-SDK 在 IO 线程调用接口，15 秒超时，结果统一切主线程；页面销毁会取消 Retrofit 订阅。接口与可选 provider 的错误均统一归一化，禁止原样回传后端异常文本。校验 Token 非空、不等于长期 Token、长度及有效期，失败返回 INVALID_SESSION_RESPONSE。
+SDK 在 IO 线程调用接口，15 秒超时，结果统一切主线程；页面销毁会取消 Retrofit 订阅。接口与可选 provider 的错误均统一归一化，禁止原样回传后端异常文本。原生只校验 Token 非空、不等于长期 Token且长度不超过8192；有效期缺失或超出原有建议范围不会阻止透传，避免把业务侧的失效判断错误地收敛成 INVALID_SESSION_RESPONSE。
 
 注意：Rx 订阅取消/超时只保证 SDK 不再消费结果，不会自动取消 provider 自己创建的外部异步网络请求。provider 必须自行配置网络超时并关闭响应体，不持有 Activity；后续若需要强制传输取消，可扩展专门的取消句柄，不能声称当前已中止底层网络。
 

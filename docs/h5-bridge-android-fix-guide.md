@@ -83,10 +83,10 @@ const channelId = ready.channelId;
 ```js
 const session = await WishFoxSDK.auth.refreshSession({ reason: 'bootstrap' });
 const sessionToken = session.sessionToken;
-const expiresIn = session.expiresIn;
+const expiresIn = session.expiresIn; // 可选，仅用于提前刷新提示
 ```
 
-这样每个新建的 Primary/Secondary 文档都会获取自己最新的短时 Token；Android 不在 `bridge.ready` 中同步执行网络换 Token，也不把短时 Token 放入 ready 响应。`sessionToken` 仍然只能保存在 H5 内存中，不得写入 URL、localStorage、日志或持久化缓存。
+这样每个新建的 Primary/Secondary 文档都会获取自己最新的短时 Token；Android 不在 `bridge.ready` 中同步执行网络换 Token，也不把短时 Token 放入 ready 响应。`sessionToken` 仍然只能保存在 H5 内存中，不得写入 URL、localStorage、日志或持久化缓存。`expiresIn` 可能不存在，短 Token 失效以后端业务接口返回为准。
 
 ## 3. 登出流程（必须由 H5 发起）
 

@@ -134,12 +134,15 @@ public final class FSH5AuthSession {
                         }
                         finish(op, value.error, null);
                     } else if (TextUtils.isEmpty(value.token) || value.token.trim().isEmpty()
-                            || value.token.length() > 8192 || value.token.equals(op.nativeToken)
-                            || value.seconds < 1 || value.seconds > 3600) {
+                            || value.token.length() > 8192 || value.token.equals(op.nativeToken)) {
                         finish(op, "INVALID_SESSION_RESPONSE", null);
                     } else {
                         sessionRevision = op.revision;
-                        expiresAt = SystemClock.elapsedRealtime() + value.seconds * 1000;
+                        // 有效期是可选元数据。短 Token 的真实失效由服务端业务接口判定，
+                        // 原生不因为缺少/超出 expires_in 而拒绝把 Token 交给 H5。
+                        expiresAt = value.seconds > 0
+                                ? SystemClock.elapsedRealtime() + value.seconds * 1000
+                                : 0;
                         succeed(op, value.token, value.seconds);
                     }
                 }, error -> {
@@ -222,8 +225,8 @@ public final class FSH5AuthSession {
         try {
             JSONObject data = state();
             if (token != null) {
-                data.put("sessionToken", token)
-                        .put("expiresIn", seconds);
+                data.put("sessionToken", token);
+                if (seconds > 0) data.put("expiresIn", seconds);
             }
             finish(op, "OK", data);
         } catch (JSONException ignored) { finish(op, "SESSION_EXCHANGE_FAILED", null); }

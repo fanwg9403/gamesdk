@@ -19,7 +19,7 @@ public class FSShortLogin {
     private Long expiresIn;
 
     // 短时token
-    @SerializedName("short_token")
+    @SerializedName(value = "short_token", alternate = {"shortToken"})
     private String shortToken;
 
     public Long getExpireAt() {
