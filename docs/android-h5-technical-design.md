@@ -642,7 +642,7 @@ H5 bridge.ready / auth.getState
   → auth.refreshSession
   → FSH5AuthSession → FoxSdkApiService.getShortLogin()
   → 后端校验长期 Token、签发短时 Token
-  → H5 内存保存 sessionToken + expiresIn + appId + channelId
+  → H5 内存保存 sessionToken + expiresIn；appId/channelId 使用 bridge.ready 返回的固定配置
   → 使用短时 Token 请求业务接口
 短时 Token 临近过期/服务端明确拒绝
   → 合并一次 refreshSession → 更新内存 → 安全请求至多重试一次
@@ -672,7 +672,7 @@ Android 官方 API 说明：[Dialog.hide 保留实例而非 dismiss](https://dev
 
 ### 13.3 原生短时 Token 接口
 
-SDK 默认通过 `POST /api/user/token/short`（`FoxSdkApiService.getShortLogin()`）获取短时 Token。原生长期 Token 由统一请求拦截器放入 Authorization，请求成功后把 `short_token`、有效期以及当前配置的 `appId`/`channelId` 回传给发起请求的 H5 文档。`expires_in` 优先作为剩余秒数；缺失时由 `expire_at` 推导。保留 `setH5SessionTokenProvider(...)` 仅用于宿主明确需要覆盖默认交换实现的兼容场景。
+SDK 默认通过 `POST /api/user/token/short`（`FoxSdkApiService.getShortLogin()`）获取短时 Token。原生长期 Token 由统一请求拦截器放入 Authorization，请求成功后只把 `short_token` 和有效期回传给发起请求的 H5 文档；固定的 `appId`/`channelId` 在 `bridge.ready` 响应中返回，不随认证交换重复传递。`expires_in` 优先作为剩余秒数；缺失时由 `expire_at` 推导。保留 `setH5SessionTokenProvider(...)` 仅用于宿主明确需要覆盖默认交换实现的兼容场景。
 
 后端最小契约：
 
@@ -680,7 +680,7 @@ SDK 默认通过 `POST /api/user/token/short`（`FoxSdkApiService.getShortLogin(
 |---|---|
 | 认证输入 | 原生长期 Token 仅传受信任 HTTPS 后端；appId/channelId 使用配置，sessionId 由原生生成 |
 | 绑定校验 | 校验长期 Token 用户及所属游戏/渠道，短时凭证绑定用户、应用、渠道和 H5 会话用途 |
-| 输出 | 独立非空短时 Token（最多8192字符）、剩余秒数1～3600，及当前配置的 appId/channelId；有效期建议300秒 |
+| 输出 | 独立非空短时 Token（最多8192字符）和剩余秒数1～3600，建议300秒 |
 | 多窗口 | 同一会话允许多个并行有效短时凭证；一次刷新不能立即废除另一 WebView 的凭证 |
 | 错误 | AUTH_REQUIRED 只代表长期凭证无效；NETWORK_ERROR/RATE_LIMITED/SESSION_EXCHANGE_FAILED 不清登录态 |
 | 安全 | 不将 Token 写 URL、日志、埋点、磁盘缓存或错误文本；限制签发频率、防重放、限定业务权限 |
@@ -1413,7 +1413,7 @@ SDK不创建视频下载任务、不预取整个商单列表、不启用视频�
 
 本轮实现的是原生媒体预览扩展及其 `postMessage`传输、媒体 capability和局部 ready。原有完整 Bridge方案中的登录会话交换、支付意图、媒体保存、恢复事件等并非本轮全部落地，不能因为预览 capability存在就认为整套协议已实现。H5可加载 assets中的 `wishfox-media-bridge.js`（复制到自己的构建产物；原生不会自动注入这个文件），通过 `media.getPreviewCapabilities`查询实际支持能力。旧 WebView由 H5补齐 Promise polyfill。
 
-`bridge.ready` 当前返回 selectedProtocolVersion/sessionId/webViewId/bridgeMode/capabilities/authState；其中 authState 为本轮实现的原生登录及当前文档短时会话元信息。全量协议的 environment/restoreState 字段仍需后续实现，不能依赖缺失字段。入口仍需配置真实 H5/CDN地址，示例域名不是可上线地址。
+`bridge.ready` 当前返回 selectedProtocolVersion/sdkVersion/apiLevel/appId/channelId/sessionId/webViewId/bridgeMode/capabilities/environment/authState；其中 appId/channelId 是初始化时固定配置，authState 为原生登录及当前文档短时会话元信息。支付恢复等全量协议字段仍需按 capability 判断，不能仅凭 ready 响应猜测未实现能力。入口仍需配置真实 H5/CDN地址，示例域名不是可上线地址。
 
 ### 29.8 验收矩阵
 

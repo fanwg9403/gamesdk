@@ -31,12 +31,14 @@ if (timeoutMs !== null) {
 建议初始化顺序：
 
 ```js
-await WishFoxSDK.bridge.ready();
+const ready = await WishFoxSDK.bridge.ready();
+const appId = ready.appId;
+const channelId = ready.channelId;
 const capabilities = await WishFoxSDK.bridge.getCapabilities();
 const environment = await WishFoxSDK.environment.get();
 const authState = await WishFoxSDK.auth.getState();
 
-if (authState.status === 'authenticated') {
+if (ready.isLoggedIn === true) {
   await WishFoxSDK.auth.refreshSession({ reason: 'bootstrap' });
 }
 ```
@@ -45,20 +47,27 @@ if (authState.status === 'authenticated') {
 
 如果某个旧版本 Android 未实现 `environment.get`，H5 可以将它降级为非阻断能力，但不能让该接口失败导致整个 Bridge 初始化失败。
 
-### 短时 Token 响应中的应用标识
+### ready 中的应用标识与短时 Token
 
-`auth.login`（`exchangeH5Session: true`）或 `auth.refreshSession` 成功时，Android 会在同一个响应中返回：
+`appId` 和 `channelId` 是 SDK 初始化时固定的应用/渠道标识，Android 会在 `bridge.ready` 成功响应中直接返回：
 
 ```js
-{
-  sessionToken: 'server_issued_short_lived_token',
-  expiresIn: 300,
-  appId: '10001',
-  channelId: '20001'
-}
+const ready = await WishFoxSDK.bridge.ready();
+const appId = ready.appId;
+const channelId = ready.channelId;
 ```
 
-`appId` 和 `channelId` 来自 Android `FoxSdkConfig`，与当前短时 Token 属于同一业务上下文。H5 可以将它们用于业务接口参数、埋点上下文或请求校验；`sessionToken` 仍然只保存在 H5 内存中，不得写入 URL、localStorage、日志或持久化缓存。
+这两个字段不会随登录用户或短时 Token 改变，不需要从 `auth.login` 或 `auth.refreshSession` 响应中读取。
+
+用户已经登录时，点击悬浮球直接打开 H5，不会触发 `auth.login`。H5 在 `bridge.ready` 成功、确认 `ready.isLoggedIn === true` 后，应立即调用：
+
+```js
+const session = await WishFoxSDK.auth.refreshSession({ reason: 'bootstrap' });
+const sessionToken = session.sessionToken;
+const expiresIn = session.expiresIn;
+```
+
+这样每个新建的 Primary/Secondary 文档都会获取自己最新的短时 Token；Android 不在 `bridge.ready` 中同步执行网络换 Token，也不把短时 Token 放入 ready 响应。`sessionToken` 仍然只能保存在 H5 内存中，不得写入 URL、localStorage、日志或持久化缓存。
 
 ## 3. 登出流程（必须由 H5 发起）
 
@@ -131,6 +140,7 @@ H5 应区分处理：
   authLogin: true,
   authRefreshSession: true,
   authLogout: true,
+  clipboardCopyText: true,
   uiToast: true,
   uiClose: true,
   navigationOpenInternal: true,
@@ -206,6 +216,16 @@ await WishFoxSDK.ui.close({
 ```
 
 Android 返回成功后会关闭整个 H5 Overlay 并恢复悬浮球。
+
+### 复制到剪贴板
+
+```js
+await WishFoxSDK.clipboard.copyText({
+  text: '要复制的普通文本'
+});
+```
+
+调用前检查 `clipboardCopyText` capability。文本去除首尾空白后不能为空，最大 8192 字符。不要复制短时 Token、长期 Token、支付签名或完整授权 URL。
 
 ## 6. 事件监听
 

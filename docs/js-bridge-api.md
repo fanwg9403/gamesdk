@@ -298,6 +298,9 @@ H5不得仅根据 Android API判断能力，必须使用 `bridge.ready` 或 `bri
     "selectedProtocolVersion": "1.0",
     "sdkVersion": "1.4.0",
     "apiLevel": 35,
+    "appId": "10001",
+    "channelId": "20001",
+    "isLoggedIn": true,
     "sessionId": "session-xxx",
     "webViewId": "primary",
     "bridgeMode": "web_message",
@@ -326,6 +329,10 @@ H5不得仅根据 Android API判断能力，必须使用 `bridge.ready` 或 `bri
   }
 }
 ```
+
+`appId` 和 `channelId` 是 SDK 初始化时固定的应用/渠道标识，来自 Android `FoxSdkConfig`，不会随登录用户或短时 Token 改变。H5 应在 `bridge.ready` 成功后保存这两个值，不要等待 `auth.login` 或 `auth.refreshSession` 才获取。
+
+`isLoggedIn` 是当前原生长期登录态的便捷布尔值：`true` 等价于 `authState.status === "authenticated"`，`false` 等价于 `authState.status === "anonymous"`。它只表示原生是否存在长期登录态，不代表当前 H5 文档已经拥有有效短时 Token。
 
 `bridgeMode`：
 
@@ -520,7 +527,7 @@ H5建议：
 | authRefreshSession | boolean | true，支持主动刷新短时 Token |
 | authLogout | boolean | true，支持原生二次确认登出；确认后清理原生登录态并关闭 H5 Overlay |
 
-当前 Android 修复版同时返回以下基础能力字段：`environmentGet`、`uiToast`、`uiClose`、`navigationOpenInternal`、`navigationOpenExternal`、`navigationUpdateState`、`navigationResolveBack`、`layoutSetMode`、`layoutCloseSecondary`。H5 仍应以实际 capability 值为准，不应仅根据 SDK 版本猜测能力。
+当前 Android 修复版同时返回以下基础能力字段：`environmentGet`、`clipboardCopyText`、`uiToast`、`uiClose`、`navigationOpenInternal`、`navigationOpenExternal`、`navigationUpdateState`、`navigationResolveBack`、`layoutSetMode`、`layoutCloseSecondary`。H5 仍应以实际 capability 值为准，不应仅根据 SDK 版本猜测能力。
 
 `bridge.ready.data.authState` 返回下节状态对象。支付、小游戏 Scheme、媒体保存/取消/沙盒删除和 diagnostics 等全量协议能力仍可能返回 `METHOD_NOT_SUPPORTED`。
 
@@ -578,14 +585,12 @@ H5建议：
   "sessionStatus": "valid",
   "sessionExpiresIn": 299,
   "sessionToken": "server_issued_short_lived_token",
-  "expiresIn": 300,
-  "appId": "10001",
-  "channelId": "20001"
+  "expiresIn": 300
 }
 ```
 
 expiresIn 为有效期秒数，范围 1～3600；300 秒为建议值，不是 SDK 写死的有效期。
-`appId` 和 `channelId` 与本次短时 Token 一起由 Android 从 `FoxSdkConfig.getAppId()` / `getChannelId()` 传回，供 H5 组装业务请求参数、埋点上下文或校验当前业务环境。H5 按服务端约定在业务请求中携带 `Authorization: Bearer <sessionToken>`。SDK 不会替 H5 自动加请求头。
+H5 按服务端约定在业务请求中携带 `Authorization: Bearer <sessionToken>`。SDK 不会替 H5 自动加请求头。应用/渠道标识不在此响应重复返回，统一使用 `bridge.ready.data.appId/channelId`。
 
 登录 Promise 不设置普通 10 秒网络超时。验证码错误/登录网络失败留在同一个原生弹窗内提示并允许重试；用户最终关闭返回 USER_CANCELLED，成功仅完成一次。阅读协议及返回不算取消，不会结束这个 Promise。登录完成后的交换阶段有独立的 15 秒超时。
 
@@ -605,7 +610,7 @@ expiresIn 为有效期秒数，范围 1～3600；300 秒为建议值，不是 SD
 }
 ```
 
-params 可为空对象。可选 reason 的约束同 10.2。该方法总是交换，传 exchangeH5Session=false 不会跳过交换。成功 data 与 10.2 交换成功完全相同，包含 `sessionToken`、`expiresIn`、`appId` 和 `channelId`。
+params 可为空对象。可选 reason 的约束同 10.2。该方法总是交换，传 exchangeH5Session=false 不会跳过交换。成功 data 与 10.2 交换成功完全相同，包含 `sessionToken` 和 `expiresIn`。
 
 处理闭环：
 
@@ -718,6 +723,41 @@ off();                                     // 解除监听
 - 同一 WebView高频调用应限流；
 - 不支持任意布局、图片或富文本 Toast；
 - 空文本返回 `INVALID_ARGUMENT`。
+
+## 11.2 复制到系统剪贴板
+
+### `clipboard.copyText`
+
+H5 请求 Android 将普通文本复制到系统剪贴板。原生复用 SDK 现有 `FoxSdkUtils.copyText()` 逻辑，不允许复制 Token、支付密文或其他敏感凭证。
+
+请求：
+
+```json
+{
+  "method": "clipboard.copyText",
+  "params": {
+    "text": "要复制的内容"
+  }
+}
+```
+
+约束：
+
+- `text` 必须是字符串；
+- 去除首尾空白后不能为空；
+- 最大长度 8192 字符；
+- 成功返回 `{ "copied": true }`；
+- 失败返回 `CLIPBOARD_FAILED`；
+- 不要复制 `sessionToken`、长期 Token、支付签名或完整授权 URL。
+
+成功响应：
+
+```json
+{
+  "success": true,
+  "data": { "copied": true }
+}
+```
 
 ## 12. Overlay关闭
 
@@ -1967,6 +2007,7 @@ auth.login
 auth.refreshSession
 auth.logout
 ui.toast
+clipboard.copyText
 ui.close
 navigation.updateState
 navigation.openInternal

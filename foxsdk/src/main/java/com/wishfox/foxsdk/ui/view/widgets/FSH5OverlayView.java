@@ -18,6 +18,7 @@ import android.graphics.Bitmap;
 import android.widget.Toast;
 import android.util.DisplayMetrics;
 import com.wishfox.foxsdk.media.FSMediaPolicy;
+import com.wishfox.foxsdk.utils.FoxSdkUtils;
 import org.json.JSONObject;
 import org.json.JSONException;
 import java.util.ArrayList;
@@ -463,6 +464,7 @@ public final class FSH5OverlayView extends FrameLayout {
         return new JSONObject().put("mediaPreviewImage", true).put("mediaPreviewVideo", isHardwareAccelerated())
                 .put("mediaPreviewClose", true).put("mediaPreviewMode", "streaming_native")
                 .put("environmentGet", true)
+                .put("clipboardCopyText", true)
                 .put("authGetState", true).put("authLogin", true).put("authLogout", true)
                 .put("authRefreshSession", true)
                 .put("uiToast", true).put("uiClose", true)
@@ -601,9 +603,16 @@ public final class FSH5OverlayView extends FrameLayout {
         String method = request.optString("method");
         if ("bridge.getCapabilities".equals(method)) { reply(bridge, request, epoch, "OK", capabilities()); return; }
         if ("bridge.ready".equals(method)) {
+            JSONObject authState = bridge.auth.state();
             reply(bridge, request, epoch, "OK", new JSONObject().put("selectedProtocolVersion", "1.0")
+                    .put("sdkVersion", com.wishfox.foxsdk.BuildConfig.XYH_GAME_SDK_VERSION_NAME)
+                    .put("apiLevel", android.os.Build.VERSION.SDK_INT)
+                    .put("appId", com.wishfox.foxsdk.core.WishFoxSdk.getConfig().getAppId())
+                    .put("channelId", com.wishfox.foxsdk.core.WishFoxSdk.getConfig().getChannelId())
                     .put("sessionId", sessionId).put("webViewId", bridge.owner == primary ? "primary" : "secondary")
-                    .put("bridgeMode", "restricted_js_interface").put("authState", bridge.auth.state())
+                    .put("bridgeMode", "restricted_js_interface").put("authState", authState)
+                    .put("isLoggedIn", "authenticated".equals(authState.optString("status")))
+                    .put("environment", environment(bridge.owner == primary ? "primary" : "secondary"))
                     .put("capabilities", capabilities())); return;
         }
         if (method.startsWith("auth.")) {
@@ -625,6 +634,30 @@ public final class FSH5OverlayView extends FrameLayout {
             Toast.makeText(activity, message,
                     "long".equals(duration) ? Toast.LENGTH_LONG : Toast.LENGTH_SHORT).show();
             reply(bridge, request, epoch, "OK", new JSONObject().put("shown", true));
+            return;
+        }
+        if ("clipboard.copyText".equals(method)) {
+            if (!(params.opt("text") instanceof String)) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
+            String text = params.optString("text", "");
+            if (text.trim().isEmpty() || text.length() > 8192) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
+            FoxSdkUtils.copyText(activity, text)
+                    .subscribeOn(io.reactivex.rxjava3.schedulers.Schedulers.io())
+                    .observeOn(io.reactivex.rxjava3.android.schedulers.AndroidSchedulers.mainThread())
+                    .subscribe(success -> {
+                        if (!bridge.valid(epoch)) return;
+                        try { reply(bridge, request, epoch, "OK", new JSONObject().put("copied", true)); }
+                        catch (JSONException ignored) { }
+                    }, error -> {
+                        if (!bridge.valid(epoch)) return;
+                        try { reply(bridge, request, epoch, "CLIPBOARD_FAILED", null); }
+                        catch (JSONException ignored) { }
+                    });
             return;
         }
         if ("ui.close".equals(method)) {
