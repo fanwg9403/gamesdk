@@ -34,6 +34,14 @@ if (timeoutMs !== null) {
 const ready = await WishFoxSDK.bridge.ready();
 const appId = ready.appId;
 const channelId = ready.channelId;
+const orientation = ready.orientation;
+const navigationMode = ready.navigationMode;
+const safeInsets = {
+  top: ready.safeInsetTop,
+  right: ready.safeInsetRight,
+  bottom: ready.safeInsetBottom,
+  left: ready.safeInsetLeft
+};
 const capabilities = await WishFoxSDK.bridge.getCapabilities();
 const environment = await WishFoxSDK.environment.get();
 const authState = await WishFoxSDK.auth.getState();
@@ -44,6 +52,17 @@ if (ready.isLoggedIn === true) {
 ```
 
 `environment.get` 已由 Android 实现，返回屏幕方向、尺寸、密度、安全区、布局模式、WebView 标识和 SDK 版本。
+
+`bridge.ready` 同时直接返回 6 个页面布局字段：`orientation`、`navigationMode`、`safeInsetTop`、`safeInsetRight`、`safeInsetBottom`、`safeInsetLeft`。安全间距单位为 px；`navigationMode` 为 `virtual_keys` 或 `fullscreen`。H5 应使用这些字段设置页面内容安全区，Android H5 容器不再额外叠加同一组 padding。
+
+示例：
+
+```js
+document.documentElement.style.setProperty('--wf-safe-top', `${ready.safeInsetTop}px`);
+document.documentElement.style.setProperty('--wf-safe-right', `${ready.safeInsetRight}px`);
+document.documentElement.style.setProperty('--wf-safe-bottom', `${ready.safeInsetBottom}px`);
+document.documentElement.style.setProperty('--wf-safe-left', `${ready.safeInsetLeft}px`);
+```
 
 如果某个旧版本 Android 未实现 `environment.get`，H5 可以将它降级为非阻断能力，但不能让该接口失败导致整个 Bridge 初始化失败。
 
@@ -241,6 +260,8 @@ media.previewChanged
 
 横竖屏切换时 Android 会发送 `environment.changed` 和 `layout.changed`。H5 不要固定假设横屏一定是 split、竖屏一定是 single，应使用事件中的 `actualMode`。
 
+`environment.changed.data` 会携带同样的 `orientation`、`navigationMode` 和四个 `safeInset*` 字段，横竖屏、导航栏/全面屏状态变化后应重新应用 CSS 安全区。
+
 ## 7. 错误展示和日志
 
 Bridge 错误必须保留：
@@ -283,6 +304,8 @@ catch (error) {
 ## 9. 联调验收清单
 
 - `bridge.ready` 返回 `OK`；
+- `bridge.ready` 返回 orientation、navigationMode 和四个 safeInset，且 H5 不产生双重留白；
+- 横竖屏、虚拟按键可见/全面屏模式下，四边内容均不被系统栏或挖孔遮挡；
 - `environment.get` 返回 `OK`；
 - `auth.getState` 返回正确登录状态；
 - 登录超过 10 秒后完成仍能收到成功响应；

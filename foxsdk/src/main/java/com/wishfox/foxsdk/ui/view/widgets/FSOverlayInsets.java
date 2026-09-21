@@ -20,6 +20,23 @@ import androidx.core.view.WindowInsetsCompat;
  */
 final class FSOverlayInsets {
 
+    /** 与原生 Overlay 页面使用相同规则计算出的窗口安全区快照。 */
+    static final class Snapshot {
+        final int left;
+        final int top;
+        final int right;
+        final int bottom;
+        final String navigationMode;
+
+        Snapshot(int left, int top, int right, int bottom, String navigationMode) {
+            this.left = left;
+            this.top = top;
+            this.right = right;
+            this.bottom = bottom;
+            this.navigationMode = navigationMode;
+        }
+    }
+
     private FSOverlayInsets() {
     }
 
@@ -99,6 +116,22 @@ final class FSOverlayInsets {
             return insets;
         });
         ViewCompat.requestApplyInsets(host);
+    }
+
+    /**
+     * 读取安全区但不修改 View。H5 Overlay 使用该结果透传给页面，避免原生 padding
+     * 与 H5 CSS safe-area 同时应用造成双重留白。
+     */
+    static Snapshot snapshot(Activity activity, View host) {
+        WindowInsetsCompat insets = host == null ? null : ViewCompat.getRootWindowInsets(host);
+        DisplayCutoutCompat cutout = insets == null ? null : insets.getDisplayCutout();
+        int left = insets == null ? 0 : resolveStartInset(activity, insets, cutout);
+        int top = insets == null ? 0 : resolveTopInset(activity, insets, cutout);
+        int right = insets == null ? 0 : resolveEndInset(activity, insets, cutout);
+        int bottom = insets == null ? 0 : resolveBottomInset(activity, insets, cutout);
+        String navigationMode = isNavigationBarHidden(activity, insets)
+                ? "fullscreen" : "virtual_keys";
+        return new Snapshot(left, top, right, bottom, navigationMode);
     }
 
     /**

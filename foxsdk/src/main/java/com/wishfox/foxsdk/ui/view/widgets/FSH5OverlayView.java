@@ -81,10 +81,18 @@ public final class FSH5OverlayView extends FrameLayout {
         if (!isTrusted(homeUrl)) throw new IllegalArgumentException("Untrusted H5 home URL");
         setClickable(true);
         setFocusable(true);
-        FSOverlayInsets.applyToPadding(activity, this);
+        // H5 容器铺满宿主窗口，安全区通过 bridge.ready/environment.changed 交给 H5 应用。
+        // 不能再在原生容器上叠加 padding，否则会与 H5 CSS 产生双重留白。
+        setPadding(0, 0, 0, 0);
         primary = createWebView();
         addView(primary, primaryParams());
         primary.loadUrl(homeUrl);
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        androidx.core.view.ViewCompat.requestApplyInsets(this);
     }
 
     @SuppressLint({"SetJavaScriptEnabled", "JavascriptInterface"})
@@ -179,6 +187,7 @@ public final class FSH5OverlayView extends FrameLayout {
 
     private JSONObject openInternalResult(String value) {
         if (destroyed) return null;
+        String previousMode = layoutMode();
         final String url = resolveUrl(value);
         if (!isTrusted(url)) return null;
         boolean created = false;
@@ -193,6 +202,10 @@ public final class FSH5OverlayView extends FrameLayout {
         secondary.loadUrl(url);
         secondary.bringToFront();
         if (!isLandscape()) secondary.bringToFront();
+        if (!previousMode.equals(layoutMode())) {
+            sendEnvironmentChanged();
+            sendLayoutChanged(previousMode, "navigation");
+        }
         try {
             return new JSONObject().put("requestedUrl", value)
                     .put("actualUrl", url)
@@ -211,6 +224,7 @@ public final class FSH5OverlayView extends FrameLayout {
         secondary = null;
         secondaryUrl = null;
         if (primary != null) primary.bringToFront();
+        if (!destroyed) sendEnvironmentChanged();
     }
 
     private String layoutMode() {
@@ -223,25 +237,24 @@ public final class FSH5OverlayView extends FrameLayout {
         int heightPx = getHeight() > 0 ? getHeight() : metrics.heightPixels;
         float density = metrics.density <= 0 ? 1f : metrics.density;
         float fontScale = getResources().getConfiguration().fontScale;
-        JSONObject safeArea = new JSONObject().put("top", 0).put("right", 0)
-                .put("bottom", 0).put("left", 0);
-        if (android.os.Build.VERSION.SDK_INT >= 23) {
-            android.view.WindowInsets insets = getRootWindowInsets();
-            if (insets != null) {
-                if (android.os.Build.VERSION.SDK_INT >= 29) {
-                    android.graphics.Insets system = insets.getInsets(android.view.WindowInsets.Type.systemBars());
-                    safeArea.put("top", system.top).put("right", system.right)
-                            .put("bottom", system.bottom).put("left", system.left);
-                } else {
-                    safeArea.put("top", insets.getSystemWindowInsetTop())
-                            .put("right", insets.getSystemWindowInsetRight())
-                            .put("bottom", insets.getSystemWindowInsetBottom())
-                            .put("left", insets.getSystemWindowInsetLeft());
-                }
-            }
+        FSOverlayInsets.Snapshot snapshot = FSOverlayInsets.snapshot(activity, this);
+        int safeLeft = snapshot.left;
+        int safeRight = snapshot.right;
+        // 横屏 split 时只给两个 WebView 各自靠物理屏幕外侧的横向安全区，避免中缝双重留白。
+        if (isLandscape() && secondary != null) {
+            if ("primary".equals(webViewId)) safeRight = 0;
+            else if ("secondary".equals(webViewId)) safeLeft = 0;
         }
+        JSONObject safeArea = new JSONObject().put("top", snapshot.top).put("right", safeRight)
+                .put("bottom", snapshot.bottom).put("left", safeLeft);
+        String orientation = isLandscape() ? "landscape" : "portrait";
         return new JSONObject()
-                .put("orientation", isLandscape() ? "landscape" : "portrait")
+                .put("orientation", orientation)
+                .put("navigationMode", snapshot.navigationMode)
+                .put("safeInsetTop", snapshot.top)
+                .put("safeInsetRight", safeRight)
+                .put("safeInsetBottom", snapshot.bottom)
+                .put("safeInsetLeft", safeLeft)
                 .put("widthPx", widthPx).put("heightPx", heightPx)
                 .put("widthDp", Math.round(widthPx / density))
                 .put("heightDp", Math.round(heightPx / density))
@@ -604,15 +617,23 @@ public final class FSH5OverlayView extends FrameLayout {
         if ("bridge.getCapabilities".equals(method)) { reply(bridge, request, epoch, "OK", capabilities()); return; }
         if ("bridge.ready".equals(method)) {
             JSONObject authState = bridge.auth.state();
+            String webViewId = bridge.owner == primary ? "primary" : "secondary";
+            JSONObject environmentData = environment(webViewId);
             reply(bridge, request, epoch, "OK", new JSONObject().put("selectedProtocolVersion", "1.0")
                     .put("sdkVersion", com.wishfox.foxsdk.BuildConfig.XYH_GAME_SDK_VERSION_NAME)
                     .put("apiLevel", android.os.Build.VERSION.SDK_INT)
                     .put("appId", com.wishfox.foxsdk.core.WishFoxSdk.getConfig().getAppId())
                     .put("channelId", com.wishfox.foxsdk.core.WishFoxSdk.getConfig().getChannelId())
-                    .put("sessionId", sessionId).put("webViewId", bridge.owner == primary ? "primary" : "secondary")
-                    .put("bridgeMode", "restricted_js_interface").put("authState", authState)
                     .put("isLoggedIn", "authenticated".equals(authState.optString("status")))
-                    .put("environment", environment(bridge.owner == primary ? "primary" : "secondary"))
+                    .put("orientation", environmentData.getString("orientation"))
+                    .put("navigationMode", environmentData.getString("navigationMode"))
+                    .put("safeInsetTop", environmentData.getInt("safeInsetTop"))
+                    .put("safeInsetRight", environmentData.getInt("safeInsetRight"))
+                    .put("safeInsetBottom", environmentData.getInt("safeInsetBottom"))
+                    .put("safeInsetLeft", environmentData.getInt("safeInsetLeft"))
+                    .put("sessionId", sessionId).put("webViewId", webViewId)
+                    .put("bridgeMode", "restricted_js_interface").put("authState", authState)
+                    .put("environment", environmentData)
                     .put("capabilities", capabilities())); return;
         }
         if (method.startsWith("auth.")) {

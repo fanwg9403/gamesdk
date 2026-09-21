@@ -1413,7 +1413,7 @@ SDK不创建视频下载任务、不预取整个商单列表、不启用视频�
 
 本轮实现的是原生媒体预览扩展及其 `postMessage`传输、媒体 capability和局部 ready。原有完整 Bridge方案中的登录会话交换、支付意图、媒体保存、恢复事件等并非本轮全部落地，不能因为预览 capability存在就认为整套协议已实现。H5可加载 assets中的 `wishfox-media-bridge.js`（复制到自己的构建产物；原生不会自动注入这个文件），通过 `media.getPreviewCapabilities`查询实际支持能力。旧 WebView由 H5补齐 Promise polyfill。
 
-`bridge.ready` 当前返回 selectedProtocolVersion/sdkVersion/apiLevel/appId/channelId/sessionId/webViewId/bridgeMode/capabilities/environment/authState；其中 appId/channelId 是初始化时固定配置，authState 为原生登录及当前文档短时会话元信息。支付恢复等全量协议字段仍需按 capability 判断，不能仅凭 ready 响应猜测未实现能力。入口仍需配置真实 H5/CDN地址，示例域名不是可上线地址。
+`bridge.ready` 当前返回 selectedProtocolVersion/sdkVersion/apiLevel/appId/channelId/isLoggedIn/orientation/navigationMode/safeInsetTop/safeInsetRight/safeInsetBottom/safeInsetLeft/sessionId/webViewId/bridgeMode/capabilities/environment/authState；其中 appId/channelId 是初始化时固定配置，六个布局字段用于 H5 内容安全区，authState 为原生登录及当前文档短时会话元信息。H5 Overlay 不再额外叠加同一组原生 padding。支付恢复等全量协议字段仍需按 capability 判断，不能仅凭 ready 响应猜测未实现能力。入口仍需配置真实 H5/CDN地址，示例域名不是可上线地址。
 
 ### 29.8 验收矩阵
 

@@ -301,6 +301,12 @@ H5不得仅根据 Android API判断能力，必须使用 `bridge.ready` 或 `bri
     "appId": "10001",
     "channelId": "20001",
     "isLoggedIn": true,
+    "orientation": "landscape",
+    "navigationMode": "fullscreen",
+    "safeInsetTop": 0,
+    "safeInsetRight": 0,
+    "safeInsetBottom": 0,
+    "safeInsetLeft": 0,
     "sessionId": "session-xxx",
     "webViewId": "primary",
     "bridgeMode": "web_message",
@@ -333,6 +339,8 @@ H5不得仅根据 Android API判断能力，必须使用 `bridge.ready` 或 `bri
 `appId` 和 `channelId` 是 SDK 初始化时固定的应用/渠道标识，来自 Android `FoxSdkConfig`，不会随登录用户或短时 Token 改变。H5 应在 `bridge.ready` 成功后保存这两个值，不要等待 `auth.login` 或 `auth.refreshSession` 才获取。
 
 `isLoggedIn` 是当前原生长期登录态的便捷布尔值：`true` 等价于 `authState.status === "authenticated"`，`false` 等价于 `authState.status === "anonymous"`。它只表示原生是否存在长期登录态，不代表当前 H5 文档已经拥有有效短时 Token。
+
+`orientation`、`navigationMode`、`safeInsetTop`、`safeInsetRight`、`safeInsetBottom`、`safeInsetLeft` 是当前 WebView 文档应使用的布局参数，单位为 px。`navigationMode` 为 `virtual_keys`（系统导航栏/虚拟按键可见）或 `fullscreen`（沉浸/全面屏，系统导航栏隐藏）。H5 页面应使用这 6 个字段调整自己的内容安全区；不要再依赖原生容器 padding。
 
 `bridgeMode`：
 
@@ -380,6 +388,11 @@ H5不得仅根据 Android API判断能力，必须使用 `bridge.ready` 或 `bri
   "success": true,
   "data": {
     "orientation": "landscape",
+    "navigationMode": "fullscreen",
+    "safeInsetTop": 0,
+    "safeInsetRight": 0,
+    "safeInsetBottom": 0,
+    "safeInsetLeft": 0,
     "widthPx": 1920,
     "heightPx": 1080,
     "widthDp": 960,
@@ -404,6 +417,8 @@ H5不得仅根据 Android API判断能力，必须使用 `bridge.ready` 或 `bri
 枚举：
 
 - `orientation`: `portrait` / `landscape` / `undefined`
+- `navigationMode`: `virtual_keys` / `fullscreen`
+- `safeInsetTop` / `safeInsetRight` / `safeInsetBottom` / `safeInsetLeft`: 当前 WebView 文档内容应避让的安全距离，单位 px
 - `layoutMode`: `single` / `split` / `stacked`
 - `webViewId`: `primary` / `secondary`
 
@@ -428,6 +443,11 @@ H5不得仅根据 Android API判断能力，必须使用 `bridge.ready` 或 `bri
   "data": {
     "reason": "orientation",
     "orientation": "portrait",
+    "navigationMode": "virtual_keys",
+    "safeInsetTop": 48,
+    "safeInsetRight": 0,
+    "safeInsetBottom": 48,
+    "safeInsetLeft": 0,
     "widthPx": 1080,
     "heightPx": 1920,
     "widthDp": 540,
@@ -2084,7 +2104,7 @@ media.saveResult
 
 随 SDK提供 `foxsdk/src/main/assets/wishfox-media-bridge.js`。H5工程复制并自行打包该脚本，原生不会自动注入。脚本复用已经存在的 `WishFoxSDK.invoke/__dispatch`，没有完整 JS SDK时提供媒体专用 Promise传输。旧 WebView需业务方提供 Promise polyfill；不要求 `_blank`、`window.open`、浏览器视频全屏 API或新标签页。
 
-当前 Native预览扩展已经实现局部 `bridge.ready`，仅返回 selectedProtocolVersion/sessionId/webViewId/bridgeMode/capabilities，其余全量协议字段待主 Bridge补齐。预览联调使用 `WishFoxSDK.media.getPreviewCapabilities()`；文档前面的全量登录/支付/保存协议是总体方案，不代表本次已经实现所有方法。
+当前 Native 预览扩展与主 H5 Bridge 共用 `bridge.ready`；ready 会返回固定 appId/channelId、登录标识、方向及安全区参数。预览联调仍可使用 `WishFoxSDK.media.getPreviewCapabilities()`；支付、保存等未开放能力必须继续按 capability 判断。
 
 ### 34.2 `media.previewVideo`
 
