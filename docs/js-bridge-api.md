@@ -307,6 +307,7 @@ H5不得仅根据 Android API判断能力，必须使用 `bridge.ready` 或 `bri
     "safeInsetRight": 0,
     "safeInsetBottom": 0,
     "safeInsetLeft": 0,
+    "safeInsetUnit": "css_px",
     "sessionId": "session-xxx",
     "webViewId": "primary",
     "bridgeMode": "web_message",
@@ -340,7 +341,7 @@ H5不得仅根据 Android API判断能力，必须使用 `bridge.ready` 或 `bri
 
 `isLoggedIn` 是当前原生长期登录态的便捷布尔值：`true` 等价于 `authState.status === "authenticated"`，`false` 等价于 `authState.status === "anonymous"`。它只表示原生是否存在长期登录态，不代表当前 H5 文档已经拥有有效短时 Token。
 
-`orientation`、`navigationMode`、`safeInsetTop`、`safeInsetRight`、`safeInsetBottom`、`safeInsetLeft` 是当前 WebView 文档应使用的布局参数，单位为 px。`navigationMode` 为 `virtual_keys`（系统导航栏/虚拟按键可见）或 `fullscreen`（沉浸/全面屏，系统导航栏隐藏）。H5 页面应使用这 6 个字段调整自己的内容安全区；不要再依赖原生容器 padding。
+`orientation`、`navigationMode`、`safeInsetTop`、`safeInsetRight`、`safeInsetBottom`、`safeInsetLeft` 是当前 WebView 文档应使用的布局参数；四个 `safeInset*` 的单位为 CSS px，`safeInsetUnit` 固定为 `css_px`。它们已将 Android WindowInsets 的物理 px 按 WebView devicePixelRatio 换算，H5 不要再次除以 `devicePixelRatio`。`navigationMode` 为 `virtual_keys`（系统导航栏/虚拟按键可见）或 `fullscreen`（沉浸/全面屏，系统导航栏隐藏）。H5 页面应使用这 6 个字段调整自己的内容安全区；不要再依赖原生容器 padding。
 
 `bridgeMode`：
 
@@ -393,6 +394,7 @@ H5不得仅根据 Android API判断能力，必须使用 `bridge.ready` 或 `bri
     "safeInsetRight": 0,
     "safeInsetBottom": 0,
     "safeInsetLeft": 0,
+    "safeInsetUnit": "css_px",
     "widthPx": 1920,
     "heightPx": 1080,
     "widthDp": 960,
@@ -418,7 +420,8 @@ H5不得仅根据 Android API判断能力，必须使用 `bridge.ready` 或 `bri
 
 - `orientation`: `portrait` / `landscape` / `undefined`
 - `navigationMode`: `virtual_keys` / `fullscreen`
-- `safeInsetTop` / `safeInsetRight` / `safeInsetBottom` / `safeInsetLeft`: 当前 WebView 文档内容应避让的安全距离，单位 px
+- `safeInsetTop` / `safeInsetRight` / `safeInsetBottom` / `safeInsetLeft`: 当前 WebView 文档内容应避让的安全距离，单位 CSS px
+- `safeInsetUnit`: 固定为 `css_px`，表示四个安全距离已从 Android 物理 px 换算为 CSS px
 - `layoutMode`: `single` / `split` / `stacked`
 - `webViewId`: `primary` / `secondary`
 

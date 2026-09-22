@@ -44,7 +44,7 @@ public class MyApp extends Application {
                         .setAllowInsecureH5(true)
 //                        .setBaseUrl("https://api-game-pre.wishfoxs.com")
                         .setEnableLog(true)
-                        .setWechatTest(false)
+                        .setWechatTest(true)
                         .setScreenOrientation(FoxSdkConfig.ORIENTATION_LANDSCAPE)
                         .setFloatXScale(0.5f)
                         .setFloatXxOffset(100)

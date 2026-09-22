@@ -36,6 +36,7 @@ const appId = ready.appId;
 const channelId = ready.channelId;
 const orientation = ready.orientation;
 const navigationMode = ready.navigationMode;
+const safeInsetUnit = ready.safeInsetUnit; // 'css_px'
 const safeInsets = {
   top: ready.safeInsetTop,
   right: ready.safeInsetRight,
@@ -53,7 +54,7 @@ if (ready.isLoggedIn === true) {
 
 `environment.get` 已由 Android 实现，返回屏幕方向、尺寸、密度、安全区、布局模式、WebView 标识和 SDK 版本。
 
-`bridge.ready` 同时直接返回 6 个页面布局字段：`orientation`、`navigationMode`、`safeInsetTop`、`safeInsetRight`、`safeInsetBottom`、`safeInsetLeft`。安全间距单位为 px；`navigationMode` 为 `virtual_keys` 或 `fullscreen`。H5 应使用这些字段设置页面内容安全区，Android H5 容器不再额外叠加同一组 padding。
+`bridge.ready` 同时直接返回页面布局字段：`orientation`、`navigationMode`、`safeInsetTop`、`safeInsetRight`、`safeInsetBottom`、`safeInsetLeft` 和 `safeInsetUnit`。安全间距单位为 CSS px（`safeInsetUnit === 'css_px'`），不是 Android WindowInsets 的物理 px；`navigationMode` 为 `virtual_keys` 或 `fullscreen`。H5 应使用这些字段设置页面内容安全区，Android H5 容器不再额外叠加同一组 padding。
 
 示例：
 

@@ -4,7 +4,6 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
@@ -13,7 +12,6 @@ import android.view.View;
 final class FSZoomImageView extends View {
     private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final ScaleGestureDetector scaleDetector;
-    private final GestureDetector tapDetector;
     private Bitmap bitmap;
     private float zoom = 1f, x, y, lastX, lastY, downY;
     private boolean multiTouch;
@@ -22,7 +20,7 @@ final class FSZoomImageView extends View {
     FSZoomImageView(Context context, Runnable close) {
         super(context);
         this.close = close;
-        setContentDescription("图片预览，双指缩放，单击关闭");
+        setContentDescription("图片预览，双指缩放，上下拖拽关闭");
         scaleDetector = new ScaleGestureDetector(context, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
             @Override public boolean onScale(ScaleGestureDetector detector) {
                 float previous = zoom;
@@ -36,10 +34,6 @@ final class FSZoomImageView extends View {
                 invalidate();
                 return true;
             }
-        });
-        tapDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
-            @Override public boolean onDown(MotionEvent e) { return true; }
-            @Override public boolean onSingleTapConfirmed(MotionEvent e) { performClick(); return true; }
         });
     }
 
@@ -83,13 +77,6 @@ final class FSZoomImageView extends View {
         }
         if (event.getPointerCount() > 1) multiTouch = true;
         scaleDetector.onTouchEvent(event);
-        if (!multiTouch) tapDetector.onTouchEvent(event);
-        else if (action == MotionEvent.ACTION_POINTER_DOWN) {
-            MotionEvent cancel = MotionEvent.obtain(event);
-            cancel.setAction(MotionEvent.ACTION_CANCEL);
-            tapDetector.onTouchEvent(cancel);
-            cancel.recycle();
-        }
         if (action == MotionEvent.ACTION_MOVE && event.getPointerCount() == 1 && !multiTouch) {
             if (zoom > 1.01f) { x += event.getX() - lastX; y += event.getY() - lastY; clamp(); }
             else { y = event.getY() - downY; }
@@ -105,5 +92,4 @@ final class FSZoomImageView extends View {
 
     private float dismissDistance() { return Math.max(96 * getResources().getDisplayMetrics().density, getHeight() * .2f); }
 
-    @Override public boolean performClick() { super.performClick(); close.run(); return true; }
 }

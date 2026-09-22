@@ -430,6 +430,16 @@ public final class FoxSdkOverlayManager {
                 public void onLogoutRequested(FSH5OverlayView.LogoutCompletion completion) {
                     showLogoutInternal(completion);
                 }
+
+                @Override
+                public void onMiniProgramRequested(
+                        String requestId,
+                        String appName,
+                        JSONObject params,
+                        FSH5OverlayView.MiniProgramCompletion completion
+                ) {
+                    handleMiniProgramRequest(requestId, appName, params, completion);
+                }
             }, WishFoxSdk.getConfig().getH5HomeUrl());
             attachView(h5View);
             FoxSdkDiagnostics.record("h5_overlay_show", activity, "home");
@@ -778,6 +788,27 @@ public final class FoxSdkOverlayManager {
             logoutAttempt = null;
             completion.complete("ACTIVITY_UNAVAILABLE", null);
             FoxSdkDiagnostics.reportFailure(activity, "h5_logout", "dialog_show_failed", failure);
+        }
+    }
+
+    /**
+     * 接收 H5 的小程序启动请求。
+     *
+     * <p>当前先固定请求边界和参数形状，具体的 encrypted URL Scheme 接口调用、微信拉起
+     * 和返回事件待业务规则确认后接入。这样 H5 参数已经由原生统一接管，不再允许 H5
+     * 直接传入或拉起 scheme。</p>
+     */
+    private void handleMiniProgramRequest(
+            String requestId,
+            String appName,
+            JSONObject params,
+            FSH5OverlayView.MiniProgramCompletion completion
+    ) {
+        FoxSdkLogger.d(H5_LOG_TAG, "miniProgram request received: requestId=" + requestId
+                + ", appName=" + appName
+                + ", paramCount=" + (params == null ? 0 : params.length()));
+        if (completion != null) {
+            completion.complete("METHOD_NOT_SUPPORTED", null);
         }
     }
 

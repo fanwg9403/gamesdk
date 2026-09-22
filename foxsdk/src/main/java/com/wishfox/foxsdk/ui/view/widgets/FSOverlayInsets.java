@@ -26,13 +26,31 @@ final class FSOverlayInsets {
         final int top;
         final int right;
         final int bottom;
+        final int cutoutLeft;
+        final int cutoutTop;
+        final int cutoutRight;
+        final int cutoutBottom;
         final String navigationMode;
 
-        Snapshot(int left, int top, int right, int bottom, String navigationMode) {
+        Snapshot(
+                int left,
+                int top,
+                int right,
+                int bottom,
+                int cutoutLeft,
+                int cutoutTop,
+                int cutoutRight,
+                int cutoutBottom,
+                String navigationMode
+        ) {
             this.left = left;
             this.top = top;
             this.right = right;
             this.bottom = bottom;
+            this.cutoutLeft = cutoutLeft;
+            this.cutoutTop = cutoutTop;
+            this.cutoutRight = cutoutRight;
+            this.cutoutBottom = cutoutBottom;
             this.navigationMode = navigationMode;
         }
     }
@@ -129,9 +147,17 @@ final class FSOverlayInsets {
         int top = insets == null ? 0 : resolveTopInset(activity, insets, cutout);
         int right = insets == null ? 0 : resolveEndInset(activity, insets, cutout);
         int bottom = insets == null ? 0 : resolveBottomInset(activity, insets, cutout);
+        int cutoutLeft = cutout == null ? 0 : cutout.getSafeInsetLeft();
+        int cutoutTop = cutout == null ? 0 : cutout.getSafeInsetTop();
+        int cutoutRight = cutout == null ? 0 : cutout.getSafeInsetRight();
+        int cutoutBottom = cutout == null ? 0 : cutout.getSafeInsetBottom();
         String navigationMode = isNavigationBarHidden(activity, insets)
                 ? "fullscreen" : "virtual_keys";
-        return new Snapshot(left, top, right, bottom, navigationMode);
+        return new Snapshot(
+                left, top, right, bottom,
+                cutoutLeft, cutoutTop, cutoutRight, cutoutBottom,
+                navigationMode
+        );
     }
 
     /**

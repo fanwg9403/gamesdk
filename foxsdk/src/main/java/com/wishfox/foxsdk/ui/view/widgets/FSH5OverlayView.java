@@ -22,7 +22,6 @@ import com.wishfox.foxsdk.utils.FoxSdkUtils;
 import org.json.JSONObject;
 import org.json.JSONException;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -42,6 +41,7 @@ import com.wishfox.foxsdk.auth.FSH5AuthSession;
  */
 public final class FSH5OverlayView extends FrameLayout {
     private static final String BRIDGE_LOG_TAG = "FoxSdk[H5]";
+    private static final int PORTRAIT_TOP_SAFE_AREA_EXTRA_CSS_PX = 4;
 
     public interface Callback {
         void onClose();
@@ -51,9 +51,24 @@ public final class FSH5OverlayView extends FrameLayout {
          * Completion 必须只回调一次；取消确认时回传 USER_CANCELLED。
          */
         void onLogoutRequested(LogoutCompletion completion);
+
+        /**
+         * H5 请求打开微信小程序。当前只负责把请求参数交给宿主，具体 Scheme 获取和拉起逻辑
+         * 由 OverlayManager 后续接入既有微信接口。
+         */
+        void onMiniProgramRequested(
+                String requestId,
+                String appName,
+                JSONObject params,
+                MiniProgramCompletion completion
+        );
     }
 
     public interface LogoutCompletion {
+        void complete(String code, JSONObject data);
+    }
+
+    public interface MiniProgramCompletion {
         void complete(String code, JSONObject data);
     }
 
@@ -87,6 +102,10 @@ public final class FSH5OverlayView extends FrameLayout {
         if (!isTrusted(homeUrl)) throw new IllegalArgumentException("Untrusted H5 home URL");
         setClickable(true);
         setFocusable(true);
+        // 最外层仍覆盖宿主窗口，但 WebView 只占首页面板区域；面板外的透明区域点击关闭 H5。
+        setOnClickListener(view -> {
+            if (!destroyed && callback != null) callback.onClose();
+        });
         // H5 容器铺满宿主窗口，安全区通过 bridge.ready/environment.changed 交给 H5 应用。
         // 不能再在原生容器上叠加 padding，否则会与 H5 CSS 产生双重留白。
         setPadding(0, 0, 0, 0);
@@ -124,19 +143,27 @@ public final class FSH5OverlayView extends FrameLayout {
     }
 
     private LayoutParams primaryParams() {
+        return primaryParams(getWidth());
+    }
+
+    private LayoutParams primaryParams(int width) {
         if (isLandscape()) {
-            LayoutParams params = new LayoutParams(landscapePrimaryWidth(), LayoutParams.MATCH_PARENT, Gravity.START);
+            LayoutParams params = new LayoutParams(landscapePrimaryWidth(width), LayoutParams.MATCH_PARENT, Gravity.START);
             return params;
         }
-        return new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT);
+        return new LayoutParams(portraitPanelWidth(width), LayoutParams.MATCH_PARENT, Gravity.START);
     }
 
     private LayoutParams secondaryParams() {
+        return secondaryParams(getWidth());
+    }
+
+    private LayoutParams secondaryParams(int width) {
         if (isLandscape()) {
-            LayoutParams params = new LayoutParams(landscapeSecondaryWidth(), LayoutParams.MATCH_PARENT, Gravity.END);
+            LayoutParams params = new LayoutParams(landscapeSecondaryWidth(width), LayoutParams.MATCH_PARENT, Gravity.END);
             return params;
         }
-        return new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT, Gravity.CENTER);
+        return new LayoutParams(portraitPanelWidth(width), LayoutParams.MATCH_PARENT, Gravity.START);
     }
 
     private boolean isLandscape() {
@@ -145,13 +172,51 @@ public final class FSH5OverlayView extends FrameLayout {
     }
 
     private int landscapePrimaryWidth() {
-        int width = getWidth();
-        return width > 0 ? Math.round(width * 0.448f) : LayoutParams.MATCH_PARENT;
+        return landscapePrimaryWidth(getWidth());
+    }
+
+    private int landscapePrimaryWidth(int width) {
+        return width > 0 ? Math.round(width * (73f / 163f)) : LayoutParams.MATCH_PARENT;
     }
 
     private int landscapeSecondaryWidth() {
-        int width = getWidth();
-        return width > 0 ? Math.round(width * 0.552f) : LayoutParams.MATCH_PARENT;
+        return landscapeSecondaryWidth(getWidth());
+    }
+
+    private int landscapeSecondaryWidth(int width) {
+        return width > 0 ? Math.round(width * (90f / 163f)) : LayoutParams.MATCH_PARENT;
+    }
+
+    private int portraitPanelWidth() {
+        return portraitPanelWidth(getWidth());
+    }
+
+    private int portraitPanelWidth(int width) {
+        return width > 0 ? Math.round(width * (4f / 5f)) : LayoutParams.MATCH_PARENT;
+    }
+
+    private void updateWebViewPanelParams(int width) {
+        if (width <= 0) return;
+        if (primary != null) applyPanelParams(primary, primaryParams(width));
+        if (secondary != null) applyPanelParams(secondary, secondaryParams(width));
+    }
+
+    private static void applyPanelParams(View child, LayoutParams expected) {
+        ViewGroup.LayoutParams current = child.getLayoutParams();
+        if (current instanceof LayoutParams
+                && current.width == expected.width
+                && current.height == expected.height
+                && ((LayoutParams) current).gravity == expected.gravity) {
+            return;
+        }
+        child.setLayoutParams(expected);
+    }
+
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        int width = MeasureSpec.getSize(widthMeasureSpec);
+        updateWebViewPanelParams(width);
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
     }
 
     private boolean isTrusted(String url) {
@@ -243,23 +308,36 @@ public final class FSH5OverlayView extends FrameLayout {
         float density = metrics.density <= 0 ? 1f : metrics.density;
         float fontScale = getResources().getConfiguration().fontScale;
         FSOverlayInsets.Snapshot snapshot = FSOverlayInsets.snapshot(activity, this);
-        int safeLeft = snapshot.left;
-        int safeRight = snapshot.right;
+        // WindowInsets 使用 Android 物理像素；H5 CSS 使用 CSS px。按 WebView
+        // devicePixelRatio 转换，避免高密度设备把物理 107px 当成 CSS 107px。
+        // 横屏时系统导航栏可能位于左/右侧，但 H5 面板本身并不应因导航栏宽度
+        // 被额外压缩；只保留挖孔屏 cutout 的横向安全区。
+        int leftPhysical = isLandscape() ? snapshot.cutoutLeft : snapshot.left;
+        int rightPhysical = isLandscape() ? snapshot.cutoutRight : snapshot.right;
+        int safeLeft = toCssPx(leftPhysical, density);
+        int safeTop = toCssPx(snapshot.top, density);
+        int safeRight = toCssPx(rightPhysical, density);
+        int safeBottom = toCssPx(snapshot.bottom, density);
+        if (!isLandscape() && safeTop > 0 && !"fullscreen".equals(snapshot.navigationMode)) {
+            // WindowInsets 与 WebView 首帧布局存在少量取整误差，给状态栏顶部留出保守余量。
+            safeTop += PORTRAIT_TOP_SAFE_AREA_EXTRA_CSS_PX;
+        }
         // 横屏 split 时只给两个 WebView 各自靠物理屏幕外侧的横向安全区，避免中缝双重留白。
         if (isLandscape() && secondary != null) {
             if ("primary".equals(webViewId)) safeRight = 0;
             else if ("secondary".equals(webViewId)) safeLeft = 0;
         }
-        JSONObject safeArea = new JSONObject().put("top", snapshot.top).put("right", safeRight)
-                .put("bottom", snapshot.bottom).put("left", safeLeft);
+        JSONObject safeArea = new JSONObject().put("top", safeTop).put("right", safeRight)
+                .put("bottom", safeBottom).put("left", safeLeft);
         String orientation = isLandscape() ? "landscape" : "portrait";
         return new JSONObject()
                 .put("orientation", orientation)
                 .put("navigationMode", snapshot.navigationMode)
-                .put("safeInsetTop", snapshot.top)
+                .put("safeInsetTop", safeTop)
                 .put("safeInsetRight", safeRight)
-                .put("safeInsetBottom", snapshot.bottom)
+                .put("safeInsetBottom", safeBottom)
                 .put("safeInsetLeft", safeLeft)
+                .put("safeInsetUnit", "css_px")
                 .put("widthPx", widthPx).put("heightPx", heightPx)
                 .put("widthDp", Math.round(widthPx / density))
                 .put("heightDp", Math.round(heightPx / density))
@@ -269,6 +347,10 @@ public final class FSH5OverlayView extends FrameLayout {
                 .put("webViewId", webViewId)
                 .put("locale", java.util.Locale.getDefault().toLanguageTag())
                 .put("sdkVersion", com.wishfox.foxsdk.BuildConfig.XYH_GAME_SDK_VERSION_NAME);
+    }
+
+    private static int toCssPx(int physicalPx, float density) {
+        return Math.max(0, Math.round(physicalPx / Math.max(1f, density)));
     }
 
     public void openExternal(String value) {
@@ -284,8 +366,7 @@ public final class FSH5OverlayView extends FrameLayout {
     public void onConfigurationChanged() {
         if (destroyed) return;
         String previousMode = secondary == null ? "single" : (isLandscape() ? "stacked" : "split");
-        if (primary != null) primary.setLayoutParams(primaryParams());
-        if (secondary != null) secondary.setLayoutParams(secondaryParams());
+        updateWebViewPanelParams(getWidth());
         requestLayout();
         invalidate();
         sendEnvironmentChanged();
@@ -295,10 +376,7 @@ public final class FSH5OverlayView extends FrameLayout {
     @Override
     protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
         super.onSizeChanged(width, height, oldWidth, oldHeight);
-        if (isLandscape()) {
-            if (primary != null) primary.setLayoutParams(primaryParams());
-            if (secondary != null) secondary.setLayoutParams(secondaryParams());
-        }
+        updateWebViewPanelParams(width);
     }
 
     @Override
@@ -530,6 +608,11 @@ public final class FSH5OverlayView extends FrameLayout {
     }
 
     private void mediaEvent(NavigationBridge bridge, long epoch, String id, String state, String reason, int position) {
+        if ("error".equals(state)) {
+            FoxSdkLogger.e(BRIDGE_LOG_TAG, "media preview failed: previewId=" + id
+                    + ", reason=" + reason
+                    + ", webViewId=" + (bridge.owner == primary ? "primary" : "secondary"));
+        }
         try {
             JSONObject data = new JSONObject().put("previewId", id).put("state", state)
                     .put("reason", reason).put("positionMs", position);
@@ -698,6 +781,7 @@ public final class FSH5OverlayView extends FrameLayout {
                     .put("safeInsetRight", environmentData.getInt("safeInsetRight"))
                     .put("safeInsetBottom", environmentData.getInt("safeInsetBottom"))
                     .put("safeInsetLeft", environmentData.getInt("safeInsetLeft"))
+                    .put("safeInsetUnit", environmentData.optString("safeInsetUnit", "css_px"))
                     .put("sessionId", sessionId).put("webViewId", webViewId)
                     .put("bridgeMode", "restricted_js_interface").put("authState", authState)
                     .put("environment", environmentData)
@@ -719,6 +803,43 @@ public final class FSH5OverlayView extends FrameLayout {
         }
         if ("environment.get".equals(method)) {
             reply(bridge, request, epoch, "OK", environment(bridge.owner == primary ? "primary" : "secondary"));
+            return;
+        }
+        if ("miniProgram.openScheme".equals(method)) {
+            String requestId = params.optString("requestId", "").trim();
+            if (requestId.isEmpty()) requestId = UUID.randomUUID().toString();
+            if (requestId.length() > 128) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
+            String appName = params.optString("appName",
+                    params.optString("name", params.optString("miniProgramName", ""))).trim();
+            JSONObject arguments = params.optJSONObject("params");
+            if (arguments == null) arguments = params.optJSONObject("query");
+            if (arguments == null) arguments = params.optJSONObject("map");
+            if ((params.has("params") && !(params.opt("params") instanceof JSONObject))
+                    || (params.has("query") && !(params.opt("query") instanceof JSONObject))
+                    || (params.has("map") && !(params.opt("map") instanceof JSONObject))) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
+            if (arguments == null) arguments = new JSONObject();
+            if (appName.isEmpty() || appName.length() > 128) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
+            final String finalRequestId = requestId;
+            final JSONObject finalArguments = arguments;
+            if (callback == null) {
+                reply(bridge, request, epoch, "METHOD_NOT_SUPPORTED", null);
+                return;
+            }
+            callback.onMiniProgramRequested(finalRequestId, appName, finalArguments, (code, data) ->
+                    post(() -> {
+                        if (!bridge.valid(epoch)) return;
+                        try { reply(bridge, request, epoch, code, data); }
+                        catch (JSONException ignored) { }
+                    }));
             return;
         }
         if ("ui.toast".equals(method)) {
@@ -812,7 +933,7 @@ public final class FSH5OverlayView extends FrameLayout {
             bridge.title = params.optString("title", "");
             bridge.canGoBack = params.optBoolean("canGoBack", false);
             bridge.hasUnsavedChanges = params.optBoolean("hasUnsavedChanges", false);
-            reply(bridge, request, epoch, "OK", new JSONObject().put("saved", true));
+            reply(bridge, request, epoch, "OK", new JSONObject().put("updated", true));
             return;
         }
         if ("navigation.resolveBack".equals(method)) {
@@ -836,7 +957,9 @@ public final class FSH5OverlayView extends FrameLayout {
         if ("layout.closeSecondary".equals(method)) {
             String previous = layoutMode();
             String closedRoute = secondary == null ? "" : secondaryUrl;
-            reply(bridge, request, epoch, "OK", new JSONObject().put("actualMode", "single"));
+            reply(bridge, request, epoch, "OK", new JSONObject()
+                    .put("closed", secondary != null)
+                    .put("actualMode", "single"));
             closeSecondary();
             if (!"single".equals(previous)) sendSecondaryClosed("js_close", closedRoute);
             return;
@@ -891,11 +1014,12 @@ public final class FSH5OverlayView extends FrameLayout {
         }
         String url = params.optString("url", "");
         if (!(params.opt("url") instanceof String)) { reply(bridge, request, epoch, "INVALID_ARGUMENT", null); return; }
-        List<String> origins = new ArrayList<>(com.wishfox.foxsdk.core.WishFoxSdk.getConfig().getH5MediaOrigins());
-        if (origins.isEmpty()) origins.add(trustedOrigin);
-        if (!FSMediaPolicy.allowed(url, origins)) {
-            reply(bridge, request, epoch, "MEDIA_URL_NOT_ALLOWED", null); return;
-        }
+        if (url.trim().isEmpty()) { reply(bridge, request, epoch, "INVALID_ARGUMENT", null); return; }
+        Uri mediaUri = Uri.parse(url);
+        FoxSdkLogger.d(BRIDGE_LOG_TAG, "media preview request: method=" + method
+                + ", scheme=" + mediaUri.getScheme()
+                + ", host=" + mediaUri.getHost()
+                + ", video=" + video);
         for (String flag : new String[]{"muted", "autoPlay"}) {
             if (params.has(flag) && !(params.opt(flag) instanceof Boolean)) {
                 reply(bridge, request, epoch, "INVALID_ARGUMENT", null); return;
@@ -927,7 +1051,7 @@ public final class FSH5OverlayView extends FrameLayout {
                     .put("type", video ? "video" : "image").put("fitMode", "contain")
                     .put("orientation", isLandscape() ? "landscape" : "portrait"));
             accepted = true;
-            preview.load(url, origins);
+            preview.load(url);
         } catch (RuntimeException failure) {
             if (accepted) mediaEvent(bridge, epoch, operation, "error", "PREVIEW_OPEN_FAILED", 0);
             closeMediaPreview("open_failed");

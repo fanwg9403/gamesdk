@@ -19,9 +19,7 @@ import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
-import android.widget.Button;
 import android.widget.FrameLayout;
-import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -35,7 +33,6 @@ import com.wishfox.foxsdk.media.FSMediaPolicy;
 
 import java.io.File;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /** 原生全窗口媒体层，不启动 Activity、不修改窗口方向或游戏进程。所有播放器操作在主线程。 */
@@ -59,7 +56,6 @@ public final class FSMediaPreviewView extends FrameLayout implements TextureView
     private boolean hasFocus;
     private final FrameLayout content;
     private final TextView status;
-    private final Button play;
     private TextureView texture;
     private FSZoomImageView image;
     private CustomTarget<Bitmap> imageTarget;
@@ -72,6 +68,7 @@ public final class FSMediaPreviewView extends FrameLayout implements TextureView
     private int bufferedPercent, lastProgressPosition;
     private int videoWidth, videoHeight, position;
     private float downX, downY;
+    private long downAt;
     private boolean multiTouch;
     private final Runnable prepareTimeout = () -> fail("MEDIA_TIMEOUT");
     private final Runnable bufferTimeout = () -> {
@@ -111,8 +108,9 @@ public final class FSMediaPreviewView extends FrameLayout implements TextureView
         if (video) {
             texture = new TextureView(activity);
             texture.setSurfaceTextureListener(this);
+            texture.setClickable(true);
             content.addView(texture, new LayoutParams(-1, -1, Gravity.CENTER));
-            content.setOnTouchListener((v, e) -> drag(e));
+            texture.setOnTouchListener((v, e) -> drag(e));
         } else {
             image = new FSZoomImageView(activity, () -> close("gesture_or_tap"));
             content.addView(image, new LayoutParams(-1, -1));
@@ -122,31 +120,13 @@ public final class FSMediaPreviewView extends FrameLayout implements TextureView
         status.setGravity(Gravity.CENTER);
         status.setText("正在加载…");
         addView(status, new LayoutParams(-1, -2, Gravity.CENTER));
-        // Only controls consume safe insets; the black preview background fills the host window.
-        FrameLayout controls = new FrameLayout(activity);
-        addView(controls, new LayoutParams(-1, -1));
-        FSOverlayInsets.applyToPadding(activity, controls);
-        Button back = new Button(activity);
-        back.setText("返回");
-        back.setContentDescription("关闭媒体预览");
-        back.setOnClickListener(v -> close("back_button"));
-        controls.addView(back, new LayoutParams(-2, -2, Gravity.TOP | Gravity.START));
-        LinearLayout bottom = new LinearLayout(activity);
-        bottom.setGravity(Gravity.CENTER);
-        play = new Button(activity);
-        play.setText("播放");
-        play.setEnabled(false);
-        play.setOnClickListener(v -> { if (playing) pause("user"); else startPlayback(); });
-        if (video) bottom.addView(play);
-        controls.addView(bottom, new LayoutParams(-1, -2, Gravity.BOTTOM));
         content.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> fitVideo());
     }
 
     /** Call only after attaching to the host. Video preparation and image loading are asynchronous. */
-    public void load(String url, List<String> origins) {
+    public void load(String url) {
         if (closed) return;
         requestFocus();
-        if (!FSMediaPolicy.allowed(url, origins)) { fail("MEDIA_URL_NOT_ALLOWED"); return; }
         if (video && !isHardwareAccelerated()) { fail("HARDWARE_ACCELERATION_REQUIRED"); return; }
         listener.onState("loading", "open", 0);
         if (video) {
@@ -155,7 +135,7 @@ public final class FSMediaPreviewView extends FrameLayout implements TextureView
             return;
         }
         imageFetcher = new FSMediaFetcher();
-        imageFetcher.fetchImage(getContext().getCacheDir(), url, origins, (result, error) -> {
+        imageFetcher.fetchImage(getContext().getCacheDir(), url, (result, error) -> {
             if (closed) return;
             if (error != null) { fail(error); return; }
             imageFile = result;
@@ -188,7 +168,6 @@ public final class FSMediaPreviewView extends FrameLayout implements TextureView
         if (closed || failed || !foreground || videoUrl == null || surface == null || player != null) return;
         try {
             status.setText("正在连接视频…"); status.setVisibility(VISIBLE);
-            play.setEnabled(false);
             bufferedPercent = 0;
             MediaPlayer current = new MediaPlayer();
             player = current;
@@ -203,12 +182,10 @@ public final class FSMediaPreviewView extends FrameLayout implements TextureView
                 if (p != player || closed) return;
                 main.removeCallbacks(prepareTimeout);
                 prepared = true;
-                play.setEnabled(true);
                 status.setVisibility(GONE);
                 listener.onState("ready", "prepared", position);
                 if (position > 0) {
                     seeking = true;
-                    play.setEnabled(false);
                     status.setText("正在恢复播放位置…"); status.setVisibility(VISIBLE);
                     main.postDelayed(prepareTimeout, 30000);
                     p.setOnSeekCompleteListener(mp -> {
@@ -216,7 +193,7 @@ public final class FSMediaPreviewView extends FrameLayout implements TextureView
                         mp.setOnSeekCompleteListener(null);
                         main.removeCallbacks(prepareTimeout);
                         seeking = false;
-                        play.setEnabled(true); status.setVisibility(GONE);
+                        status.setVisibility(GONE);
                         if (autoPlay) startPlayback();
                     });
                     try { p.seekTo(position); }
@@ -229,7 +206,6 @@ public final class FSMediaPreviewView extends FrameLayout implements TextureView
                 clearBuffering();
                 main.removeCallbacks(progressWatch);
                 status.setVisibility(GONE);
-                play.setText("重播");
                 setKeepScreenOn(false); abandonFocus();
                 listener.onState("ended", "completed", 0);
             });
@@ -250,8 +226,6 @@ public final class FSMediaPreviewView extends FrameLayout implements TextureView
                 if (buffering && playing && foreground) updateBufferingText();
             });
             Map<String, String> headers = new HashMap<>();
-            // Public MediaPlayer header option: reject cross-domain redirects. No SDK auth headers.
-            headers.put("android-allow-cross-domain-redirect", "0");
             headers.put("Cache-Control", "no-store");
             // Context/Uri/headers is public since API 14; String/headers is not a public SDK overload.
             current.setDataSource(getContext().getApplicationContext(), Uri.parse(videoUrl), headers);
@@ -332,13 +306,18 @@ public final class FSMediaPreviewView extends FrameLayout implements TextureView
         }
         if (!prepared || seeking) return;
         try {
+            if (ended) {
+                player.seekTo(0);
+                position = 0;
+                ended = false;
+            }
             if (!requestFocusForAudio()) {
                 autoPlay = false;
-                status.setText("暂时无法播放声音，请稍后点击播放"); status.setVisibility(VISIBLE);
+                status.setText("暂时无法播放声音，请单击继续"); status.setVisibility(VISIBLE);
                 listener.onState("paused", "audio_focus_denied", position); return;
             }
             player.start(); playing = true; autoPlay = false; ended = false;
-            play.setText("暂停"); setKeepScreenOn(true);
+            setKeepScreenOn(true);
             lastProgressPosition = position;
             beginBuffering("starting");
             main.removeCallbacks(progressWatch);
@@ -355,7 +334,7 @@ public final class FSMediaPreviewView extends FrameLayout implements TextureView
                 if (playing) player.pause();
             }
         } catch (IllegalStateException ignored) { }
-        playing = false; play.setText("播放"); setKeepScreenOn(false); abandonFocus();
+        playing = false; setKeepScreenOn(false); abandonFocus();
         clearBuffering(); main.removeCallbacks(progressWatch);
         if (prepared && !seeking) status.setVisibility(GONE);
         if (video) listener.onState("paused", reason, position);
@@ -367,9 +346,8 @@ public final class FSMediaPreviewView extends FrameLayout implements TextureView
         // Release the network data source too: do not keep filling a stream buffer in background.
         if (video) {
             releasePlayer();
-            play.setEnabled(videoUrl != null);
             if (!failed) {
-                status.setText("视频已暂停，返回后点击播放继续"); status.setVisibility(VISIBLE);
+                status.setText("视频已暂停，单击继续播放"); status.setVisibility(VISIBLE);
             }
         }
     }
@@ -393,9 +371,8 @@ public final class FSMediaPreviewView extends FrameLayout implements TextureView
         failed = true;
         autoPlay = false;
         releasePlayer();
-        play.setEnabled(video && videoUrl != null);
-        play.setText("重试");
-        status.setText(video ? "视频加载失败，可重试或返回" : "图片加载失败，请返回后重试"); status.setVisibility(VISIBLE);
+        status.setText(video ? "视频加载失败，请下滑关闭后重试" : "图片加载失败，请下滑关闭后重试");
+        status.setVisibility(VISIBLE);
         listener.onState("error", code, position);
     }
 
@@ -419,18 +396,39 @@ public final class FSMediaPreviewView extends FrameLayout implements TextureView
 
     private boolean drag(MotionEvent event) {
         if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
-            downX = event.getRawX(); downY = event.getRawY(); multiTouch = false;
+            downX = event.getRawX(); downY = event.getRawY(); downAt = System.currentTimeMillis(); multiTouch = false;
         }
         if (event.getPointerCount() > 1) multiTouch = true;
         float distance = event.getRawY() - downY;
         if (event.getActionMasked() == MotionEvent.ACTION_MOVE && !multiTouch) texture.setTranslationY(distance);
         if (event.getActionMasked() == MotionEvent.ACTION_UP || event.getActionMasked() == MotionEvent.ACTION_CANCEL) {
             texture.setTranslationY(0);
-            if (event.getActionMasked() == MotionEvent.ACTION_UP && !multiTouch
-                    && Math.abs(distance) > Math.max(96 * getResources().getDisplayMetrics().density, getHeight() * .2f)
-                    && Math.abs(distance) > Math.abs(event.getRawX() - downX)) close("gesture");
+            if (event.getActionMasked() == MotionEvent.ACTION_UP && !multiTouch) {
+                float horizontalDistance = event.getRawX() - downX;
+                float dismissDistance = Math.max(
+                        96 * getResources().getDisplayMetrics().density,
+                        getHeight() * .2f
+                );
+                if (Math.abs(distance) > dismissDistance && Math.abs(distance) > Math.abs(horizontalDistance)) {
+                    close("gesture");
+                } else if (video && Math.abs(distance) < 24 && Math.abs(horizontalDistance) < 24
+                        && System.currentTimeMillis() - downAt <= 350) {
+                    togglePlayback();
+                }
+            }
         }
         return true;
+    }
+
+    private void togglePlayback() {
+        if (closed || !video || failed || !foreground || seeking) return;
+        if (player == null) {
+            startPlayback();
+            return;
+        }
+        if (!prepared) return;
+        if (playing) pause("user");
+        else startPlayback();
     }
 
     @Override public boolean dispatchKeyEvent(KeyEvent event) {
@@ -448,7 +446,6 @@ public final class FSMediaPreviewView extends FrameLayout implements TextureView
     @Override public void onSurfaceTextureSizeChanged(SurfaceTexture value, int width, int height) { }
     @Override public boolean onSurfaceTextureDestroyed(SurfaceTexture value) {
         pause("surface_lost"); releasePlayer();
-        if (!closed) play.setEnabled(true);
         if (surface != null) { surface.release(); surface = null; }
         return true;
     }

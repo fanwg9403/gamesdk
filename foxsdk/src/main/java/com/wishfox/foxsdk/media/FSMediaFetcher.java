@@ -8,7 +8,6 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -21,7 +20,7 @@ public final class FSMediaFetcher {
     private volatile HttpURLConnection connection;
     private volatile File temporary;
 
-    public void fetchImage(File cacheDir, String url, List<String> origins, Callback callback) {
+    public void fetchImage(File cacheDir, String url, Callback callback) {
         if (cancelled) return;
         worker.execute(() -> {
             File file = null;
@@ -36,7 +35,7 @@ public final class FSMediaFetcher {
                 long deadline = android.os.SystemClock.elapsedRealtime() + 120000;
                 for (int redirect = 0; ; redirect++) {
                     if (cancelled) throw new Exception("CANCELLED");
-                    if (!FSMediaPolicy.allowed(next, origins)) throw new Exception("MEDIA_URL_NOT_ALLOWED");
+                    if (redirect > 5) throw new Exception("MEDIA_REDIRECT_FAILED");
                     HttpURLConnection current = (HttpURLConnection) new URL(next).openConnection();
                     connection = current;
                     current.setInstanceFollowRedirects(false);
