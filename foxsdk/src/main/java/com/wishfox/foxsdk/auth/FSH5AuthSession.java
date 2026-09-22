@@ -10,6 +10,7 @@ import com.wishfox.foxsdk.data.model.FoxSdkBaseResponse;
 import com.wishfox.foxsdk.data.model.entity.FSLoginResult;
 import com.wishfox.foxsdk.data.model.entity.FSShortLogin;
 import com.wishfox.foxsdk.data.network.FoxSdkRetrofitManager;
+import com.wishfox.foxsdk.utils.FoxSdkLogger;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -25,6 +26,8 @@ import retrofit2.adapter.rxjava3.HttpException;
 
 /** 单个 H5 文档的认证操作。所有状态只在主线程访问，不缓存/持久化短时 Token。 */
 public final class FSH5AuthSession {
+    private static final String TAG = "FoxSdk[H5Auth]";
+
     public interface Result { void complete(String code, JSONObject data); }
 
     private final Activity host;
@@ -83,16 +86,28 @@ public final class FSH5AuthSession {
         if ("auth.getState".equals(method)) { result.complete("OK", state()); return; }
         boolean login = "auth.login".equals(method);
         boolean refresh = "auth.refreshSession".equals(method);
+        if (refresh) {
+            FoxSdkLogger.d(TAG, "refresh request: sessionId=" + sessionId
+                    + ", reason=" + params.optString("reason", "")
+                    + ", nativeLoggedIn=" + !TextUtils.isEmpty(FSLoginResult.getTokenEd())
+                    + ", pending=" + (pending != null)
+                    + ", exchangeSource=" + (provider == null ? "getShortLogin" : "customProvider"));
+        }
         if (!login && !refresh) { result.complete("METHOD_NOT_SUPPORTED", null); return; }
         if ((params.has("exchangeH5Session") && !(params.opt("exchangeH5Session") instanceof Boolean))
                 || (params.has("reason") && (!(params.opt("reason") instanceof String)
                 || params.optString("reason").length() > 128))) {
+            if (refresh) FoxSdkLogger.w(TAG, "refresh rejected: reason=invalid_argument, sessionId=" + sessionId);
             result.complete("INVALID_ARGUMENT", null); return;
         }
         // refresh 无条件交换，不能通过 exchangeH5Session=false 假成功。
         boolean exchange = refresh || params.optBoolean("exchangeH5Session", true);
-        if (pending != null) { result.complete("BUSY", null); return; }
+        if (pending != null) {
+            if (refresh) FoxSdkLogger.w(TAG, "refresh rejected: reason=auth_operation_busy, sessionId=" + sessionId);
+            result.complete("BUSY", null); return;
+        }
         if (TextUtils.isEmpty(FSLoginResult.getTokenEd()) && refresh) {
+            FoxSdkLogger.w(TAG, "refresh rejected: reason=native_token_missing, sessionId=" + sessionId);
             result.complete("AUTH_REQUIRED", null); return;
         }
         Operation op = new Operation(result);
@@ -116,12 +131,21 @@ public final class FSH5AuthSession {
         op.nativeToken = FSLoginResult.getTokenEd();
         op.revision = FSLoginResult.getSessionRevision();
         if (TextUtils.isEmpty(op.nativeToken)) { finish(op, "AUTH_REQUIRED", null); return; }
+        FoxSdkLogger.d(TAG, "exchange start: sessionId=" + sessionId
+                + ", revision=" + op.revision
+                + ", nativeTokenPresent=true, nativeTokenLength=" + op.nativeToken.length()
+                + ", source=" + (provider == null ? "getShortLogin" : "customProvider"));
         Single<Exchange> exchangeRequest = provider == null
                 ? FoxSdkRetrofitManager.getApiService().getShortLogin().map(FSH5AuthSession::parseResponse)
                 : providerExchange(op.nativeToken);
         op.exchange = exchangeRequest.subscribeOn(Schedulers.io()).timeout(15, TimeUnit.SECONDS)
                 .observeOn(AndroidSchedulers.mainThread()).subscribe(value -> {
                     if (pending != op) return;
+                    FoxSdkLogger.d(TAG, "exchange parsed: sessionId=" + sessionId
+                            + ", error=" + (value.error == null ? "none" : value.error)
+                            + ", shortTokenPresent=" + !TextUtils.isEmpty(value.token)
+                            + ", shortTokenLength=" + (value.token == null ? 0 : value.token.length())
+                            + ", resolvedExpiresIn=" + value.seconds);
                     if (!sameAccount(op)) { finish(op, "AUTH_STATE_CHANGED", null); return; }
                     if (value.error != null) {
                         if ("AUTH_REQUIRED".equals(value.error)) {
@@ -135,6 +159,9 @@ public final class FSH5AuthSession {
                         finish(op, value.error, null);
                     } else if (TextUtils.isEmpty(value.token) || value.token.trim().isEmpty()
                             || value.token.length() > 8192 || value.token.equals(op.nativeToken)) {
+                        FoxSdkLogger.w(TAG, "exchange rejected: sessionId=" + sessionId
+                                + ", reason=" + invalidTokenReason(value.token, op.nativeToken)
+                                + ", shortTokenLength=" + (value.token == null ? 0 : value.token.length()));
                         finish(op, "INVALID_SESSION_RESPONSE", null);
                     } else {
                         sessionRevision = op.revision;
@@ -148,6 +175,9 @@ public final class FSH5AuthSession {
                 }, error -> {
                     if (pending != op) return;
                     String code = exchangeError(error);
+                    FoxSdkLogger.e(TAG, "exchange failed: sessionId=" + sessionId
+                            + ", mappedCode=" + code
+                            + ", throwable=" + error.getClass().getSimpleName());
                     if ("AUTH_REQUIRED".equals(code)) {
                         if (!FSLoginResult.clearIfSessionMatches(op.revision, op.nativeToken)) {
                             finish(op, "AUTH_STATE_CHANGED", null);
@@ -180,14 +210,36 @@ public final class FSH5AuthSession {
     }
 
     private static Exchange parseResponse(FoxSdkBaseResponse<FSShortLogin> response) {
-        if (response == null) return new Exchange(null, 0, "SESSION_EXCHANGE_FAILED");
+        if (response == null) {
+            FoxSdkLogger.w(TAG, "getShortLogin parsed: response=null");
+            return new Exchange(null, 0, "SESSION_EXCHANGE_FAILED");
+        }
         if (!response.isSuccess()) {
+            FoxSdkLogger.w(TAG, "getShortLogin parsed: success=false, businessCode=" + response.getCode());
             return new Exchange(null, 0, response.getCode() == 401 ? "AUTH_REQUIRED"
                     : response.getCode() == 429 ? "RATE_LIMITED" : "SESSION_EXCHANGE_FAILED");
         }
         FSShortLogin data = response.getData();
-        if (data == null) return new Exchange(null, 0, "INVALID_SESSION_RESPONSE");
-        return new Exchange(data.getShortToken(), resolveExpiresIn(data), null);
+        if (data == null) {
+            FoxSdkLogger.w(TAG, "getShortLogin parsed: success=true, data=null");
+            return new Exchange(null, 0, "INVALID_SESSION_RESPONSE");
+        }
+        long resolvedExpiresIn = resolveExpiresIn(data);
+        FoxSdkLogger.d(TAG, "getShortLogin parsed: success=true, dataPresent=true"
+                + ", shortTokenPresent=" + !TextUtils.isEmpty(data.getShortToken())
+                + ", shortTokenLength=" + (data.getShortToken() == null ? 0 : data.getShortToken().length())
+                + ", rawExpiresIn=" + data.getExpiresIn()
+                + ", rawExpireAt=" + data.getExpireAt()
+                + ", resolvedExpiresIn=" + resolvedExpiresIn);
+        return new Exchange(data.getShortToken(), resolvedExpiresIn, null);
+    }
+
+    private static String invalidTokenReason(String shortToken, String nativeToken) {
+        if (TextUtils.isEmpty(shortToken)) return "short_token_empty";
+        if (shortToken.trim().isEmpty()) return "short_token_blank";
+        if (shortToken.length() > 8192) return "short_token_too_long";
+        if (shortToken.equals(nativeToken)) return "short_token_equals_native_token";
+        return "unknown";
     }
 
     private static long resolveExpiresIn(FSShortLogin data) {
@@ -228,12 +280,20 @@ public final class FSH5AuthSession {
                 data.put("sessionToken", token);
                 if (seconds > 0) data.put("expiresIn", seconds);
             }
+            FoxSdkLogger.d(TAG, "exchange success: sessionId=" + sessionId
+                    + ", sessionTokenPresent=" + (token != null)
+                    + ", sessionTokenLength=" + (token == null ? 0 : token.length())
+                    + ", expiresInIncluded=" + (seconds > 0));
             finish(op, "OK", data);
         } catch (JSONException ignored) { finish(op, "SESSION_EXCHANGE_FAILED", null); }
     }
 
     private void finish(Operation op, String code, JSONObject data) {
         if (pending != op) return;
+        FoxSdkLogger.d(TAG, "refresh complete: sessionId=" + sessionId
+                + ", code=" + code
+                + ", responseDataPresent=" + (data != null)
+                + ", sessionTokenIncluded=" + (data != null && data.has("sessionToken")));
         pending = null;
         if (op.exchange != null) op.exchange.dispose();
         if (op.login != null) FoxSdkOverlayManager.cancelLogin(host, op.login);

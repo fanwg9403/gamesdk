@@ -40,6 +40,8 @@ public class MyApp extends Application {
                         .setBaseUrl("https://test-api-game.wishfoxs.com")
                         .setH5HomeUrl(h5HomeUrl)
                         .setH5TrustedOrigin(h5TrustedOrigin)
+                        // Demo 本地/内网联调允许 http；正式宿主不要开启此项。
+                        .setAllowInsecureH5(true)
 //                        .setBaseUrl("https://api-game-pre.wishfoxs.com")
                         .setEnableLog(true)
                         .setWechatTest(false)

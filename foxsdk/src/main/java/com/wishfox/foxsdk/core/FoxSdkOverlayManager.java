@@ -27,6 +27,7 @@ import com.wishfox.foxsdk.data.model.entity.FSUserProfile;
 import com.wishfox.foxsdk.data.model.entity.FSCoinInfo;
 import com.wishfox.foxsdk.utils.FoxSdkConstant;
 import com.wishfox.foxsdk.utils.FoxSdkSPUtils;
+import com.wishfox.foxsdk.utils.FoxSdkLogger;
 import com.wishfox.foxsdk.ui.view.dialog.FSAlertDialog;
 
 import org.json.JSONException;
@@ -48,6 +49,7 @@ import io.reactivex.rxjava3.schedulers.Schedulers;
  * 不再启动新的 Activity，因此不会触发 Unity/Cocos 宿主 Activity 进入 {@code onPause}。</p>
  */
 public final class FoxSdkOverlayManager {
+    private static final String H5_LOG_TAG = "FoxSdk[H5]";
 
     public enum Page {
         GAME_RECORD,
@@ -119,6 +121,11 @@ public final class FoxSdkOverlayManager {
             if (isActivityUsable(activity) && WishFoxSdk.isInitialized()
                     && WishFoxSdk.getConfig().isH5Enabled()) {
                 getOrCreate(activity).showH5Internal();
+            } else {
+                FoxSdkLogger.w(H5_LOG_TAG, "showH5 ignored: activityUsable=" + isActivityUsable(activity)
+                        + ", sdkInitialized=" + WishFoxSdk.isInitialized()
+                        + ", h5Enabled=" + (WishFoxSdk.isInitialized()
+                        && WishFoxSdk.getConfig().isH5Enabled()));
             }
         });
     }
@@ -402,6 +409,7 @@ public final class FoxSdkOverlayManager {
     private void showH5Internal() {
         Activity activity = activityReference.get();
         if (destroyed || !isActivityUsable(activity) || !WishFoxSdk.getConfig().isH5Enabled()) return;
+        FoxSdkLogger.d(H5_LOG_TAG, "showH5Internal: homeUrlConfigured=true, existingView=" + (h5View != null));
         try {
             WindowLifecycleControl.hideWindow(activity);
             removeHomeView();
@@ -425,7 +433,10 @@ public final class FoxSdkOverlayManager {
             }, WishFoxSdk.getConfig().getH5HomeUrl());
             attachView(h5View);
             FoxSdkDiagnostics.record("h5_overlay_show", activity, "home");
+            FoxSdkLogger.d(H5_LOG_TAG, "showH5Internal: overlay attached");
         } catch (Throwable throwable) {
+            FoxSdkLogger.e(H5_LOG_TAG, "showH5Internal failed: "
+                    + throwable.getClass().getSimpleName() + ": " + throwable.getMessage(), throwable);
             FoxSdkDiagnostics.reportFailure(activity, "h5_home", "create_failed", throwable);
             removeH5View();
             showHomeInternal();

@@ -29,8 +29,10 @@ public class FoxSdkConfig {
     private boolean wechatTest = false;
     /** H5 首页入口；为空时继续使用现有原生首页。 */
     private String h5HomeUrl;
-    /** H5 可信 Origin，例如 https://sdk.example.com。 */
+    /** H5 可信 Origin，例如 https://sdk.example.com 或 http://192.168.1.20:5173。 */
     private String h5TrustedOrigin;
+    /** 是否允许 H5 使用明文 HTTP；默认关闭，仅建议开发/内网测试开启。 */
+    private boolean allowInsecureH5;
     private java.util.List<String> h5MediaOrigins;
     private H5SessionTokenProvider h5SessionTokenProvider;
 
@@ -61,6 +63,7 @@ public class FoxSdkConfig {
         this.wechatTest = builder.wechatTest;
         this.h5HomeUrl = builder.h5HomeUrl;
         this.h5TrustedOrigin = builder.h5TrustedOrigin;
+        this.allowInsecureH5 = builder.allowInsecureH5;
         this.h5MediaOrigins = java.util.Collections.unmodifiableList(
                 new java.util.ArrayList<>(builder.h5MediaOrigins));
         this.h5SessionTokenProvider = builder.h5SessionTokenProvider;
@@ -115,6 +118,11 @@ public class FoxSdkConfig {
         return h5TrustedOrigin;
     }
 
+    /** 是否允许 H5 使用 HTTP；不影响 Origin 精确匹配，也不允许 file/content/data 等协议。 */
+    public boolean isAllowInsecureH5() {
+        return allowInsecureH5;
+    }
+
     /** 原生媒体下载白名单，与 H5 Bridge Origin 分开配置。 */
     public java.util.List<String> getH5MediaOrigins() { return h5MediaOrigins; }
 
@@ -151,6 +159,7 @@ public class FoxSdkConfig {
         private boolean wechatTest = false;
         private String h5HomeUrl;
         private String h5TrustedOrigin;
+        private boolean allowInsecureH5 = false;
         private java.util.List<String> h5MediaOrigins = new java.util.ArrayList<>();
         private H5SessionTokenProvider h5SessionTokenProvider;
 
@@ -250,7 +259,7 @@ public class FoxSdkConfig {
 
         /**
          * 设置 H5 首页入口；不修改现有原生弹窗和支付模块。
-         * @param h5HomeUrl 可信 HTTPS 绝对 URL；null/空白关闭 H5 首页，回退原生首页；
+         * @param h5HomeUrl 可信 HTTP/HTTPS 绝对 URL；null/空白关闭 H5 首页，回退原生首页；
          *                  非空时必须与 H5 可信 Origin 一致，不允许附带登录 Token
          * @return 当前 Builder，支持链式调用
          */
@@ -261,12 +270,24 @@ public class FoxSdkConfig {
 
         /**
          * 设置拥有 JS Bridge 权限、允许内部路由的 H5 来源。
-         * @param h5TrustedOrigin HTTPS Origin（协议+域名+可选端口），例如 https://h5.example.com；
+         * @param h5TrustedOrigin HTTP/HTTPS Origin（协议+域名+可选端口），例如 https://h5.example.com；
          *                        不支持通配符，不配置时取首页 Origin，不能将 CDN 作为可信业务来源
          * @return 当前 Builder，支持链式调用
          */
         public Builder setH5TrustedOrigin(String h5TrustedOrigin) {
             this.h5TrustedOrigin = h5TrustedOrigin;
+            return this;
+        }
+
+        /**
+         * 是否允许 H5 使用明文 HTTP。
+         * <p>默认 false。仅建议本地开发或受控内网测试开启；即使开启，仍要求页面
+         * 与 h5TrustedOrigin 的协议、域名和端口完全一致，且不会放行 file/content/data/blob 等协议。</p>
+         * @param allowInsecureH5 是否允许 HTTP H5
+         * @return 当前 Builder，支持链式调用
+         */
+        public Builder setAllowInsecureH5(boolean allowInsecureH5) {
+            this.allowInsecureH5 = allowInsecureH5;
             return this;
         }
 
@@ -363,6 +384,7 @@ public class FoxSdkConfig {
                 ", enableLog=" + enableLog +
                 ", timeout=" + timeout +
                 ", screenOrientation=" + screenOrientation +
+                ", allowInsecureH5=" + allowInsecureH5 +
                 '}';
     }
 
@@ -376,6 +398,7 @@ public class FoxSdkConfig {
         if (enableLog != that.enableLog) return false;
         if (timeout != that.timeout) return false;
         if (screenOrientation != that.screenOrientation) return false;
+        if (allowInsecureH5 != that.allowInsecureH5) return false;
         if (!appId.equals(that.appId)) return false;
         if (!channelId.equals(that.channelId)) return false;
         if (!kqFusedApplicationScheme.equals(that.kqFusedApplicationScheme)) return false;
@@ -390,6 +413,7 @@ public class FoxSdkConfig {
         result = 31 * result + (enableLog ? 1 : 0);
         result = 31 * result + (int) (timeout ^ (timeout >>> 32));
         result = 31 * result + screenOrientation;
+        result = 31 * result + (allowInsecureH5 ? 1 : 0);
         return result;
     }
 }

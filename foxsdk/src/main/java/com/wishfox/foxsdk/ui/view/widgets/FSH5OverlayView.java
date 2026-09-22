@@ -3,7 +3,6 @@ package com.wishfox.foxsdk.ui.view.widgets;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
-import android.content.pm.ApplicationInfo;
 import android.net.Uri;
 import android.text.TextUtils;
 import android.view.Gravity;
@@ -18,6 +17,7 @@ import android.graphics.Bitmap;
 import android.widget.Toast;
 import android.util.DisplayMetrics;
 import com.wishfox.foxsdk.media.FSMediaPolicy;
+import com.wishfox.foxsdk.utils.FoxSdkLogger;
 import com.wishfox.foxsdk.utils.FoxSdkUtils;
 import org.json.JSONObject;
 import org.json.JSONException;
@@ -41,6 +41,7 @@ import com.wishfox.foxsdk.auth.FSH5AuthSession;
  * 由本容器根据真实屏幕方向创建或复用 Secondary WebView。</p>
  */
 public final class FSH5OverlayView extends FrameLayout {
+    private static final String BRIDGE_LOG_TAG = "FoxSdk[H5]";
 
     public interface Callback {
         void onClose();
@@ -59,6 +60,7 @@ public final class FSH5OverlayView extends FrameLayout {
     private final Activity activity;
     private final Callback callback;
     private final String trustedOrigin;
+    private final boolean allowInsecureH5;
     private WebView primary;
     private WebView secondary;
     private String secondaryUrl;
@@ -75,8 +77,12 @@ public final class FSH5OverlayView extends FrameLayout {
         this.activity = activity;
         this.callback = callback;
         FoxSdkConfig config = com.wishfox.foxsdk.core.WishFoxSdk.getConfig();
+        this.allowInsecureH5 = config.isAllowInsecureH5();
         this.trustedOrigin = h5Origin(TextUtils.isEmpty(config.getH5TrustedOrigin())
                 ? homeUrl : config.getH5TrustedOrigin());
+        FoxSdkLogger.d(BRIDGE_LOG_TAG, "overlay create: homeOrigin=" + h5Origin(homeUrl)
+                + ", trustedOrigin=" + trustedOrigin
+                + ", allowInsecureH5=" + allowInsecureH5);
         if (trustedOrigin == null) throw new IllegalArgumentException("Invalid H5 trusted origin");
         if (!isTrusted(homeUrl)) throw new IllegalArgumentException("Untrusted H5 home URL");
         setClickable(true);
@@ -153,7 +159,7 @@ public final class FSH5OverlayView extends FrameLayout {
         return trustedOrigin.equals(h5Origin(url));
     }
 
-    /** 生产环境只允许 HTTPS；可调试宿主额外允许精确匹配的 HTTP 本地开发地址。 */
+    /** 允许 HTTP/HTTPS，但仍要求与配置的可信 Origin 精确匹配。 */
     private String h5Origin(String value) {
         if (TextUtils.isEmpty(value) || value.length() > 4096) return null;
         Uri uri = Uri.parse(value);
@@ -161,8 +167,7 @@ public final class FSH5OverlayView extends FrameLayout {
         String host = uri.getHost();
         if (scheme == null || host == null || uri.getUserInfo() != null) return null;
         scheme = scheme.toLowerCase(Locale.ROOT);
-        boolean debuggable = (activity.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
-        if (!"https".equals(scheme) && !(debuggable && "http".equals(scheme))) return null;
+        if (!"https".equals(scheme) && !(allowInsecureH5 && "http".equals(scheme))) return null;
         int port = uri.getPort();
         if (port == 0 || port > 65535) return null;
         boolean defaultPort = port == -1
@@ -347,6 +352,8 @@ public final class FSH5OverlayView extends FrameLayout {
 
         @Override public void onPageStarted(WebView view, String url, Bitmap favicon) {
             NavigationBridge bridge = bridges.get(owner);
+            FoxSdkLogger.d(BRIDGE_LOG_TAG, "page started: origin=" + h5Origin(url)
+                    + ", trusted=" + isTrusted(url));
             if (bridge != null) {
                 if (previewOwner == bridge) closeMediaPreview("source_navigation");
                 bridge.generation++;
@@ -354,6 +361,21 @@ public final class FSH5OverlayView extends FrameLayout {
                 bridge.authPending.clear();
                 bridge.authCompleted.clear();
                 bridge.responses.clear();
+            }
+        }
+
+        @Override public void onPageFinished(WebView view, String url) {
+            FoxSdkLogger.d(BRIDGE_LOG_TAG, "page finished: origin=" + h5Origin(url)
+                    + ", trusted=" + isTrusted(url));
+        }
+
+        @Override public void onReceivedError(WebView view, android.webkit.WebResourceRequest request,
+                                               android.webkit.WebResourceError error) {
+            if (request == null || request.isForMainFrame()) {
+                FoxSdkLogger.e(BRIDGE_LOG_TAG, "page error: origin="
+                        + (request == null || request.getUrl() == null ? "null" : h5Origin(request.getUrl().toString()))
+                        + ", code=" + (error == null ? "null" : error.getErrorCode())
+                        + ", description=" + (error == null ? "null" : error.getDescription()));
             }
         }
 
@@ -406,6 +428,8 @@ public final class FSH5OverlayView extends FrameLayout {
 
         @JavascriptInterface
         public void postMessage(String message) {
+            FoxSdkLogger.d(BRIDGE_LOG_TAG, "postMessage received: length="
+                    + (message == null ? 0 : message.length()));
             if (message == null) {
                 com.wishfox.foxsdk.core.FoxSdkDiagnostics.record("h5_bridge_drop", activity, "null_message");
                 return;
@@ -566,12 +590,36 @@ public final class FSH5OverlayView extends FrameLayout {
     private void handleAuthRequest(NavigationBridge bridge, JSONObject request, long epoch) throws JSONException {
         String id = request.getString("id");
         String method = request.optString("method");
-        if (bridge.authPending.contains(id)) return; // 同一在途请求不重复弹窗/交换。
+        if ("auth.refreshSession".equals(method)) {
+            FoxSdkLogger.d(BRIDGE_LOG_TAG, "refresh received: requestId=" + id
+                    + ", webViewId=" + (bridge.owner == primary ? "primary" : "secondary")
+                    + ", epoch=" + epoch
+                    + ", bridgeValid=" + bridge.valid(epoch));
+        }
+        if (bridge.authPending.contains(id)) {
+            if ("auth.refreshSession".equals(method)) {
+                FoxSdkLogger.w(BRIDGE_LOG_TAG, "refresh ignored: requestId=" + id
+                        + ", reason=same_request_already_pending");
+            }
+            return; // 同一在途请求不重复弹窗/交换。
+        }
         if (bridge.authCompleted.contains(id)) {
+            if ("auth.refreshSession".equals(method)) {
+                FoxSdkLogger.w(BRIDGE_LOG_TAG, "refresh rejected: requestId=" + id
+                        + ", reason=request_already_completed");
+            }
             reply(bridge, request, epoch, "DUPLICATE_REQUEST", null); return;
         }
         if (!"auth.getState".equals(method) && (!hostResumed || !isShown()
                 || activity.isFinishing() || activity.isDestroyed())) {
+            if ("auth.refreshSession".equals(method)) {
+                FoxSdkLogger.w(BRIDGE_LOG_TAG, "refresh rejected: requestId=" + id
+                        + ", reason=host_not_resumed"
+                        + ", hostResumed=" + hostResumed
+                        + ", viewShown=" + isShown()
+                        + ", activityFinishing=" + activity.isFinishing()
+                        + ", activityDestroyed=" + activity.isDestroyed());
+            }
             reply(bridge, request, epoch, "HOST_NOT_RESUMED", null); return;
         }
         bridge.authPending.add(id);
@@ -596,7 +644,20 @@ public final class FSH5OverlayView extends FrameLayout {
         }
         bridge.auth.handle(method, request.getJSONObject("params"), (code, data) -> {
             bridge.authPending.remove(id);
-            if (!bridge.valid(epoch)) return;
+            if (!bridge.valid(epoch)) {
+                if ("auth.refreshSession".equals(method)) {
+                    FoxSdkLogger.w(BRIDGE_LOG_TAG, "refresh response dropped: requestId=" + id
+                            + ", reason=invalid_webview_or_epoch");
+                }
+                return;
+            }
+            if ("auth.refreshSession".equals(method)) {
+                FoxSdkLogger.d(BRIDGE_LOG_TAG, "refresh replying: requestId=" + id
+                        + ", code=" + code
+                        + ", dataPresent=" + (data != null)
+                        + ", sessionTokenIncluded=" + (data != null && data.has("sessionToken"))
+                        + ", expiresInIncluded=" + (data != null && data.has("expiresIn")));
+            }
             try { reply(bridge, request, epoch, code, data); }
             catch (JSONException ignored) { }
             if (!"auth.getState".equals(method)) authChanged();
@@ -619,7 +680,13 @@ public final class FSH5OverlayView extends FrameLayout {
             JSONObject authState = bridge.auth.state();
             String webViewId = bridge.owner == primary ? "primary" : "secondary";
             JSONObject environmentData = environment(webViewId);
-            reply(bridge, request, epoch, "OK", new JSONObject().put("selectedProtocolVersion", "1.0")
+            FoxSdkLogger.d(BRIDGE_LOG_TAG, "ready received: requestId=" + id
+                    + ", webViewId=" + webViewId
+                    + ", epoch=" + epoch
+                    + ", authStatus=" + authState.optString("status")
+                    + ", orientation=" + environmentData.optString("orientation")
+                    + ", navigationMode=" + environmentData.optString("navigationMode"));
+            JSONObject readyData = new JSONObject().put("selectedProtocolVersion", "1.0")
                     .put("sdkVersion", com.wishfox.foxsdk.BuildConfig.XYH_GAME_SDK_VERSION_NAME)
                     .put("apiLevel", android.os.Build.VERSION.SDK_INT)
                     .put("appId", com.wishfox.foxsdk.core.WishFoxSdk.getConfig().getAppId())
@@ -634,7 +701,17 @@ public final class FSH5OverlayView extends FrameLayout {
                     .put("sessionId", sessionId).put("webViewId", webViewId)
                     .put("bridgeMode", "restricted_js_interface").put("authState", authState)
                     .put("environment", environmentData)
-                    .put("capabilities", capabilities())); return;
+                    .put("capabilities", capabilities());
+            FoxSdkLogger.d(BRIDGE_LOG_TAG, "ready replying: requestId=" + id
+                    + ", webViewId=" + webViewId
+                    + ", isLoggedIn=" + readyData.optBoolean("isLoggedIn")
+                    + ", appIdPresent=" + !TextUtils.isEmpty(readyData.optString("appId"))
+                    + ", channelIdPresent=" + !TextUtils.isEmpty(readyData.optString("channelId"))
+                    + ", safeInsets=" + readyData.optInt("safeInsetLeft") + "/"
+                    + readyData.optInt("safeInsetTop") + "/"
+                    + readyData.optInt("safeInsetRight") + "/"
+                    + readyData.optInt("safeInsetBottom"));
+            reply(bridge, request, epoch, "OK", readyData); return;
         }
         if (method.startsWith("auth.")) {
             handleAuthRequest(bridge, request, epoch);

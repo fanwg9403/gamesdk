@@ -51,6 +51,7 @@
 FoxSdkConfig config = new FoxSdkConfig.Builder(appId, channelId, payScheme)
         .setH5HomeUrl("https://sdk.example.com/home")
         .setH5TrustedOrigin("https://sdk.example.com")
+        .setAllowInsecureH5(false)
         .setH5MediaOrigins("https://media.example.com", "https://images.example.com")
         .build();
 ```
@@ -362,8 +363,8 @@ settings.setMediaPlaybackRequiresUserGesture(true);
 
 补充规则：
 
-- 只允许 HTTPS H5 主域和明确列出的静态资源域；
-- 不允许 HTTP；
+- H5 主文档必须与可信 Origin 精确匹配；生产环境建议只使用 HTTPS；
+- 本地/内网联调可显式开启 `setAllowInsecureH5(true)` 使用 HTTP，但仍严格匹配协议、域名和端口；
 - 不允许 `file://`；
 - 不允许 H5直接加载 `content://`；
 - 非白名单网页交给系统浏览器或直接拒绝；
@@ -396,11 +397,11 @@ https://sdk-pre.wishfoxs.com
 https://static.wishfoxs.com
 ```
 
-远程配置只能在内置可信 Origin 范围内选择 URL，不能把 Bridge动态开放给任意新域名。
+远程配置只能在内置可信 Origin 范围内选择 URL，不能把 Bridge动态开放给任意新域名。`setAllowInsecureH5(true)` 只改变是否允许 HTTP，不会取消 Origin 精确匹配；正式环境默认关闭。
 
 检查内容包括：
 
-- scheme 必须是 HTTPS；
+- scheme 必须是 HTTPS，或在开发/内网测试显式开启明文 H5 后使用 HTTP；
 - host 完整匹配，不能使用 `contains()`；
 - 明确端口；
 - 禁止 username/password URL；
@@ -1399,7 +1400,7 @@ SDK不创建视频下载任务、不预取整个商单列表、不启用视频�
 
 ### 29.6 资源与 URL安全
 
-媒体 Origin由 `setH5MediaOrigins(...)`设置，默认无列表时只允许 H5可信 Origin；CDN白名单不会授予 CDN JS Bridge权限。入口仅允许 HTTPS绝对 URL（≤4096字符），精确校验 Origin及非默认端口，拒绝 userinfo、fragment、file/content/data/blob/weixin等。SDK不注入原生 token、H5 Cookie或业务自定义请求头，不记录带签名 URL；不修改宿主全局 CookieHandler。系统网络栈自身可能使用宿主配置的 Cookie策略，不能把“不注入”解释为独立 Cookie隔离。
+媒体 Origin由 `setH5MediaOrigins(...)`设置，默认无列表时只允许 H5可信 Origin；CDN白名单不会授予 CDN JS Bridge权限。入口允许 HTTP/HTTPS 绝对 URL（≤4096字符），生产环境建议仅使用 HTTPS；开发/内网使用 HTTP 时必须显式开启 `setAllowInsecureH5(true)`。SDK 始终精确校验 Origin及非默认端口，拒绝 userinfo、fragment、file/content/data/blob/weixin等。SDK不注入原生 token、H5 Cookie或业务自定义请求头，不记录带签名 URL；不修改宿主全局 CookieHandler。系统网络栈自身可能使用宿主配置的 Cookie策略，不能把“不注入”解释为独立 Cookie隔离。
 
 图片区分于视频：图片使用自有下载器，禁用自动重定向，最多3跳且逐跳校验完整 Origin；视频由系统 MediaPlayer联网，通过公开头选项 `android-allow-cross-domain-redirect=0` 禁止跨域重定向。两个域名即使都在白名单内也不允许用跨域302串联，应直接传最终 CDN URL。系统内部跳转没有逐跳回调，不能宣称视频也具备图片下载器的“逐跳端口校验/3跳限制”；不同厂商的跳转/TLS行为需要兼容性测试，后端必须提供受控直链，不依赖重定向链。
 
