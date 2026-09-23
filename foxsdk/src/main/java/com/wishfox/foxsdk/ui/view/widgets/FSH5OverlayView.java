@@ -4,19 +4,26 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.SystemClock;
 import android.text.TextUtils;
 import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
+import android.widget.TextView;
 import android.view.ViewGroup;
 import android.graphics.Bitmap;
+import android.graphics.Color;
 import android.widget.Toast;
 import android.util.DisplayMetrics;
 import com.wishfox.foxsdk.media.FSMediaPolicy;
+import com.wishfox.foxsdk.media.FSMediaSaveCoordinator;
+import com.wishfox.foxsdk.R;
 import com.wishfox.foxsdk.utils.FoxSdkLogger;
 import com.wishfox.foxsdk.utils.FoxSdkUtils;
 import org.json.JSONObject;
@@ -32,6 +39,7 @@ import androidx.annotation.Nullable;
 
 import com.wishfox.foxsdk.core.FoxSdkConfig;
 import com.wishfox.foxsdk.auth.FSH5AuthSession;
+import com.wishfox.foxsdk.data.model.entity.FSUserInfo;
 
 /**
  * H5 业务页面的 Overlay 容器。
@@ -53,8 +61,8 @@ public final class FSH5OverlayView extends FrameLayout {
         void onLogoutRequested(LogoutCompletion completion);
 
         /**
-         * H5 请求打开微信小程序。当前只负责把请求参数交给宿主，具体 Scheme 获取和拉起逻辑
-         * 由 OverlayManager 后续接入既有微信接口。
+         * H5 请求打开微信小程序。请求参数交给 OverlayManager，由原生负责耗时的 Scheme
+         * 获取、外部 App 拉起以及最终 completion 回传。
          */
         void onMiniProgramRequested(
                 String requestId,
@@ -79,6 +87,12 @@ public final class FSH5OverlayView extends FrameLayout {
     private WebView primary;
     private WebView secondary;
     private String secondaryUrl;
+    private View initialLoadingView;
+    private boolean initialPageFinished;
+    private boolean initialBridgeReady;
+    private boolean initialVisualStateReady = android.os.Build.VERSION.SDK_INT < 23;
+    private boolean initialVisualStateRequested;
+    private boolean initialRevealPending = true;
     private boolean destroyed;
     private final Map<WebView, NavigationBridge> bridges = new HashMap<>();
     private final String sessionId = UUID.randomUUID().toString();
@@ -86,11 +100,13 @@ public final class FSH5OverlayView extends FrameLayout {
     private String previewId;
     private NavigationBridge previewOwner;
     private boolean hostResumed = true;
+    private final FSMediaSaveCoordinator mediaSaveCoordinator;
 
     public FSH5OverlayView(Activity activity, Callback callback, String homeUrl) {
         super(activity);
         this.activity = activity;
         this.callback = callback;
+        this.mediaSaveCoordinator = new FSMediaSaveCoordinator(activity);
         FoxSdkConfig config = com.wishfox.foxsdk.core.WishFoxSdk.getConfig();
         this.allowInsecureH5 = config.isAllowInsecureH5();
         this.trustedOrigin = h5Origin(TextUtils.isEmpty(config.getH5TrustedOrigin())
@@ -102,6 +118,8 @@ public final class FSH5OverlayView extends FrameLayout {
         if (!isTrusted(homeUrl)) throw new IllegalArgumentException("Untrusted H5 home URL");
         setClickable(true);
         setFocusable(true);
+        // 外层覆盖宿主窗口但保持透明；loading 和 WebView 都只占实际 H5 面板区域。
+        setBackgroundColor(Color.TRANSPARENT);
         // 最外层仍覆盖宿主窗口，但 WebView 只占首页面板区域；面板外的透明区域点击关闭 H5。
         setOnClickListener(view -> {
             if (!destroyed && callback != null) callback.onClose();
@@ -110,8 +128,71 @@ public final class FSH5OverlayView extends FrameLayout {
         // 不能再在原生容器上叠加 padding，否则会与 H5 CSS 产生双重留白。
         setPadding(0, 0, 0, 0);
         primary = createWebView();
+        // 保持 WebView 可见性状态，确保 JS/WebView 正常初始化；通过 alpha 隐藏首帧内容。
+        primary.setAlpha(0f);
         addView(primary, primaryParams());
+        initialLoadingView = createInitialLoadingView();
+        addView(initialLoadingView, primaryParams());
         primary.loadUrl(homeUrl);
+    }
+
+    private View createInitialLoadingView() {
+        FrameLayout overlay = new FrameLayout(activity);
+        overlay.setClickable(true);
+        overlay.setFocusable(true);
+        overlay.setBackgroundColor(initialLoadingBackground());
+
+        // 复用项目已有的 loading 卡片、圆角和白色进度条，避免 H5 首页使用另一套样式。
+        View loadingCard = LayoutInflater.from(activity)
+                .inflate(R.layout.fs_dialog_loading, overlay, false);
+        TextView message = loadingCard.findViewById(R.id.fs_tv_message);
+        if (message != null) {
+            message.setVisibility(VISIBLE);
+            message.setText("加载中...");
+        }
+        LayoutParams cardParams = new LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.WRAP_CONTENT,
+                Gravity.CENTER);
+        overlay.addView(loadingCard, cardParams);
+        return overlay;
+    }
+
+    private int initialLoadingBackground() {
+        return getResources().getColor(R.color.fs_activity_bg);
+    }
+
+    private void maybeRevealInitialContent() {
+        if (!initialRevealPending || !initialPageFinished || !initialBridgeReady || destroyed) return;
+        if (!initialVisualStateRequested) {
+            initialVisualStateRequested = true;
+            if (android.os.Build.VERSION.SDK_INT >= 23 && primary != null) {
+                primary.postVisualStateCallback(SystemClock.uptimeMillis(),
+                        new WebView.VisualStateCallback() {
+                            @Override
+                            public void onComplete(long requestId) {
+                                initialVisualStateReady = true;
+                                maybeRevealInitialContent();
+                            }
+                        });
+            } else {
+                initialVisualStateReady = true;
+            }
+        }
+        if (!initialVisualStateReady) return;
+        // 等待一帧，让 H5 在收到 ready 响应后完成首轮布局，再一次性显示 WebView。
+        postDelayed(() -> {
+            if (!initialRevealPending || destroyed || primary == null) return;
+            initialRevealPending = false;
+            setBackgroundColor(Color.TRANSPARENT);
+            primary.animate().alpha(1f).setDuration(180L).start();
+            if (initialLoadingView != null) {
+                initialLoadingView.animate().alpha(0f).setDuration(180L).withEndAction(() -> {
+                    if (initialLoadingView == null) return;
+                    initialLoadingView.setVisibility(GONE);
+                    initialLoadingView.setAlpha(1f);
+                }).start();
+            }
+            FoxSdkLogger.d(BRIDGE_LOG_TAG, "initial content revealed after page and bridge ready");
+        }, 32L);
     }
 
     @Override
@@ -123,7 +204,7 @@ public final class FSH5OverlayView extends FrameLayout {
     @SuppressLint({"SetJavaScriptEnabled", "JavascriptInterface"})
     private WebView createWebView() {
         WebView view = new WebView(activity);
-        view.setBackgroundColor(0xFF222222);
+        view.setBackgroundColor(initialLoadingBackground());
         view.setOverScrollMode(OVER_SCROLL_NEVER);
         view.getSettings().setJavaScriptEnabled(true);
         view.getSettings().setDomStorageEnabled(true);
@@ -199,6 +280,9 @@ public final class FSH5OverlayView extends FrameLayout {
         if (width <= 0) return;
         if (primary != null) applyPanelParams(primary, primaryParams(width));
         if (secondary != null) applyPanelParams(secondary, secondaryParams(width));
+        if (initialLoadingView != null && initialRevealPending) {
+            applyPanelParams(initialLoadingView, primaryParams(width));
+        }
     }
 
     private static void applyPanelParams(View child, LayoutParams expected) {
@@ -255,10 +339,28 @@ public final class FSH5OverlayView extends FrameLayout {
         openInternalResult(value);
     }
 
+    /**
+     * 打开内部 H5 链接，可按 H5 请求把当前原生用户 ID 追加为查询参数。
+     */
+    public void openInternal(String value, boolean needAppendUserId, String userIdKey) {
+        openInternalResult(value, needAppendUserId, userIdKey, true);
+    }
+
     private JSONObject openInternalResult(String value) {
+        return openInternalResult(value, false, null, false);
+    }
+
+    private JSONObject openInternalResult(
+            String value,
+            boolean needAppendUserId,
+            String userIdKey,
+            boolean appendGameParams
+    ) {
         if (destroyed) return null;
         String previousMode = layoutMode();
-        final String url = resolveUrl(value);
+        final String resolvedUrl = resolveUrl(value);
+        final String url = appendNativeInternalParams(
+                resolvedUrl, needAppendUserId, userIdKey, appendGameParams);
         if (!isTrusted(url)) return null;
         boolean created = false;
         if (secondary == null) {
@@ -272,6 +374,7 @@ public final class FSH5OverlayView extends FrameLayout {
         secondary.loadUrl(url);
         secondary.bringToFront();
         if (!isLandscape()) secondary.bringToFront();
+        if (initialRevealPending && initialLoadingView != null) initialLoadingView.bringToFront();
         if (!previousMode.equals(layoutMode())) {
             sendEnvironmentChanged();
             sendLayoutChanged(previousMode, "navigation");
@@ -279,12 +382,88 @@ public final class FSH5OverlayView extends FrameLayout {
         try {
             return new JSONObject().put("requestedUrl", value)
                     .put("actualUrl", url)
+                    .put("needAppendUserId", needAppendUserId)
+                    .put("userIdAppended", hasNativeUserId(url, needAppendUserId, userIdKey))
+                    .put("gameParamsAppended", appendGameParams && hasNativeGameParams(url))
                     .put("webViewId", "secondary")
                     .put("layoutMode", isLandscape() ? "split" : "stacked")
                     .put("created", created);
         } catch (JSONException ignored) {
             return null;
         }
+    }
+
+    private String appendNativeInternalParams(
+            String url,
+            boolean needAppendUserId,
+            String userIdKey,
+            boolean appendGameParams
+    ) {
+        if (TextUtils.isEmpty(url)) return url;
+        if (!appendGameParams && !needAppendUserId) return url;
+        try {
+            Uri source = Uri.parse(url);
+            Uri.Builder builder = source.buildUpon().clearQuery();
+
+            // 保留 H5 原有查询参数，但移除由原生负责的固定参数，防止 H5 伪造或产生重复值。
+            for (String key : source.getQueryParameterNames()) {
+                if ((appendGameParams && ("gameId".equals(key) || "gameChannel".equals(key)))
+                        || (needAppendUserId && TextUtils.equals(key, userIdKey))) {
+                    continue;
+                }
+                for (String value : source.getQueryParameters(key)) {
+                    builder.appendQueryParameter(key, value);
+                }
+            }
+
+            if (appendGameParams) {
+                FoxSdkConfig config = com.wishfox.foxsdk.core.WishFoxSdk.getConfig();
+                String appId = config.getAppId();
+                String channelId = config.getChannelId();
+                builder.appendQueryParameter("gameId", appId == null ? "" : appId);
+                builder.appendQueryParameter("gameChannel", channelId == null ? "" : channelId);
+            }
+
+            if (needAppendUserId && !TextUtils.isEmpty(userIdKey)
+                    && !isReservedInternalParam(userIdKey)) {
+                FSUserInfo userInfo = FSUserInfo.getInstance();
+                String userId = userInfo == null ? null : userInfo.getUserId();
+                if (!TextUtils.isEmpty(userId)) builder.appendQueryParameter(userIdKey, userId);
+            }
+            return builder.build().toString();
+        } catch (RuntimeException failure) {
+            FoxSdkLogger.w(BRIDGE_LOG_TAG, "openInternal native params append failed: invalid url/key");
+            return url;
+        }
+    }
+
+    private boolean hasNativeUserId(String url, boolean needAppendUserId, String userIdKey) {
+        if (!needAppendUserId || TextUtils.isEmpty(url) || TextUtils.isEmpty(userIdKey)
+                || isReservedInternalParam(userIdKey)) return false;
+        FSUserInfo userInfo = FSUserInfo.getInstance();
+        String userId = userInfo == null ? null : userInfo.getUserId();
+        if (TextUtils.isEmpty(userId)) return false;
+        try {
+            return TextUtils.equals(userId, Uri.parse(url).getQueryParameter(userIdKey));
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    private boolean hasNativeGameParams(String url) {
+        if (TextUtils.isEmpty(url)) return false;
+        try {
+            FoxSdkConfig config = com.wishfox.foxsdk.core.WishFoxSdk.getConfig();
+            Uri uri = Uri.parse(url);
+            return TextUtils.equals(config.getAppId(), uri.getQueryParameter("gameId"))
+                    && TextUtils.equals(config.getChannelId(), uri.getQueryParameter("gameChannel"));
+        } catch (RuntimeException ignored) {
+            return false;
+        }
+    }
+
+    private boolean isReservedInternalParam(String key) {
+        return "gameId".equals(key) || "gameChannel".equals(key);
     }
 
     public void closeSecondary() {
@@ -400,11 +579,16 @@ public final class FSH5OverlayView extends FrameLayout {
 
     public void destroy() {
         closeMediaPreview("host_destroyed");
+        mediaSaveCoordinator.destroy();
         destroyed = true;
         WebView oldPrimary = primary;
         WebView oldSecondary = secondary;
         primary = null;
         secondary = null;
+        if (initialLoadingView != null) {
+            initialLoadingView.animate().cancel();
+            initialLoadingView = null;
+        }
         removeAllViews();
         destroyWebView(oldSecondary);
         destroyWebView(oldPrimary);
@@ -433,6 +617,7 @@ public final class FSH5OverlayView extends FrameLayout {
             FoxSdkLogger.d(BRIDGE_LOG_TAG, "page started: origin=" + h5Origin(url)
                     + ", trusted=" + isTrusted(url));
             if (bridge != null) {
+                if (owner == primary && initialRevealPending) initialPageFinished = false;
                 if (previewOwner == bridge) closeMediaPreview("source_navigation");
                 bridge.generation++;
                 bridge.auth.reset();
@@ -445,6 +630,10 @@ public final class FSH5OverlayView extends FrameLayout {
         @Override public void onPageFinished(WebView view, String url) {
             FoxSdkLogger.d(BRIDGE_LOG_TAG, "page finished: origin=" + h5Origin(url)
                     + ", trusted=" + isTrusted(url));
+            if (owner == primary && initialRevealPending) {
+                initialPageFinished = true;
+                maybeRevealInitialContent();
+            }
         }
 
         @Override public void onReceivedError(WebView view, android.webkit.WebResourceRequest request,
@@ -455,6 +644,22 @@ public final class FSH5OverlayView extends FrameLayout {
                         + ", code=" + (error == null ? "null" : error.getErrorCode())
                         + ", description=" + (error == null ? "null" : error.getDescription()));
             }
+        }
+
+        @Override
+        public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+            if (request != null && request.getUrl() != null) {
+                WebResourceResponse asset = mediaSaveCoordinator.openSandboxAsset(
+                        request.getUrl().toString());
+                if (asset != null) return asset;
+            }
+            return super.shouldInterceptRequest(view, request);
+        }
+
+        @Override
+        public WebResourceResponse shouldInterceptRequest(WebView view, String url) {
+            WebResourceResponse asset = mediaSaveCoordinator.openSandboxAsset(url);
+            return asset != null ? asset : super.shouldInterceptRequest(view, url);
         }
 
         @Override
@@ -539,6 +744,17 @@ public final class FSH5OverlayView extends FrameLayout {
         }
 
         @JavascriptInterface
+        public void openInternal(final String url, final boolean needAppendUserId,
+                                  final String userIdKey) {
+            long epoch = generation;
+            post(() -> {
+                if (valid(epoch)) {
+                    FSH5OverlayView.this.openInternal(url, needAppendUserId, userIdKey);
+                }
+            });
+        }
+
+        @JavascriptInterface
         public void closeSecondary() {
             long epoch = generation;
             post(() -> { if (valid(epoch)) FSH5OverlayView.this.closeSecondary(); });
@@ -578,6 +794,16 @@ public final class FSH5OverlayView extends FrameLayout {
     private JSONObject capabilities() throws JSONException {
         return new JSONObject().put("mediaPreviewImage", true).put("mediaPreviewVideo", isHardwareAccelerated())
                 .put("mediaPreviewClose", true).put("mediaPreviewMode", "streaming_native")
+                .put("mediaSaveImage", true).put("mediaCancel", true)
+                .put("mediaRemoveSandboxImage", true).put("mediaSandbox", true)
+                .put("mediaGalleryDirect", android.os.Build.VERSION.SDK_INT >= 29
+                        ? "api29_no_permission" : "unsupported_no_permission")
+                .put("mediaGalleryPicker", android.os.Build.VERSION.SDK_INT < 29
+                        ? "api21_plus_optional" : false)
+                .put("supportedImageMimeTypes", new org.json.JSONArray()
+                        .put("image/png").put("image/jpeg").put("image/webp"))
+                .put("maxImageBytes", FSMediaSaveCoordinator.MAX_IMAGE_BYTES)
+                .put("maxDataUrlBytes", FSMediaSaveCoordinator.MAX_DATA_URL_BYTES)
                 .put("environmentGet", true)
                 .put("clipboardCopyText", true)
                 .put("authGetState", true).put("authLogin", true).put("authLogout", true)
@@ -619,6 +845,16 @@ public final class FSH5OverlayView extends FrameLayout {
             bridge.send(new JSONObject().put("version", "1.0").put("type", "event")
                     .put("event", "media.previewChanged").put("timestamp", System.currentTimeMillis())
                     .put("webViewId", bridge.owner == primary ? "primary" : "secondary").put("data", data), epoch);
+        } catch (JSONException ignored) { }
+    }
+
+    private void mediaSaveEvent(NavigationBridge bridge, long epoch, String event, JSONObject data) {
+        if (bridge == null || !bridge.valid(epoch) || data == null) return;
+        try {
+            bridge.send(new JSONObject().put("version", "1.0").put("type", "event")
+                    .put("event", event).put("timestamp", System.currentTimeMillis())
+                    .put("webViewId", bridge.owner == primary ? "primary" : "secondary")
+                    .put("data", data), epoch);
         } catch (JSONException ignored) { }
     }
 
@@ -795,7 +1031,12 @@ public final class FSH5OverlayView extends FrameLayout {
                     + readyData.optInt("safeInsetTop") + "/"
                     + readyData.optInt("safeInsetRight") + "/"
                     + readyData.optInt("safeInsetBottom"));
-            reply(bridge, request, epoch, "OK", readyData); return;
+            reply(bridge, request, epoch, "OK", readyData);
+            if (bridge.owner == primary && initialRevealPending) {
+                initialBridgeReady = true;
+                maybeRevealInitialContent();
+            }
+            return;
         }
         if (method.startsWith("auth.")) {
             handleAuthRequest(bridge, request, epoch);
@@ -891,11 +1132,29 @@ public final class FSH5OverlayView extends FrameLayout {
         if ("navigation.openInternal".equals(method)) {
             String url = params.optString("url", "");
             String target = params.optString("target", "auto");
+            boolean extendedOpenInternal = params.has("needAppendUserId")
+                    || params.has("appendUserId") || params.has("userIdKey");
+            Object appendUserIdValue = params.has("needAppendUserId")
+                    ? params.opt("needAppendUserId") : params.opt("appendUserId");
+            boolean needAppendUserId = appendUserIdValue == null
+                    ? false : (appendUserIdValue instanceof Boolean
+                    && (Boolean) appendUserIdValue);
+            String userIdKey = params.optString("userIdKey", "").trim();
+            if (appendUserIdValue != null && !(appendUserIdValue instanceof Boolean)) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
+            if (needAppendUserId && (userIdKey.isEmpty() || userIdKey.length() > 128
+                    || isReservedInternalParam(userIdKey))) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
             if (url.length() < 1 || url.length() > 1024 || !"auto".equals(target)) {
                 reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
                 return;
             }
-            JSONObject result = openInternalResult(url);
+            JSONObject result = openInternalResult(
+                    url, needAppendUserId, userIdKey, extendedOpenInternal);
             if (result == null) {
                 reply(bridge, request, epoch, isTrusted(resolveUrl(url))
                         ? "INVALID_URL" : "ORIGIN_NOT_ALLOWED", null);
@@ -1000,6 +1259,65 @@ public final class FSH5OverlayView extends FrameLayout {
             }
             reply(bridge, request, epoch, "OK", new JSONObject().put("accepted", true));
             closeMediaPreview("js_close"); return;
+        }
+        if ("media.saveImage".equals(method)) {
+            String saveRequestId = params.optString("requestId", "").trim();
+            if (saveRequestId.isEmpty() || saveRequestId.length() > 64) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
+            if (mediaSaveCoordinator.contains(saveRequestId)) {
+                reply(bridge, request, epoch, "DUPLICATE_REQUEST", null);
+                return;
+            }
+            String validationError = mediaSaveCoordinator.validate(params);
+            if (validationError != null) {
+                reply(bridge, request, epoch, validationError, null);
+                return;
+            }
+            boolean accepted = mediaSaveCoordinator.start(saveRequestId, params,
+                    new FSMediaSaveCoordinator.Callback() {
+                        @Override public void onProgress(JSONObject data) {
+                            mediaSaveEvent(bridge, epoch, "media.saveProgress", data);
+                        }
+
+                        @Override public void onResult(JSONObject data) {
+                            mediaSaveEvent(bridge, epoch, "media.saveResult", data);
+                        }
+                    });
+            if (!accepted) {
+                reply(bridge, request, epoch, "DUPLICATE_REQUEST", null);
+                return;
+            }
+            reply(bridge, request, epoch, "OK",
+                    new JSONObject().put("requestId", saveRequestId).put("status", "accepted"));
+            return;
+        }
+        if ("media.cancel".equals(method)) {
+            String saveRequestId = params.optString("requestId", "").trim();
+            if (saveRequestId.isEmpty() || saveRequestId.length() > 64) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
+            reply(bridge, request, epoch, "OK", new JSONObject()
+                    .put("requestId", saveRequestId)
+                    .put("cancelRequested", mediaSaveCoordinator.cancel(saveRequestId)));
+            return;
+        }
+        if ("media.removeSandboxImage".equals(method)) {
+            String assetId = params.optString("assetId", "").trim();
+            if (assetId.isEmpty() || !assetId.matches("asset_[A-Za-z0-9]{16,64}")) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
+            mediaSaveCoordinator.removeSandboxImage(assetId, (removed, error) -> {
+                if (!bridge.valid(epoch)) return;
+                try {
+                    reply(bridge, request, epoch, error == null ? "OK" : error,
+                            new JSONObject().put("assetId", assetId).put("removed", removed));
+                } catch (JSONException ignored) { }
+            });
+            return;
         }
         boolean video = "media.previewVideo".equals(method);
         if (!video && !"media.previewImage".equals(method)) {

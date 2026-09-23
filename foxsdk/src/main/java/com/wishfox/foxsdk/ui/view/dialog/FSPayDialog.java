@@ -471,7 +471,8 @@ public class FSPayDialog extends Dialog {
                 FoxSdkRetrofitManager.getApiService().getWechatSchemeEncrypted(
                         query,
                         WishFoxSdk.getConfig().isWechatTest() ? "trial" : "release",
-                        app_name
+                        app_name,
+                        "payment"
                 ).blockingGet()
         )
                 .subscribeOn(Schedulers.io())

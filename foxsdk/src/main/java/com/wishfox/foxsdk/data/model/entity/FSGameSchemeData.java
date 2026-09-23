@@ -14,6 +14,8 @@ public class FSGameSchemeData {
     private String tsaskType;
     private boolean isNeedCheckTaskNumber = true;
     private String expand = "";
+    private String gameId = "";
+    private String gameChannel = "";
 
     public FSGameSchemeData() {}
 
@@ -24,6 +26,16 @@ public class FSGameSchemeData {
         this.tsaskType = tsaskType;
         this.isNeedCheckTaskNumber = isNeedCheckTaskNumber;
         this.expand = expand;
+    }
+
+    public FSGameSchemeData(String type, String taskNumer, String tsaskType, boolean isNeedCheckTaskNumber, String expand, String gameId, String gameChannel) {
+        this.type = type;
+        this.taskNumer = taskNumer;
+        this.tsaskType = tsaskType;
+        this.isNeedCheckTaskNumber = isNeedCheckTaskNumber;
+        this.expand = expand;
+        this.gameId = gameId;
+        this.gameChannel = gameChannel;
     }
 
     // Getter和Setter方法
@@ -41,4 +53,20 @@ public class FSGameSchemeData {
 
     public String getExpand() { return expand; }
     public void setExpand(String expand) { this.expand = expand; }
+
+    public String getGameId() {
+        return gameId;
+    }
+
+    public void setGameId(String gameId) {
+        this.gameId = gameId;
+    }
+
+    public String getGameChannel() {
+        return gameChannel;
+    }
+
+    public void setGameChannel(String gameChannel) {
+        this.gameChannel = gameChannel;
+    }
 }

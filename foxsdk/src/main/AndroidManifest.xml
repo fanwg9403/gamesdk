@@ -70,6 +70,12 @@
             android:screenOrientation="portrait"
             android:theme="@style/Theme.Transparent" />
 
+        <!-- API 21～28 无存储权限模式下的系统图片保存选择器代理页 -->
+        <activity
+            android:name="com.wishfox.foxsdk.media.FSFileSaveActivity"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.Transparent" />
+
         <!-- 许愿狐授权入口 -->
         <activity
             android:name="com.wishfox.foxsdk.core.WishFoxEntryActivity"

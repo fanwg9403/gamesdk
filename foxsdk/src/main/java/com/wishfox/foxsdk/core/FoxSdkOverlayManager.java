@@ -1,14 +1,24 @@
 package com.wishfox.foxsdk.core;
 
 import android.app.Activity;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Looper;
 import android.text.TextUtils;
+import android.util.Pair;
 import android.view.View;
 import android.view.ViewGroup;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import com.wishfox.foxsdk.data.model.entity.FSGameSchemeData;
+import com.wishfox.foxsdk.data.model.entity.FSPayResult;
+import com.wishfox.foxsdk.data.network.FoxSdkNetworkExecutor;
+import com.wishfox.foxsdk.data.network.FoxSdkRetrofitManager;
 import com.wishfox.foxsdk.ui.view.activity.FSHomeActivity;
 import com.wishfox.foxsdk.data.model.entity.FSMessage;
+import com.wishfox.foxsdk.ui.view.activity.FSWinFoxCoinActivity;
 import com.wishfox.foxsdk.ui.view.widgets.FSGameRecordOverlayView;
 import com.wishfox.foxsdk.ui.view.widgets.FSHomeOverlayView;
 import com.wishfox.foxsdk.ui.view.widgets.FSMessageOverlayView;
@@ -17,6 +27,7 @@ import com.wishfox.foxsdk.ui.view.widgets.FSRechargeRecordOverlayView;
 import com.wishfox.foxsdk.ui.view.widgets.FSStarterPackOverlayView;
 import com.wishfox.foxsdk.ui.view.widgets.FSWebOverlayView;
 import com.wishfox.foxsdk.ui.view.widgets.FSH5OverlayView;
+import com.wishfox.foxsdk.ui.view.widgets.FSLoadingDialog;
 import com.wishfox.foxsdk.ui.view.dialog.FSLoginDialog;
 import com.wishfox.foxsdk.data.model.entity.FSLoginResult;
 import com.wishfox.foxsdk.di.FoxSdkRepositoryContainer;
@@ -25,22 +36,30 @@ import com.wishfox.foxsdk.ui.view.widgets.FSWinFoxCoinOverlayView;
 import com.wishfox.foxsdk.ui.viewstate.FSHomeViewState;
 import com.wishfox.foxsdk.data.model.entity.FSUserProfile;
 import com.wishfox.foxsdk.data.model.entity.FSCoinInfo;
+import com.wishfox.foxsdk.utils.FoxSdkAppJumpUtils;
 import com.wishfox.foxsdk.utils.FoxSdkConstant;
+import com.wishfox.foxsdk.utils.FoxSdkPayEnum;
 import com.wishfox.foxsdk.utils.FoxSdkSPUtils;
 import com.wishfox.foxsdk.utils.FoxSdkLogger;
 import com.wishfox.foxsdk.ui.view.dialog.FSAlertDialog;
+import com.wishfox.foxsdk.utils.FoxSdkUtils;
+import com.wishfox.foxsdk.utils.pay.FoxSdkWxPay;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
 import java.lang.ref.WeakReference;
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.schedulers.Schedulers;
+import retrofit2.adapter.rxjava3.HttpException;
 
 /**
  * 统一管理挂载在宿主 Activity 内的所有 SDK 页面。
@@ -60,15 +79,23 @@ public final class FoxSdkOverlayManager {
         WEB
     }
 
-    /** H5 请求原生登录后的结果回调。回调始终在主线程触发。 */
+    /**
+     * H5 请求原生登录后的结果回调。回调始终在主线程触发。
+     */
     public interface LoginCallback {
-        /** 登录成功，长期 Token 仅留在原生侧，调用方不得向 H5 暴露。 */
+        /**
+         * 登录成功，长期 Token 仅留在原生侧，调用方不得向 H5 暴露。
+         */
         void onSuccess(FSLoginResult result);
 
-        /** 用户关闭登录弹窗且未完成登录。 */
+        /**
+         * 用户关闭登录弹窗且未完成登录。
+         */
         void onCancelled();
 
-        /** 无法启动/继续登录操作；可重试的表单错误在原生弹窗内提示。 */
+        /**
+         * 无法启动/继续登录操作；可重试的表单错误在原生弹窗内提示。
+         */
         void onFailure(String code);
     }
 
@@ -91,6 +118,10 @@ public final class FoxSdkOverlayManager {
     private LoginAttempt loginAttempt;
     private LogoutAttempt logoutAttempt;
     private io.reactivex.rxjava3.disposables.Disposable logoutRequest;
+    /**
+     * H5 小程序请求期间的原生 loading；只允许当前请求持有。
+     */
+    private FSLoadingDialog miniProgramLoading;
 
     private FoxSdkOverlayManager(Activity activity) {
         activityReference = new WeakReference<>(activity);
@@ -115,7 +146,9 @@ public final class FoxSdkOverlayManager {
         });
     }
 
-    /** 显式打开 H5 首页；适用于宿主已完成登录态确认的入口。 */
+    /**
+     * 显式打开 H5 首页；适用于宿主已完成登录态确认的入口。
+     */
     public static void showH5(Activity activity) {
         runOnMain(activity, () -> {
             if (isActivityUsable(activity) && WishFoxSdk.isInitialized()
@@ -266,7 +299,9 @@ public final class FoxSdkOverlayManager {
         showHomeInternal(null);
     }
 
-    /** H5 Bridge 请求展示原生登录弹窗。 */
+    /**
+     * H5 Bridge 请求展示原生登录弹窗。
+     */
     public static void requestLogin(Activity activity, LoginCallback callback) {
         Runnable action = () -> {
             if (!isActivityUsable(activity) || !WishFoxSdk.isInitialized()) {
@@ -279,7 +314,9 @@ public final class FoxSdkOverlayManager {
         else new android.os.Handler(Looper.getMainLooper()).post(action);
     }
 
-    /** 仅取消此调用方拥有的登录，避免页面销毁时误关宿主发起的登录。 */
+    /**
+     * 仅取消此调用方拥有的登录，避免页面销毁时误关宿主发起的登录。
+     */
     public static void cancelLogin(Activity activity, LoginCallback callback) {
         runOnMain(activity, () -> {
             FoxSdkOverlayManager manager = find(activity);
@@ -300,10 +337,13 @@ public final class FoxSdkOverlayManager {
 
     public static void onHostStopped(Activity activity) {
         FoxSdkOverlayManager manager = find(activity);
-        if (manager != null && manager.h5View != null) manager.h5View.closeMediaPreview("host_stopped");
+        if (manager != null && manager.h5View != null)
+            manager.h5View.closeMediaPreview("host_stopped");
     }
 
-    /** 游戏接管返回键时先调用；true 表示协议页或原生媒体预览已处理返回。 */
+    /**
+     * 游戏接管返回键时先调用；true 表示协议页或原生媒体预览已处理返回。
+     */
     public static boolean onHostBackPressed(Activity activity) {
         if (FSLoginDialog.handleAgreementBack(activity)) return true;
         FoxSdkOverlayManager manager = find(activity);
@@ -324,7 +364,10 @@ public final class FoxSdkOverlayManager {
         FSLoginDialog dialog;
         io.reactivex.rxjava3.disposables.Disposable request;
         boolean submitting;
-        LoginAttempt(LoginCallback callback) { this.callback = callback; }
+
+        LoginAttempt(LoginCallback callback) {
+            this.callback = callback;
+        }
     }
 
     private static final class LogoutAttempt {
@@ -368,7 +411,8 @@ public final class FoxSdkOverlayManager {
                         .subscribeOn(Schedulers.io())
                         .observeOn(AndroidSchedulers.mainThread())
                         .subscribe(result -> {
-                            if (loginAttempt != attempt || destroyed || !isActivityUsable(activity)) return;
+                            if (loginAttempt != attempt || destroyed || !isActivityUsable(activity))
+                                return;
                             attempt.submitting = false;
                             if (loading != null) loading.dismiss();
                             if (attempt.revision != FSLoginResult.getSessionRevision()) {
@@ -387,7 +431,8 @@ public final class FoxSdkOverlayManager {
                                 Toaster.show("登录失败，请检查输入后重试");
                             }
                         }, error -> {
-                            if (loginAttempt != attempt || destroyed || !isActivityUsable(activity)) return;
+                            if (loginAttempt != attempt || destroyed || !isActivityUsable(activity))
+                                return;
                             attempt.submitting = false;
                             if (loading != null) loading.dismiss();
                             Toaster.show("登录请求失败，请稍后重试");
@@ -408,7 +453,8 @@ public final class FoxSdkOverlayManager {
 
     private void showH5Internal() {
         Activity activity = activityReference.get();
-        if (destroyed || !isActivityUsable(activity) || !WishFoxSdk.getConfig().isH5Enabled()) return;
+        if (destroyed || !isActivityUsable(activity) || !WishFoxSdk.getConfig().isH5Enabled())
+            return;
         FoxSdkLogger.d(H5_LOG_TAG, "showH5Internal: homeUrlConfigured=true, existingView=" + (h5View != null));
         try {
             WindowLifecycleControl.hideWindow(activity);
@@ -438,7 +484,7 @@ public final class FoxSdkOverlayManager {
                         JSONObject params,
                         FSH5OverlayView.MiniProgramCompletion completion
                 ) {
-                    handleMiniProgramRequest(requestId, appName, params, completion);
+                    handleMiniProgramRequest(activity, requestId, appName, params, completion);
                 }
             }, WishFoxSdk.getConfig().getH5HomeUrl());
             attachView(h5View);
@@ -738,7 +784,9 @@ public final class FoxSdkOverlayManager {
         WindowLifecycleControl.showWindow(activity);
     }
 
-    /** H5 发起的登出必须由原生确认；确认后清理本地登录态并关闭所有 H5 页面。 */
+    /**
+     * H5 发起的登出必须由原生确认；确认后清理本地登录态并关闭所有 H5 页面。
+     */
     private void showLogoutInternal(FSH5OverlayView.LogoutCompletion completion) {
         Activity activity = activityReference.get();
         if (completion == null) return;
@@ -794,11 +842,11 @@ public final class FoxSdkOverlayManager {
     /**
      * 接收 H5 的小程序启动请求。
      *
-     * <p>当前先固定请求边界和参数形状，具体的 encrypted URL Scheme 接口调用、微信拉起
-     * 和返回事件待业务规则确认后接入。这样 H5 参数已经由原生统一接管，不再允许 H5
-     * 直接传入或拉起 scheme。</p>
+     * <p>小程序参数由原生统一接管，必要时由原生换取 encrypted URL Scheme 并拉起微信；
+     * 耗时期间展示 loading，最终通过 completion 将结果回传给 H5。</p>
      */
     private void handleMiniProgramRequest(
+            Activity activity,
             String requestId,
             String appName,
             JSONObject params,
@@ -806,13 +854,182 @@ public final class FoxSdkOverlayManager {
     ) {
         FoxSdkLogger.d(H5_LOG_TAG, "miniProgram request received: requestId=" + requestId
                 + ", appName=" + appName
-                + ", paramCount=" + (params == null ? 0 : params.length()));
-        if (completion != null) {
-            completion.complete("METHOD_NOT_SUPPORTED", null);
+                + ", paramCount=" + (params == null ? 0 : params.toString()));
+
+        if (completion == null) return;
+        if (params == null) {
+            completion.complete("INVALID_ARGUMENT", null);
+            return;
+        }
+
+        // completion 可能由同步分支、Rx 异步分支或异常分支触发，统一保证只回调一次；
+        // 同时在回调前关闭 loading，避免 H5 已收到结果但 loading 仍遮挡页面。
+        AtomicBoolean completionSent = new AtomicBoolean(false);
+        FSH5OverlayView.MiniProgramCompletion finish = (code, data) -> {
+            if (!completionSent.compareAndSet(false, true)) return;
+            runOnMain(activity, () -> {
+                dismissMiniProgramLoading();
+                completion.complete(code, data);
+            });
+        };
+
+        showMiniProgramLoading(activity);
+        try {
+            Map<String, Object> map = new Gson().fromJson(
+                    params.toString(),
+                    new TypeToken<Map<String, Object>>() {
+                    }.getType()
+            );
+            if (map == null) {
+                finish.complete("INVALID_ARGUMENT", null);
+                return;
+            }
+
+            if ("xuyuanhu".equals(appName)
+                    && FoxSdkUtils.isWishFoxInstalled(activity).blockingLast()) {
+                // 如果是许愿狐小程序，则优先判断是否安装了许愿狐 APP；
+                // 已安装时跳转 APP，否则继续走微信小程序分支。
+                Gson gson = new Gson();
+                FSGameSchemeData gameSchemeData = new FSGameSchemeData(
+                        "wish_game",
+                        map.get("taskNumber") == null ? "" : map.get("taskNumber").toString(),
+                        map.get("typeName") == null ? "" : map.get("typeName").toString(),
+                        true,
+                        "",
+                        WishFoxSdk.getConfig().getAppId(),
+                        WishFoxSdk.getConfig().getChannelId()
+                );
+                String json = gson.toJson(gameSchemeData);
+                FoxSdkAppJumpUtils.launchByDeepLink(
+                        activity,
+                        "sohugloba://app/game_sdk?gameData=" + json,
+                        map.get("url") == null ? "https://www.wishfosx.com" : map.get("url").toString()
+                );
+                finish.complete("OK", miniProgramResult(requestId, "accepted_to_launch"));
+            } else {
+                Pair<Boolean, String> pair = FoxSdkWxPay.wXMiniProgramAllinpayPayment(activity, map);
+                if (pair != null && Boolean.TRUE.equals(pair.first)) {
+                    String scene = map.get("typeName") == null ? "payment" : (map.get("typeName").toString().equals("通用") || map.get("typeName").toString().equals("流量")) ? "Task" : map.get("typeName").toString().equals("服务") ? "Service" : "Wish";
+                    startWechatForSchemeEncrypted(activity, pair.second, appName, scene, requestId, finish);
+                } else {
+                    FoxSdkAppJumpUtils.byWebOpenH5(activity,
+                            map.get("url") == null ? "https://www.wishfosx.com" : map.get("url").toString());
+                    finish.complete("OK", miniProgramResult(requestId, "accepted_to_launch"));
+                }
+            }
+        } catch (Throwable failure) {
+            FoxSdkLogger.e(H5_LOG_TAG, "miniProgram request failed: requestId=" + requestId,
+                    failure);
+            finish.complete("INTERNAL_ERROR",
+                    miniProgramResult(requestId, "launch_failed"));
         }
     }
 
-    /** 清理长期登录态、兼容旧存储键和所有进程内 H5 短 Token。 */
+    private JSONObject miniProgramResult(String requestId, String status) {
+        try {
+            return new JSONObject().put("requestId", requestId).put("status", status);
+        } catch (JSONException ignored) {
+            return null;
+        }
+    }
+
+    private void showMiniProgramLoading(Activity activity) {
+        dismissMiniProgramLoading();
+        if (!isActivityUsable(activity)) return;
+        try {
+            miniProgramLoading = new FSLoadingDialog(activity);
+            miniProgramLoading.setCancelable(false);
+            miniProgramLoading.setCanceledOnTouchOutside(false);
+            miniProgramLoading.setMessage("正在跳转...");
+            miniProgramLoading.show();
+        } catch (Throwable failure) {
+            miniProgramLoading = null;
+            FoxSdkLogger.e(H5_LOG_TAG, "miniProgram loading show failed", failure);
+        }
+    }
+
+    private void dismissMiniProgramLoading() {
+        if (miniProgramLoading == null) return;
+        try {
+            miniProgramLoading.dismiss();
+        } catch (Throwable failure) {
+            FoxSdkLogger.e(H5_LOG_TAG, "miniProgram loading dismiss failed", failure);
+        } finally {
+            miniProgramLoading = null;
+        }
+    }
+
+    // 启动微信小程序
+    private void startWechatForSchemeEncrypted(
+            Activity activity,
+            String query,
+            String app_name,
+            String scene,
+            String requestId,
+            FSH5OverlayView.MiniProgramCompletion completion
+    ) {
+        FoxSdkNetworkExecutor.execute(() ->
+                FoxSdkRetrofitManager.getApiService().getWechatSchemeEncrypted(
+                        query,
+                        WishFoxSdk.getConfig().isWechatTest() ? "trial" : "release",
+                        app_name,
+                        scene
+                ).blockingGet()
+        )
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(result -> {
+                    if (result.isSuccess()) {
+                        try {
+                            String scheme = result.getData() == null ? null : result.getData().getScheme();
+                            if (TextUtils.isEmpty(scheme)) {
+                                Toaster.show("跳转失败");
+                                completion.complete("SCHEME_REJECTED",
+                                        miniProgramResult(requestId, "scheme_rejected"));
+                                return;
+                            }
+                            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(scheme));
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            activity.startActivity(intent);
+                            completion.complete("OK", miniProgramResult(requestId, "accepted_to_launch"));
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                            Toaster.show("打开微信失败，请联系客服");
+                            completion.complete("ACTIVITY_NOT_FOUND",
+                                    miniProgramResult(requestId, "launch_failed"));
+                        }
+                    } else if (result.isError()) {
+                        String errorMsg = result.getError() != null ? result.getError() : "跳转失败";
+                        Toaster.show(errorMsg);
+                        completion.complete("SCHEME_REJECTED",
+                                miniProgramResult(requestId, "scheme_rejected"));
+                    } else if (result.isEmpty()) {
+                        Toaster.show("跳转失败");
+                        completion.complete("SCHEME_REJECTED",
+                                miniProgramResult(requestId, "scheme_rejected"));
+                    } else {
+                        Toaster.show("跳转失败");
+                        completion.complete("SCHEME_REJECTED",
+                                miniProgramResult(requestId, "scheme_rejected"));
+                    }
+                }, throwable -> {
+                    String errorMsg = "网络请求失败";
+                    if (throwable instanceof IOException) {
+                        errorMsg = "网络连接失败，请检查网络";
+                    } else if (throwable instanceof SocketTimeoutException) {
+                        errorMsg = "网络连接超时，请重试";
+                    } else if (throwable instanceof HttpException) {
+                        errorMsg = "服务器错误，请稍后重试";
+                    }
+                    Toaster.show(errorMsg);
+                    completion.complete("NETWORK_ERROR",
+                            miniProgramResult(requestId, "launch_failed"));
+                });
+    }
+
+    /**
+     * 清理长期登录态、兼容旧存储键和所有进程内 H5 短 Token。
+     */
     private void clearLocalAuthState() {
         FSUserProfile.clear();
         FSLoginResult.clear();
@@ -822,7 +1039,9 @@ public final class FoxSdkOverlayManager {
         // 会调用每个 WebView bridge.auth.reset()，从而同步清空 expiresAt 和在途交换。
     }
 
-    /** 服务端登出是尽力而为，不阻塞 H5 响应和 Overlay 关闭；本地状态已经立即清理。 */
+    /**
+     * 服务端登出是尽力而为，不阻塞 H5 响应和 Overlay 关闭；本地状态已经立即清理。
+     */
     private void startServerLogout(Activity activity, String token) {
         try {
             if (TextUtils.isEmpty(token)) return;
@@ -842,6 +1061,7 @@ public final class FoxSdkOverlayManager {
     }
 
     private void removeH5View() {
+        dismissMiniProgramLoading();
         if (h5View == null) return;
         FSH5OverlayView view = h5View;
         h5View = null;
@@ -926,6 +1146,7 @@ public final class FoxSdkOverlayManager {
 
     private void destroyInternal() {
         destroyed = true;
+        dismissMiniProgramLoading();
         if (logoutRequest != null) {
             logoutRequest.dispose();
             logoutRequest = null;
