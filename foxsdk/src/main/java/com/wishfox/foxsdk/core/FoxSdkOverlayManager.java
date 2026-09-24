@@ -158,6 +158,30 @@ public final class FoxSdkOverlayManager {
         });
     }
 
+    /**
+     * Demo/H5 联调专用入口。Release AAR 中不会执行，也不会改变登录接口持久化的 h5Url。
+     */
+    public static void showDebugH5(Activity activity, String url) {
+        runOnMain(activity, () -> {
+            if (!com.wishfox.foxsdk.BuildConfig.DEBUG) {
+                FoxSdkLogger.w(H5_LOG_TAG, "showDebugH5 ignored in release build");
+                return;
+            }
+            if (!isActivityUsable(activity) || !WishFoxSdk.isInitialized()) {
+                FoxSdkLogger.w(H5_LOG_TAG, "showDebugH5 ignored: invalid activity/sdk");
+                return;
+            }
+            String homeUrl = validateH5HomeUrl(url);
+            if (homeUrl == null) {
+                FoxSdkLogger.w(H5_LOG_TAG, "showDebugH5 ignored: invalid url");
+                return;
+            }
+            FoxSdkOverlayManager manager = getOrCreate(activity);
+            manager.removeH5View();
+            manager.showH5Internal(homeUrl);
+        });
+    }
+
     public static void showPage(Activity activity, Page page) {
         runOnMain(activity, () -> {
             if (!isActivityUsable(activity) || !WishFoxSdk.isInitialized() || page == null) {
@@ -458,8 +482,11 @@ public final class FoxSdkOverlayManager {
     }
 
     private void showH5Internal() {
+        showH5Internal(resolveH5HomeUrl());
+    }
+
+    private void showH5Internal(String homeUrl) {
         Activity activity = activityReference.get();
-        String homeUrl = resolveH5HomeUrl();
         if (destroyed || !isActivityUsable(activity))
             return;
         if (homeUrl == null) {
@@ -519,6 +546,10 @@ public final class FoxSdkOverlayManager {
     private static String resolveH5HomeUrl() {
         FSLoginResult login = FSLoginResult.getInstance();
         String value = login == null ? null : login.getH5Url();
+        return validateH5HomeUrl(value);
+    }
+
+    private static String validateH5HomeUrl(String value) {
         if (TextUtils.isEmpty(value) || value.length() > 4096) return null;
         try {
             Uri uri = Uri.parse(value.trim());

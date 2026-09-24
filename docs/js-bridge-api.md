@@ -1541,7 +1541,6 @@ API 21～28无权限：
 ### 17.6 图片错误码
 
 - `INVALID_IMAGE_URL`
-- `IMAGE_HOST_NOT_ALLOWED`
 - `UNSUPPORTED_IMAGE_TYPE`
 - `FILE_TOO_LARGE`
 - `DOWNLOAD_FAILED`
@@ -1923,7 +1922,7 @@ H5必须遵守：
 - 不将 token、sessionToken、支付密文或完整 scheme写入日志；
 - sessionToken只在内存中短期存在，不存入通用 Bridge 响应重放缓存；
 - 不通过 URL query传长期 token；
-- 不向 `media.saveImage` 传任意第三方 URL；
+- `media.saveImage` 资源可来自第三方 HTTP/HTTPS 域名，原生不将资源 Origin 与 H5 首页 Origin 混用；H5 仍应只传业务可信的图片地址；
 - 支付金额和订单状态以服务端为准；
 - 所有 Bridge请求使用不可预测 requestId；
 - 不在页面卸载时盲目重试支付和媒体保存；

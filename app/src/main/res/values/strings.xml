@@ -1,7 +1,12 @@
 <resources>
     <string name="app_name">WishFoxSdk</string>
+    <string name="input_h5_url">输入并打开 H5 调试地址</string>
     <string name="switch_orientation">切换横竖屏</string>
     <string name="switch_to_portrait">切换为竖屏</string>
     <string name="switch_to_landscape">切换为横屏</string>
     <string name="test_payment">测试支付</string>
+    <string name="h5_url_dialog_title">输入 H5 调试地址</string>
+    <string name="h5_url_hint">例如：http://192.168.1.10:5173/</string>
+    <string name="h5_url_invalid">请输入有效的 HTTP 或 HTTPS 地址</string>
+    <string name="open_h5">打开</string>
 </resources>

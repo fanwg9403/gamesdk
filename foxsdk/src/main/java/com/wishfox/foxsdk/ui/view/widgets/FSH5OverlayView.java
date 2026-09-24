@@ -115,7 +115,7 @@ public final class FSH5OverlayView extends FrameLayout {
                 + ", allowInsecureH5=" + allowInsecureH5);
         if (trustedOrigin == null) throw new IllegalArgumentException("Invalid H5 trusted origin");
         if (!isTrusted(homeUrl)) throw new IllegalArgumentException("Untrusted H5 home URL");
-        this.mediaSaveCoordinator = new FSMediaSaveCoordinator(activity, trustedOrigin);
+        this.mediaSaveCoordinator = new FSMediaSaveCoordinator(activity);
         setClickable(true);
         setFocusable(true);
         // 外层覆盖宿主窗口但保持透明；loading 和 WebView 都只占实际 H5 面板区域。
@@ -858,6 +858,22 @@ public final class FSH5OverlayView extends FrameLayout {
         } catch (JSONException ignored) { }
     }
 
+    /** 日志只保留媒体 URL 的 scheme/host/path，避免输出签名 query 或 fragment。 */
+    private static String mediaUrlForLog(String value) {
+        if (TextUtils.isEmpty(value)) return "";
+        try {
+            Uri uri = Uri.parse(value);
+            StringBuilder result = new StringBuilder();
+            if (!TextUtils.isEmpty(uri.getScheme())) result.append(uri.getScheme()).append("://");
+            if (!TextUtils.isEmpty(uri.getHost())) result.append(uri.getHost());
+            if (uri.getPort() > 0) result.append(':').append(uri.getPort());
+            if (!TextUtils.isEmpty(uri.getPath())) result.append(uri.getPath());
+            return result.length() == 0 ? "<invalid>" : result.toString();
+        } catch (RuntimeException ignored) {
+            return "<invalid>";
+        }
+    }
+
     private void authChanged() {
         // 双窗口各自持有会话元信息，广播中永不包含任何 Token。
         for (NavigationBridge target : new ArrayList<>(bridges.values())) {
@@ -1262,6 +1278,19 @@ public final class FSH5OverlayView extends FrameLayout {
         }
         if ("media.saveImage".equals(method)) {
             String saveRequestId = params.optString("requestId", "").trim();
+            JSONObject source = params.optJSONObject("source");
+            String sourceType = source == null ? "" : source.optString("type", "");
+            String sourceValue = source == null ? "" : source.optString("value", "");
+            String sourceLog = "data_url".equals(sourceType)
+                    ? "dataUrlLength=" + sourceValue.length()
+                    : "url=" + mediaUrlForLog(sourceValue);
+            FoxSdkLogger.d(BRIDGE_LOG_TAG, "saveImage received: requestId=" + saveRequestId
+                    + ", sourceType=" + sourceType
+                    + ", " + sourceLog
+                    + ", fileName=" + params.optString("fileName", "")
+                    + ", mimeType=" + params.optString("mimeType", "")
+                    + ", saveToGallery=" + params.opt("saveToGallery")
+                    + ", legacyGalleryMode=" + params.optString("legacyGalleryMode", "none"));
             if (saveRequestId.isEmpty() || saveRequestId.length() > 64) {
                 reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
                 return;
@@ -1272,6 +1301,8 @@ public final class FSH5OverlayView extends FrameLayout {
             }
             String validationError = mediaSaveCoordinator.validate(params);
             if (validationError != null) {
+                FoxSdkLogger.w(BRIDGE_LOG_TAG, "saveImage rejected: requestId=" + saveRequestId
+                        + ", code=" + validationError);
                 reply(bridge, request, epoch, validationError, null);
                 return;
             }

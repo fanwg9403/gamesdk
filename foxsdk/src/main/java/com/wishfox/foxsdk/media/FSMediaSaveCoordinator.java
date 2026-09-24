@@ -13,8 +13,6 @@ import android.text.TextUtils;
 import android.util.Base64;
 import android.webkit.WebResourceResponse;
 
-import com.wishfox.foxsdk.core.FoxSdkConfig;
-import com.wishfox.foxsdk.core.WishFoxSdk;
 import com.wishfox.foxsdk.utils.FoxSdkLogger;
 
 import org.json.JSONException;
@@ -28,7 +26,6 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.MessageDigest;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -65,7 +62,6 @@ public final class FSMediaSaveCoordinator {
     private static final Map<String, PickerRequest> PICKERS = new ConcurrentHashMap<>();
 
     private final Activity activity;
-    private final String trustedOrigin;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService executor = Executors.newFixedThreadPool(2);
     private final Map<String, Task> tasks = new ConcurrentHashMap<>();
@@ -74,12 +70,7 @@ public final class FSMediaSaveCoordinator {
     private volatile boolean destroyed;
 
     public FSMediaSaveCoordinator(Activity activity) {
-        this(activity, null);
-    }
-
-    public FSMediaSaveCoordinator(Activity activity, String trustedOrigin) {
         this.activity = activity;
-        this.trustedOrigin = trustedOrigin;
     }
 
     public boolean contains(String requestId) {
@@ -89,9 +80,17 @@ public final class FSMediaSaveCoordinator {
     public String validate(JSONObject params) {
         try {
             SaveInput input = parseInput(params);
-            if (!input.dataUrl && !allowedMediaUrl(input.sourceValue)) return "IMAGE_HOST_NOT_ALLOWED";
+            if (!input.dataUrl && !validRemoteImageUrl(input.sourceValue)) {
+                FoxSdkLogger.w(TAG, "validate rejected: requestId="
+                        + params.optString("requestId", "")
+                        + ", code=INVALID_IMAGE_URL");
+                return "INVALID_IMAGE_URL";
+            }
             return null;
         } catch (SaveException failure) {
+            FoxSdkLogger.w(TAG, "validate rejected: requestId="
+                    + (params == null ? "" : params.optString("requestId", ""))
+                    + ", code=" + failure.code);
             return failure.code;
         }
     }
@@ -300,7 +299,9 @@ public final class FSMediaSaveCoordinator {
         try {
             for (int redirect = 0; redirect <= MAX_REDIRECTS; redirect++) {
                 checkCancelled(task);
-                if (!allowedMediaUrl(next)) throw new SaveException("IMAGE_HOST_NOT_ALLOWED", "图片来源不在白名单");
+                if (!validRemoteImageUrl(next)) {
+                    throw new SaveException("INVALID_IMAGE_URL", "图片地址无效");
+                }
                 HttpURLConnection connection = (HttpURLConnection) new URL(next).openConnection();
                 task.connection = connection;
                 connection.setInstanceFollowRedirects(false);
@@ -492,35 +493,29 @@ public final class FSMediaSaveCoordinator {
         }
     }
 
-    private boolean allowedMediaUrl(String value) {
-        if (TextUtils.isEmpty(value) || value.length() > 4096) return false;
-        try {
-            Uri uri = Uri.parse(value);
-            if ("https".equalsIgnoreCase(uri.getScheme())) {
-                FoxSdkConfig config = WishFoxSdk.getConfig();
-                List<String> origins = config.getH5MediaOrigins();
-                if (origins == null || origins.isEmpty()) {
-                    String trusted = trustedOrigin;
-                    if (TextUtils.isEmpty(trusted)) return false;
-                    origins = java.util.Collections.singletonList(FSMediaPolicy.origin(trusted));
-                }
-                return FSMediaPolicy.allowed(value, origins);
-            }
-            // 仅为本地/内网调试保留 HTTP，并且必须与可信 H5 Origin 精确一致。
-            if (!WishFoxSdk.getConfig().isAllowInsecureH5()
-                    || !"http".equalsIgnoreCase(uri.getScheme())) return false;
-            String trusted = trustedOrigin;
-            return trusted != null && sameHttpOrigin(value, trusted);
-        } catch (Exception ignored) {
+    /** 媒体资源不复用 H5 首页 Origin；只校验为合法 HTTP/HTTPS 在线地址。 */
+    private boolean validRemoteImageUrl(String value) {
+        if (TextUtils.isEmpty(value) || value.length() > 4096) {
+            FoxSdkLogger.w(TAG, "media url rejected: reason=empty_or_too_long");
             return false;
         }
-    }
-
-    private boolean sameHttpOrigin(String first, String second) {
-        Uri a = Uri.parse(first);
-        Uri b = Uri.parse(second);
-        return "http".equalsIgnoreCase(a.getScheme()) && "http".equalsIgnoreCase(b.getScheme())
-                && TextUtils.equals(a.getHost(), b.getHost()) && a.getPort() == b.getPort();
+        try {
+            Uri uri = Uri.parse(value);
+            String scheme = uri.getScheme();
+            String host = uri.getHost();
+            int port = uri.getPort();
+            boolean valid = ("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme))
+                    && !TextUtils.isEmpty(host)
+                    && uri.getUserInfo() == null
+                    && port != 0 && port <= 65535;
+            FoxSdkLogger.d(TAG, "media url check: scheme=" + scheme
+                    + ", host=" + host + ", port=" + port + ", valid=" + valid);
+            return valid;
+        } catch (Exception failure) {
+            FoxSdkLogger.w(TAG, "media url rejected: reason="
+                    + failure.getClass().getSimpleName());
+            return false;
+        }
     }
 
     private void emitProgress(Task task, String stage, long received, Long total) {

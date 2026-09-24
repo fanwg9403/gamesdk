@@ -29,7 +29,6 @@ public class FoxSdkConfig {
     private boolean wechatTest = false;
     /** 是否允许 H5 使用明文 HTTP；默认关闭，仅建议开发/内网测试开启。 */
     private boolean allowInsecureH5;
-    private java.util.List<String> h5MediaOrigins;
     private H5SessionTokenProvider h5SessionTokenProvider;
 
     //快钱支付宝支付配置
@@ -58,8 +57,6 @@ public class FoxSdkConfig {
         this.floatXxOffset = builder.floatXxOffset;
         this.wechatTest = builder.wechatTest;
         this.allowInsecureH5 = builder.allowInsecureH5;
-        this.h5MediaOrigins = java.util.Collections.unmodifiableList(
-                new java.util.ArrayList<>(builder.h5MediaOrigins));
         this.h5SessionTokenProvider = builder.h5SessionTokenProvider;
         this.kqFusedApplicationScheme = builder.kqFusedApplicationScheme;
     }
@@ -124,8 +121,10 @@ public class FoxSdkConfig {
         return allowInsecureH5;
     }
 
-    /** 原生媒体下载白名单，与 H5 Bridge Origin 分开配置。 */
-    public java.util.List<String> getH5MediaOrigins() { return h5MediaOrigins; }
+    /** @deprecated 媒体资源不再使用 H5 Origin 白名单；仅保留旧版兼容接口。 */
+    @Deprecated public java.util.List<String> getH5MediaOrigins() {
+        return java.util.Collections.emptyList();
+    }
 
     /**
      * 获取可选的 H5 短时会话 Token 交换器覆盖实现。
@@ -155,7 +154,6 @@ public class FoxSdkConfig {
         private String kqFusedApplicationScheme;
         private boolean wechatTest = false;
         private boolean allowInsecureH5 = false;
-        private java.util.List<String> h5MediaOrigins = new java.util.ArrayList<>();
         private H5SessionTokenProvider h5SessionTokenProvider;
 
         /**
@@ -270,21 +268,8 @@ public class FoxSdkConfig {
             return this;
         }
 
-        /**
-         * 设置图片下载及视频在线缓冲的 HTTPS 来源白名单，不授予媒体服务器 JS Bridge 权限。
-         * @param origins 允许的 HTTPS Origin，精确匹配域名和端口；传 null/空数组时回退登录接口下发的 H5 Origin；
-         *                每次调用替换旧列表，不是追加。示例：https://cdn.example.com
-         * @return 当前 Builder，支持链式调用
-         * @throws IllegalArgumentException 任一来源不是合法 HTTPS 地址时抛出
-         */
-        public Builder setH5MediaOrigins(String... origins) {
-            java.util.ArrayList<String> checked = new java.util.ArrayList<>();
-            if (origins != null) for (String origin : origins) {
-                checked.add(com.wishfox.foxsdk.media.FSMediaPolicy.origin(origin));
-            }
-            this.h5MediaOrigins = checked;
-            return this;
-        }
+        /** @deprecated 图片/视频资源可来自任意合法 HTTP/HTTPS 域名，该白名单不再生效。 */
+        @Deprecated public Builder setH5MediaOrigins(String... ignored) { return this; }
 
         /**
          * 设置 H5 短时会话 Token 交换器覆盖实现。

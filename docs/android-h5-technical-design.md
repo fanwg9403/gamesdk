@@ -45,12 +45,11 @@
 
 ## 3. 当前工程基础与改造边界
 
-H5 首页不由第三方宿主配置。宿主只配置 SDK 基础参数和可选的媒体 HTTPS 白名单：
+H5 首页不由第三方宿主配置。宿主只配置 SDK 基础参数：
 
 ```java
 FoxSdkConfig config = new FoxSdkConfig.Builder(appId, channelId, payScheme)
         .setAllowInsecureH5(false)
-        .setH5MediaOrigins("https://media.example.com", "https://images.example.com")
         .build();
 ```
 
@@ -709,7 +708,7 @@ SDK 在 IO 线程调用接口，15 秒超时，结果统一切主线程；页面
 - screenOrientation 使用 ActivityInfo 常量，不要把历史 FoxSdkConfig.ORIENTATION_LANDSCAPE=2 当成 ActivityInfo 的横屏0；H5/预览跟随宿主，不主动旋转。
 - setFloatXScale/setFloatXxOffset 是历史 FloatingX 字段，当前原生悬浮球流程未读取；不能将保留接口误写成已生效的配置。旧 offset 调用按 dp 转 px。
 - setWechatTest 选择既有支付的小程序 trial/release，不是全局环境切换。
-- H5 首页和可信 Origin 取自登录接口返回的 `data.h5Url`；媒体 Origin 可由宿主额外配置，媒体域名不取得 Bridge 权限。
+- H5 首页和可信 Origin 取自登录接口返回的 `data.h5Url`；图片、视频等业务资源不使用 H5 首页 Origin 白名单，媒体请求仅校验合法 HTTP/HTTPS 地址。
 - 新 provider/Callback、LoginCallback 的 consumer keep 规则随 AAR 提供，内部认证状态类仍可正常压缩混淆。
 
 ### 13.6 本轮验收清单（不编译构建）
@@ -1398,9 +1397,9 @@ SDK不创建视频下载任务、不预取整个商单列表、不启用视频�
 
 ### 29.6 资源与 URL安全
 
-媒体 Origin由 `setH5MediaOrigins(...)`设置，默认无列表时只允许 H5可信 Origin；CDN白名单不会授予 CDN JS Bridge权限。入口允许 HTTP/HTTPS 绝对 URL（≤4096字符），生产环境建议仅使用 HTTPS；开发/内网使用 HTTP 时必须显式开启 `setAllowInsecureH5(true)`。SDK 始终精确校验 Origin及非默认端口，拒绝 userinfo、fragment、file/content/data/blob/weixin等。SDK不注入原生 token、H5 Cookie或业务自定义请求头，不记录带签名 URL；不修改宿主全局 CookieHandler。系统网络栈自身可能使用宿主配置的 Cookie策略，不能把“不注入”解释为独立 Cookie隔离。
+H5 首页的 Bridge Origin 由登录接口返回的 `data.h5Url` 精确派生；图片、视频等媒体资源不使用 `setH5MediaOrigins(...)` 白名单，也不要求与首页同源，可来自第三方 HTTP/HTTPS 域名。媒体 URL 仅校验协议、主机、端口和基本格式，不因此授予资源域名 JS Bridge 权限。首页入口允许 HTTP/HTTPS 绝对 URL（≤4096字符），生产环境建议仅使用 HTTPS；开发/内网使用 HTTP 时必须显式开启 `setAllowInsecureH5(true)`。SDK不注入原生 token、H5 Cookie或业务自定义请求头，不记录带签名 URL；不修改宿主全局 CookieHandler。系统网络栈自身可能使用宿主配置的 Cookie策略，不能把“不注入”解释为独立 Cookie隔离。
 
-图片区分于视频：图片使用自有下载器，禁用自动重定向，最多3跳且逐跳校验完整 Origin；视频由系统 MediaPlayer联网，通过公开头选项 `android-allow-cross-domain-redirect=0` 禁止跨域重定向。两个域名即使都在白名单内也不允许用跨域302串联，应直接传最终 CDN URL。系统内部跳转没有逐跳回调，不能宣称视频也具备图片下载器的“逐跳端口校验/3跳限制”；不同厂商的跳转/TLS行为需要兼容性测试，后端必须提供受控直链，不依赖重定向链。
+图片区分于视频：图片使用自有下载器，允许资源来自任意合法 HTTP/HTTPS 域名，不把媒体 Origin 与 H5 首页 Origin 混用；视频由系统 MediaPlayer联网。媒体资源域名不取得 JS Bridge 权限；不同厂商的跳转/TLS行为需要兼容性测试，后端应提供可访问的最终资源直链。
 
 只有图片下载有20 MiB上限，响应声明长度和实际读字节均检查；连接与单次读取超时15秒，总下载读循环120秒限制（最后一次网络阻塞可能另耗15秒）。图片文件只存 cacheDir/wishfox-preview，关闭时取消请求并删除本次临时文件，不进入相册、不用公共存储；进程异常退出留下的图片缓存需后续维护清理策略，当前不宣称已实现定时清理。当前视频分支不创建下载器、临时目录或文件，无视频缓存容量逐次累积；不扫描删除宿主其他缓存，也不自动删除旧版本遗留文件。
 

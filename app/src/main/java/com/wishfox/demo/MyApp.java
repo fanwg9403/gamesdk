@@ -34,6 +34,8 @@ public class MyApp extends Application {
                         "billcomwishfoxdemoe"
                 )
                         .setBaseUrl("https://test-api-game.wishfoxs.com")
+                        // 仅 Demo 调试地址允许 HTTP；正式第三方接入保持默认关闭。
+                        .setAllowInsecureH5(true)
 //                        .setBaseUrl("https://api-game-pre.wishfoxs.com")
                         .setEnableLog(true)
                         .setWechatTest(true)
