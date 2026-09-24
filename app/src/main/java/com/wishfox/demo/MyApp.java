@@ -18,17 +18,13 @@ public class MyApp extends Application {
     public void onCreate() {
         super.onCreate();
 
-        initializeWishFoxSdk(
-                "https://sdk.example.com/home",
-                "https://sdk.example.com"
-        );
+        initializeWishFoxSdk();
     }
 
     /**
-     * Demo 调试入口：允许 MainActivity 在运行时替换 H5 首页及其精确 Origin。
-     * 正式接入仍应在 Application 启动时使用固定 HTTPS 配置。
+     * H5 首页不在宿主初始化阶段配置，由登录接口返回并随登录态保存。
      */
-    public void initializeWishFoxSdk(String h5HomeUrl, String h5TrustedOrigin) {
+    public void initializeWishFoxSdk() {
 
         WishFoxSdk.initialize(
                 this,
@@ -38,10 +34,6 @@ public class MyApp extends Application {
                         "billcomwishfoxdemoe"
                 )
                         .setBaseUrl("https://test-api-game.wishfoxs.com")
-                        .setH5HomeUrl(h5HomeUrl)
-                        .setH5TrustedOrigin(h5TrustedOrigin)
-                        // Demo 本地/内网联调允许 http；正式宿主不要开启此项。
-                        .setAllowInsecureH5(true)
 //                        .setBaseUrl("https://api-game-pre.wishfoxs.com")
                         .setEnableLog(true)
                         .setWechatTest(true)

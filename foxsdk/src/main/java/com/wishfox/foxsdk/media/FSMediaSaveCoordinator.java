@@ -65,6 +65,7 @@ public final class FSMediaSaveCoordinator {
     private static final Map<String, PickerRequest> PICKERS = new ConcurrentHashMap<>();
 
     private final Activity activity;
+    private final String trustedOrigin;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService executor = Executors.newFixedThreadPool(2);
     private final Map<String, Task> tasks = new ConcurrentHashMap<>();
@@ -73,7 +74,12 @@ public final class FSMediaSaveCoordinator {
     private volatile boolean destroyed;
 
     public FSMediaSaveCoordinator(Activity activity) {
+        this(activity, null);
+    }
+
+    public FSMediaSaveCoordinator(Activity activity, String trustedOrigin) {
         this.activity = activity;
+        this.trustedOrigin = trustedOrigin;
     }
 
     public boolean contains(String requestId) {
@@ -494,7 +500,7 @@ public final class FSMediaSaveCoordinator {
                 FoxSdkConfig config = WishFoxSdk.getConfig();
                 List<String> origins = config.getH5MediaOrigins();
                 if (origins == null || origins.isEmpty()) {
-                    String trusted = config.getH5TrustedOrigin();
+                    String trusted = trustedOrigin;
                     if (TextUtils.isEmpty(trusted)) return false;
                     origins = java.util.Collections.singletonList(FSMediaPolicy.origin(trusted));
                 }
@@ -503,7 +509,7 @@ public final class FSMediaSaveCoordinator {
             // 仅为本地/内网调试保留 HTTP，并且必须与可信 H5 Origin 精确一致。
             if (!WishFoxSdk.getConfig().isAllowInsecureH5()
                     || !"http".equalsIgnoreCase(uri.getScheme())) return false;
-            String trusted = WishFoxSdk.getConfig().getH5TrustedOrigin();
+            String trusted = trustedOrigin;
             return trusted != null && sameHttpOrigin(value, trusted);
         } catch (Exception ignored) {
             return false;

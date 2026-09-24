@@ -27,10 +27,6 @@ public class FoxSdkConfig {
     // 旧版 FloatingX y 轴偏移量（旧调用链按 dp 转 px；当前悬浮球未使用）
     private int floatXxOffset = 100;
     private boolean wechatTest = false;
-    /** H5 首页入口；为空时继续使用现有原生首页。 */
-    private String h5HomeUrl;
-    /** H5 可信 Origin，例如 https://sdk.example.com 或 http://192.168.1.20:5173。 */
-    private String h5TrustedOrigin;
     /** 是否允许 H5 使用明文 HTTP；默认关闭，仅建议开发/内网测试开启。 */
     private boolean allowInsecureH5;
     private java.util.List<String> h5MediaOrigins;
@@ -61,8 +57,6 @@ public class FoxSdkConfig {
         this.floatXScale = builder.floatXScale;
         this.floatXxOffset = builder.floatXxOffset;
         this.wechatTest = builder.wechatTest;
-        this.h5HomeUrl = builder.h5HomeUrl;
-        this.h5TrustedOrigin = builder.h5TrustedOrigin;
         this.allowInsecureH5 = builder.allowInsecureH5;
         this.h5MediaOrigins = java.util.Collections.unmodifiableList(
                 new java.util.ArrayList<>(builder.h5MediaOrigins));
@@ -110,15 +104,22 @@ public class FoxSdkConfig {
         return wechatTest;
     }
 
-    public String getH5HomeUrl() {
-        return h5HomeUrl;
-    }
+    /**
+     * @deprecated H5 首页已改为使用登录接口返回的 data.h5Url；该方法仅为旧版二进制兼容保留。
+     */
+    @Deprecated public String getH5HomeUrl() { return null; }
 
-    public String getH5TrustedOrigin() {
-        return h5TrustedOrigin;
-    }
+    /**
+     * @deprecated Bridge 可信 Origin 已从登录接口返回的 h5Url 自动派生；该方法仅为兼容保留。
+     */
+    @Deprecated public String getH5TrustedOrigin() { return null; }
 
-    /** 是否允许 H5 使用 HTTP；不影响 Origin 精确匹配，也不允许 file/content/data 等协议。 */
+    /**
+     * @deprecated H5 是否启用由登录态和 data.h5Url 决定；该方法仅为兼容保留。
+     */
+    @Deprecated public boolean isH5Enabled() { return false; }
+
+    /** 是否允许登录接口下发的 H5 地址使用 HTTP；正式环境应保持 false。 */
     public boolean isAllowInsecureH5() {
         return allowInsecureH5;
     }
@@ -134,10 +135,6 @@ public class FoxSdkConfig {
      */
     public H5SessionTokenProvider getH5SessionTokenProvider() {
         return h5SessionTokenProvider;
-    }
-
-    public boolean isH5Enabled() {
-        return h5HomeUrl != null && !h5HomeUrl.trim().isEmpty();
     }
 
     /**
@@ -157,8 +154,6 @@ public class FoxSdkConfig {
         private int floatXxOffset = 100;
         private String kqFusedApplicationScheme;
         private boolean wechatTest = false;
-        private String h5HomeUrl;
-        private String h5TrustedOrigin;
         private boolean allowInsecureH5 = false;
         private java.util.List<String> h5MediaOrigins = new java.util.ArrayList<>();
         private H5SessionTokenProvider h5SessionTokenProvider;
@@ -180,7 +175,7 @@ public class FoxSdkConfig {
          * 设置接口域名
          *
          * @param baseUrl 原生接口根地址，默认 https://api-game.wishfoxs.com；生产环境使用 HTTPS，
-         *                此配置不会自动修改 H5 首页和媒体白名单
+         *                此配置不会自动修改登录接口下发的 H5 首页和媒体白名单
          * @return Builder实例
          */
         public Builder setBaseUrl(String baseUrl) {
@@ -257,32 +252,16 @@ public class FoxSdkConfig {
             return this;
         }
 
-        /**
-         * 设置 H5 首页入口；不修改现有原生弹窗和支付模块。
-         * @param h5HomeUrl 可信 HTTP/HTTPS 绝对 URL；null/空白关闭 H5 首页，回退原生首页；
-         *                  非空时必须与 H5 可信 Origin 一致，不允许附带登录 Token
-         * @return 当前 Builder，支持链式调用
-         */
-        public Builder setH5HomeUrl(String h5HomeUrl) {
-            this.h5HomeUrl = h5HomeUrl;
-            return this;
-        }
+        /** @deprecated H5 首页改由登录接口 data.h5Url 下发，该配置不再生效。 */
+        @Deprecated public Builder setH5HomeUrl(String ignored) { return this; }
 
-        /**
-         * 设置拥有 JS Bridge 权限、允许内部路由的 H5 来源。
-         * @param h5TrustedOrigin HTTP/HTTPS Origin（协议+域名+可选端口），例如 https://h5.example.com；
-         *                        不支持通配符，不配置时取首页 Origin，不能将 CDN 作为可信业务来源
-         * @return 当前 Builder，支持链式调用
-         */
-        public Builder setH5TrustedOrigin(String h5TrustedOrigin) {
-            this.h5TrustedOrigin = h5TrustedOrigin;
-            return this;
-        }
+        /** @deprecated Bridge Origin 改由登录接口 data.h5Url 自动派生，该配置不再生效。 */
+        @Deprecated public Builder setH5TrustedOrigin(String ignored) { return this; }
 
         /**
          * 是否允许 H5 使用明文 HTTP。
-         * <p>默认 false。仅建议本地开发或受控内网测试开启；即使开启，仍要求页面
-         * 与 h5TrustedOrigin 的协议、域名和端口完全一致，且不会放行 file/content/data/blob 等协议。</p>
+         * <p>默认 false。仅建议本地开发或受控内网测试开启；正式 H5 地址由登录接口下发，
+         * 且不会放行 file/content/data/blob 等协议。</p>
          * @param allowInsecureH5 是否允许 HTTP H5
          * @return 当前 Builder，支持链式调用
          */
@@ -293,7 +272,7 @@ public class FoxSdkConfig {
 
         /**
          * 设置图片下载及视频在线缓冲的 HTTPS 来源白名单，不授予媒体服务器 JS Bridge 权限。
-         * @param origins 允许的 HTTPS Origin，精确匹配域名和端口；传 null/空数组时回退 H5 可信 Origin；
+         * @param origins 允许的 HTTPS Origin，精确匹配域名和端口；传 null/空数组时回退登录接口下发的 H5 Origin；
          *                每次调用替换旧列表，不是追加。示例：https://cdn.example.com
          * @return 当前 Builder，支持链式调用
          * @throws IllegalArgumentException 任一来源不是合法 HTTPS 地址时抛出

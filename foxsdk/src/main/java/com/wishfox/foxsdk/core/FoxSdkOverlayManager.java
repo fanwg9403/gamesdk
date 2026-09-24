@@ -137,12 +137,7 @@ public final class FoxSdkOverlayManager {
                 FoxSdkDiagnostics.record("overlay_show_ignored", activity, "sdk_not_initialized");
                 return;
             }
-            FoxSdkOverlayManager manager = getOrCreate(activity);
-            if (WishFoxSdk.getConfig().isH5Enabled()) {
-                manager.showH5OrLoginInternal();
-            } else {
-                manager.showHomeInternal();
-            }
+            getOrCreate(activity).showH5OrLoginInternal();
         });
     }
 
@@ -152,13 +147,13 @@ public final class FoxSdkOverlayManager {
     public static void showH5(Activity activity) {
         runOnMain(activity, () -> {
             if (isActivityUsable(activity) && WishFoxSdk.isInitialized()
-                    && WishFoxSdk.getConfig().isH5Enabled()) {
+                    && resolveH5HomeUrl() != null) {
                 getOrCreate(activity).showH5Internal();
             } else {
                 FoxSdkLogger.w(H5_LOG_TAG, "showH5 ignored: activityUsable=" + isActivityUsable(activity)
                         + ", sdkInitialized=" + WishFoxSdk.isInitialized()
-                        + ", h5Enabled=" + (WishFoxSdk.isInitialized()
-                        && WishFoxSdk.getConfig().isH5Enabled()));
+                        + ", loginH5UrlAvailable=" + (WishFoxSdk.isInitialized()
+                        && resolveH5HomeUrl() != null));
             }
         });
     }
@@ -352,7 +347,16 @@ public final class FoxSdkOverlayManager {
 
     private void showH5OrLoginInternal() {
         if (!TextUtils.isEmpty(FSLoginResult.getTokenEd())) {
-            showH5Internal();
+            if (resolveH5HomeUrl() != null) {
+                showH5Internal();
+            } else {
+                // 兼容升级前没有 h5Url 的旧登录缓存：要求重新登录以获取服务端下发的首页地址。
+                Activity activity = activityReference.get();
+                FoxSdkLogger.w(H5_LOG_TAG, "stored login has no valid h5Url; require re-login");
+                FoxSdkDiagnostics.record("h5_login_required", activity, "missing_h5_url");
+                clearLocalAuthState();
+                showLoginInternal(null);
+            }
             return;
         }
         showLoginInternal(null);
@@ -422,6 +426,8 @@ public final class FoxSdkOverlayManager {
                             }
                             FSLoginResult data = result.getData();
                             if (result.isSuccess() && data != null && !TextUtils.isEmpty(data.getToken())) {
+                                FoxSdkLogger.d(H5_LOG_TAG, "login success: h5UrlPresent="
+                                        + !TextUtils.isEmpty(data.getH5Url()));
                                 FSLoginResult.save(data);
                                 cancelLoginInternal();
                                 if (callback != null) callback.onSuccess(data);
@@ -453,9 +459,16 @@ public final class FoxSdkOverlayManager {
 
     private void showH5Internal() {
         Activity activity = activityReference.get();
-        if (destroyed || !isActivityUsable(activity) || !WishFoxSdk.getConfig().isH5Enabled())
+        String homeUrl = resolveH5HomeUrl();
+        if (destroyed || !isActivityUsable(activity))
             return;
-        FoxSdkLogger.d(H5_LOG_TAG, "showH5Internal: homeUrlConfigured=true, existingView=" + (h5View != null));
+        if (homeUrl == null) {
+            FoxSdkLogger.e(H5_LOG_TAG, "showH5Internal rejected: login response h5Url is missing or invalid");
+            FoxSdkDiagnostics.record("h5_overlay_show_failed", activity, "invalid_login_h5_url");
+            Toaster.show("服务暂不可用，请稍后重试");
+            return;
+        }
+        FoxSdkLogger.d(H5_LOG_TAG, "showH5Internal: loginH5UrlAvailable=true, existingView=" + (h5View != null));
         try {
             WindowLifecycleControl.hideWindow(activity);
             removeHomeView();
@@ -486,7 +499,7 @@ public final class FoxSdkOverlayManager {
                 ) {
                     handleMiniProgramRequest(activity, requestId, appName, params, completion);
                 }
-            }, WishFoxSdk.getConfig().getH5HomeUrl());
+            }, homeUrl);
             attachView(h5View);
             FoxSdkDiagnostics.record("h5_overlay_show", activity, "home");
             FoxSdkLogger.d(H5_LOG_TAG, "showH5Internal: overlay attached");
@@ -496,6 +509,31 @@ public final class FoxSdkOverlayManager {
             FoxSdkDiagnostics.reportFailure(activity, "h5_home", "create_failed", throwable);
             removeH5View();
             showHomeInternal();
+        }
+    }
+
+    /**
+     * H5 首页只取登录接口持久化结果，不再接受宿主初始化配置。
+     * 正式环境要求 HTTPS；HTTP 仅在 SDK 自身显式开启调试开关时允许。
+     */
+    private static String resolveH5HomeUrl() {
+        FSLoginResult login = FSLoginResult.getInstance();
+        String value = login == null ? null : login.getH5Url();
+        if (TextUtils.isEmpty(value) || value.length() > 4096) return null;
+        try {
+            Uri uri = Uri.parse(value.trim());
+            String scheme = uri.getScheme();
+            String host = uri.getHost();
+            if (TextUtils.isEmpty(scheme) || TextUtils.isEmpty(host)
+                    || uri.getUserInfo() != null || uri.getPort() == 0 || uri.getPort() > 65535) {
+                return null;
+            }
+            boolean https = "https".equalsIgnoreCase(scheme);
+            boolean debugHttp = "http".equalsIgnoreCase(scheme)
+                    && WishFoxSdk.getConfig().isAllowInsecureH5();
+            return https || debugHttp ? value.trim() : null;
+        } catch (RuntimeException ignored) {
+            return null;
         }
     }
 

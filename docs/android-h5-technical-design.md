@@ -45,18 +45,16 @@
 
 ## 3. 当前工程基础与改造边界
 
-灰度接入时通过配置启用 H5 首页：
+H5 首页不由第三方宿主配置。宿主只配置 SDK 基础参数和可选的媒体 HTTPS 白名单：
 
 ```java
 FoxSdkConfig config = new FoxSdkConfig.Builder(appId, channelId, payScheme)
-        .setH5HomeUrl("https://sdk.example.com/home")
-        .setH5TrustedOrigin("https://sdk.example.com")
         .setAllowInsecureH5(false)
         .setH5MediaOrigins("https://media.example.com", "https://images.example.com")
         .build();
 ```
 
-`h5HomeUrl` 为空时保留现有原生首页，便于分渠道灰度；启用后悬浮球点击按登录态进入原生登录弹窗或 H5 首页。
+`/api/user/login` 成功响应中的 `data.h5Url` 是当前账号对应的 H5 首页地址，原生会随登录结果持久化；未登录点击悬浮球先显示原生登录弹窗，登录成功后打开该地址，已登录点击悬浮球直接打开已保存的地址。H5 首页的可信 Origin 由该 URL 自动派生，第三方无需配置 `h5HomeUrl` 或 `h5TrustedOrigin`。
 
 当前工程已经具备以下可复用基础：
 
@@ -397,7 +395,7 @@ https://sdk-pre.wishfoxs.com
 https://static.wishfoxs.com
 ```
 
-远程配置只能在内置可信 Origin 范围内选择 URL，不能把 Bridge动态开放给任意新域名。`setAllowInsecureH5(true)` 只改变是否允许 HTTP，不会取消 Origin 精确匹配；正式环境默认关闭。
+登录接口返回的 `h5Url` 只能使用 HTTPS（调试阶段显式开启 `setAllowInsecureH5(true)` 时才允许 HTTP），Bridge Origin 始终由该 URL 精确派生，不能把 Bridge 动态开放给任意新域名。
 
 检查内容包括：
 
@@ -711,7 +709,7 @@ SDK 在 IO 线程调用接口，15 秒超时，结果统一切主线程；页面
 - screenOrientation 使用 ActivityInfo 常量，不要把历史 FoxSdkConfig.ORIENTATION_LANDSCAPE=2 当成 ActivityInfo 的横屏0；H5/预览跟随宿主，不主动旋转。
 - setFloatXScale/setFloatXxOffset 是历史 FloatingX 字段，当前原生悬浮球流程未读取；不能将保留接口误写成已生效的配置。旧 offset 调用按 dp 转 px。
 - setWechatTest 选择既有支付的小程序 trial/release，不是全局环境切换。
-- H5 首页/可信 Origin/媒体 Origin 分别配置；媒体域名不取得 Bridge 权限。
+- H5 首页和可信 Origin 取自登录接口返回的 `data.h5Url`；媒体 Origin 可由宿主额外配置，媒体域名不取得 Bridge 权限。
 - 新 provider/Callback、LoginCallback 的 consumer keep 规则随 AAR 提供，内部认证状态类仍可正常压缩混淆。
 
 ### 13.6 本轮验收清单（不编译构建）
@@ -1414,7 +1412,7 @@ SDK不创建视频下载任务、不预取整个商单列表、不启用视频�
 
 本轮实现的是原生媒体预览扩展及其 `postMessage`传输、媒体 capability和局部 ready。原有完整 Bridge方案中的登录会话交换、支付意图、媒体保存、恢复事件等并非本轮全部落地，不能因为预览 capability存在就认为整套协议已实现。H5可加载 assets中的 `wishfox-media-bridge.js`（复制到自己的构建产物；原生不会自动注入这个文件），通过 `media.getPreviewCapabilities`查询实际支持能力。旧 WebView由 H5补齐 Promise polyfill。
 
-`bridge.ready` 当前返回 selectedProtocolVersion/sdkVersion/apiLevel/appId/channelId/isLoggedIn/orientation/navigationMode/safeInsetTop/safeInsetRight/safeInsetBottom/safeInsetLeft/safeInsetUnit/sessionId/webViewId/bridgeMode/capabilities/environment/authState；其中 appId/channelId 是初始化时固定配置，四个 safeInset 字段以 CSS px 返回（safeInsetUnit=css_px，已按 WebView devicePixelRatio 从 Android 物理 px 换算），用于 H5 内容安全区，authState 为原生登录及当前文档短时会话元信息。H5 Overlay 不再额外叠加同一组原生 padding。支付恢复等全量协议字段仍需按 capability 判断，不能仅凭 ready 响应猜测未实现能力。入口仍需配置真实 H5/CDN地址，示例域名不是可上线地址。
+`bridge.ready` 当前返回 selectedProtocolVersion/sdkVersion/apiLevel/appId/channelId/isLoggedIn/orientation/navigationMode/safeInsetTop/safeInsetRight/safeInsetBottom/safeInsetLeft/safeInsetUnit/sessionId/webViewId/bridgeMode/capabilities/environment/authState；其中 appId/channelId 是初始化时固定配置，四个 safeInset 字段以 CSS px 返回（safeInsetUnit=css_px，已按 WebView devicePixelRatio 从 Android 物理 px 换算），用于 H5 内容安全区，authState 为原生登录及当前文档短时会话元信息。H5 Overlay 不再额外叠加同一组原生 padding。支付恢复等全量协议字段仍需按 capability 判断，不能仅凭 ready 响应猜测未实现能力。入口地址来自登录接口 `data.h5Url`，示例域名不是可上线地址。
 
 ### 29.8 验收矩阵
 

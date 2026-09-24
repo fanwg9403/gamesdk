@@ -106,16 +106,16 @@ public final class FSH5OverlayView extends FrameLayout {
         super(activity);
         this.activity = activity;
         this.callback = callback;
-        this.mediaSaveCoordinator = new FSMediaSaveCoordinator(activity);
         FoxSdkConfig config = com.wishfox.foxsdk.core.WishFoxSdk.getConfig();
         this.allowInsecureH5 = config.isAllowInsecureH5();
-        this.trustedOrigin = h5Origin(TextUtils.isEmpty(config.getH5TrustedOrigin())
-                ? homeUrl : config.getH5TrustedOrigin());
+        // 登录接口下发的首页 URL 同时是本次 H5 会话唯一可信 Origin；宿主不再配置 Origin。
+        this.trustedOrigin = h5Origin(homeUrl);
         FoxSdkLogger.d(BRIDGE_LOG_TAG, "overlay create: homeOrigin=" + h5Origin(homeUrl)
                 + ", trustedOrigin=" + trustedOrigin
                 + ", allowInsecureH5=" + allowInsecureH5);
         if (trustedOrigin == null) throw new IllegalArgumentException("Invalid H5 trusted origin");
         if (!isTrusted(homeUrl)) throw new IllegalArgumentException("Untrusted H5 home URL");
+        this.mediaSaveCoordinator = new FSMediaSaveCoordinator(activity, trustedOrigin);
         setClickable(true);
         setFocusable(true);
         // 外层覆盖宿主窗口但保持透明；loading 和 WebView 都只占实际 H5 面板区域。
@@ -308,7 +308,7 @@ public final class FSH5OverlayView extends FrameLayout {
         return trustedOrigin.equals(h5Origin(url));
     }
 
-    /** 允许 HTTP/HTTPS，但仍要求与配置的可信 Origin 精确匹配。 */
+    /** 允许 HTTP/HTTPS，但仍要求与登录接口下发首页的可信 Origin 精确匹配。 */
     private String h5Origin(String value) {
         if (TextUtils.isEmpty(value) || value.length() > 4096) return null;
         Uri uri = Uri.parse(value);

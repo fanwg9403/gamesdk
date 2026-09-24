@@ -44,6 +44,10 @@ public class FSLoginResult {
 
     private String token;
 
+    /** 登录后由服务端下发的 H5 首页地址；同时随登录结果持久化。 */
+    @SerializedName(value = "h5Url", alternate = {"h5_url"})
+    private String h5Url;
+
     public FSLoginResult() {}
 
     // Getter和Setter方法
@@ -73,6 +77,9 @@ public class FSLoginResult {
 
     public String getToken() { return token; }
     public void setToken(String token) { this.token = token; }
+
+    public String getH5Url() { return h5Url; }
+    public void setH5Url(String h5Url) { this.h5Url = h5Url; }
 
     /**
      * 获取单例实例
