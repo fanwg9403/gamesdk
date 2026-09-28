@@ -76,10 +76,10 @@ public class FSHomeViewModel extends FoxSdkBaseMviViewModel<FSHomeViewState, FSH
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(result -> {
-                    if (result.isSuccess() && result.getData() != null
-                            && result.getData().getToken() != null
-                            && !result.getData().getToken().trim().isEmpty()) {
+                    if (result.isSuccess()) {
                         FSLoginResult.save(result.getData());
+                        // 登录接口成功即通知宿主；用户信息接口只用于刷新 SDK 首页展示。
+                        WishFoxSdk.notifyUserLogin(result.getData().getOpenId(), result.getData().getToken());
                         getUserInfo();
                     } else {
                         FSLoginDialog.dismissInstance();
@@ -211,7 +211,8 @@ public class FSHomeViewModel extends FoxSdkBaseMviViewModel<FSHomeViewState, FSH
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(result -> {
-                    if (result.isSuccess()) {
+                    if (result.isSuccess() || (result.isEmpty()
+                            && (result.getCode() == 200 || result.getCode() == 0))) {
                         WishFoxSdk.notifyUserLogout();
                     }
                     // 无论API调用成功与否，都更新本地状态
@@ -260,7 +261,6 @@ public class FSHomeViewModel extends FoxSdkBaseMviViewModel<FSHomeViewState, FSH
                 .subscribe(result -> {
                     if (result.isSuccess()) {
                         FSUserProfile.save(result.getData());
-                        WishFoxSdk.notifyUserLogin();
 
                         // 获取用户虚拟信息和广告列表
                         Single.zip(

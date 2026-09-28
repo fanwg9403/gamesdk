@@ -44,6 +44,7 @@ public class MainActivity extends AppCompatActivity {
 
         Log.e("FoxSdk","11111111111111111111");
 
+        initEnvironmentButtons();
         findViewById(R.id.btn_h5_url).setOnClickListener(v -> showH5UrlDialog());
         Button orientationButton = findViewById(R.id.btn_toggle_orientation);
         updateOrientationButton(orientationButton);
@@ -66,6 +67,31 @@ public class MainActivity extends AppCompatActivity {
                         }));
 
 //        findViewById(R.id.tv_pay).postDelayed(FoxSdkUtils::hideFloatX, 1000);
+    }
+
+    private void initEnvironmentButtons() {
+        MyApp app = (MyApp) getApplication();
+        TextView label = findViewById(R.id.tv_environment_label);
+        Button test = findViewById(R.id.btn_env_test);
+        Button pre = findViewById(R.id.btn_env_pre);
+        Button production = findViewById(R.id.btn_env_production);
+        updateEnvironmentLabel(label, app.getEnvironment());
+        test.setOnClickListener(v -> switchEnvironment(app, label, MyApp.Environment.TEST));
+        pre.setOnClickListener(v -> switchEnvironment(app, label, MyApp.Environment.PRE));
+        production.setOnClickListener(v -> switchEnvironment(app, label, MyApp.Environment.PRODUCTION));
+    }
+
+    private void switchEnvironment(MyApp app, TextView label, MyApp.Environment environment) {
+        if (app.getEnvironment() == environment) return;
+        app.switchEnvironment(environment);
+        updateEnvironmentLabel(label, environment);
+        android.widget.Toast.makeText(this,
+                "已切换到" + environment.label + "环境，请重新登录",
+                android.widget.Toast.LENGTH_SHORT).show();
+    }
+
+    private void updateEnvironmentLabel(TextView label, MyApp.Environment environment) {
+        label.setText("API 环境：" + environment.label + "\n" + environment.baseUrl);
     }
 
     private void showH5UrlDialog() {

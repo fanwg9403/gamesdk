@@ -217,6 +217,7 @@ public class FoxSdkLongingPayUtils {
                         FSLoginResult data = loginResult.getData();
                         // 保存登录结果
                         FSLoginResult.save(data);
+                        WishFoxSdk.notifyUserLogin(data.getOpenId(), data.getToken());
                         FoxSdkSPUtils.getInstance().put(FoxSdkConstant.AUTHORIZATION, data.getToken());
 
                         // 继续获取用户信息
@@ -244,7 +245,6 @@ public class FoxSdkLongingPayUtils {
                         FSUserProfile userProfile = userInfoResult.getData();
                         // 保存用户信息
                         FSUserProfile.save(userProfile);
-                        WishFoxSdk.notifyUserLogin();
 
                         // 继续获取虚拟货币信息
                         return getUserVirtualInfoObservable()

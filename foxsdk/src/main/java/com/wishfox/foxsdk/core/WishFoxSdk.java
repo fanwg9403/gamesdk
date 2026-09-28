@@ -120,6 +120,7 @@ public class WishFoxSdk {
         WishFoxSdk.isInitialized = true;
 
         FoxSdkLogger.setDebug(config.isEnableLog());
+        FoxSdkLogger.d(TAG, "用户状态回调注册: " + (WishFoxSdk.onUserStateListener != null));
 
         // 初始化网络组件
         FoxSdkRetrofitManager.initialize(config);
@@ -167,11 +168,15 @@ public class WishFoxSdk {
 
     /** SDK 用户登录接口成功并保存凭证后调用。 */
     public static void notifyUserLogin(@Nullable String userId, @Nullable String token) {
+        FoxSdkLogger.d(TAG, "收到登录状态事件，listener=" + (onUserStateListener != null)
+                + ", userIdPresent=" + (userId != null)
+                + ", tokenPresent=" + (token != null));
         dispatchUserStateChanged(true, userId, token);
     }
 
     /** SDK 登出接口成功后调用。 */
     public static void notifyUserLogout() {
+        FoxSdkLogger.d(TAG, "收到登出状态事件，listener=" + (onUserStateListener != null));
         dispatchUserStateChanged(false, null, null);
     }
 
@@ -179,7 +184,10 @@ public class WishFoxSdk {
                                                  @Nullable String userId,
                                                  @Nullable String token) {
         OnUserStateListener listener = onUserStateListener;
-        if (listener == null) return;
+        if (listener == null) {
+            FoxSdkLogger.d(TAG, "用户状态回调未注册，event=" + (loggedIn ? "login" : "logout"));
+            return;
+        }
         Runnable callback = () -> {
             try {
                 if (loggedIn) listener.onLogin(userId, token);

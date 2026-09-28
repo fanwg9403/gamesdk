@@ -2,7 +2,6 @@ package com.wishfox.foxsdk.ui.view.widgets;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.content.Intent;
 import android.net.Uri;
 import android.os.SystemClock;
 import android.text.TextUtils;
@@ -26,6 +25,7 @@ import com.wishfox.foxsdk.media.FSMediaSaveCoordinator;
 import com.wishfox.foxsdk.R;
 import com.wishfox.foxsdk.utils.FoxSdkLogger;
 import com.wishfox.foxsdk.utils.FoxSdkUtils;
+import com.wishfox.foxsdk.utils.FoxSdkAppJumpUtils;
 import org.json.JSONObject;
 import org.json.JSONException;
 import java.util.ArrayList;
@@ -39,6 +39,7 @@ import androidx.annotation.Nullable;
 
 import com.wishfox.foxsdk.core.FoxSdkConfig;
 import com.wishfox.foxsdk.auth.FSH5AuthSession;
+import com.wishfox.foxsdk.data.model.entity.FSLoginResult;
 import com.wishfox.foxsdk.data.model.entity.FSUserInfo;
 
 /**
@@ -402,13 +403,14 @@ public final class FSH5OverlayView extends FrameLayout {
         if (TextUtils.isEmpty(url)) return url;
         if (!appendGameParams && !needAppendUserId) return url;
         try {
+            String effectiveUserIdKey = resolveUserIdParameterKey(userIdKey);
             Uri source = Uri.parse(url);
             Uri.Builder builder = source.buildUpon().clearQuery();
 
             // 保留 H5 原有查询参数，但移除由原生负责的固定参数，防止 H5 伪造或产生重复值。
             for (String key : source.getQueryParameterNames()) {
                 if ((appendGameParams && ("gameId".equals(key) || "gameChannel".equals(key)))
-                        || (needAppendUserId && TextUtils.equals(key, userIdKey))) {
+                        || (needAppendUserId && TextUtils.equals(key, effectiveUserIdKey))) {
                     continue;
                 }
                 for (String value : source.getQueryParameters(key)) {
@@ -424,11 +426,12 @@ public final class FSH5OverlayView extends FrameLayout {
                 builder.appendQueryParameter("gameChannel", channelId == null ? "" : channelId);
             }
 
-            if (needAppendUserId && !TextUtils.isEmpty(userIdKey)
-                    && !isReservedInternalParam(userIdKey)) {
-                FSUserInfo userInfo = FSUserInfo.getInstance();
-                String userId = userInfo == null ? null : userInfo.getUserId();
-                if (!TextUtils.isEmpty(userId)) builder.appendQueryParameter(userIdKey, userId);
+            if (needAppendUserId && !TextUtils.isEmpty(effectiveUserIdKey)
+                    && !isReservedInternalParam(effectiveUserIdKey)) {
+                String userId = currentNativeUserId();
+                if (!TextUtils.isEmpty(userId)) {
+                    builder.appendQueryParameter(effectiveUserIdKey, userId);
+                }
             }
             return builder.build().toString();
         } catch (RuntimeException failure) {
@@ -438,13 +441,13 @@ public final class FSH5OverlayView extends FrameLayout {
     }
 
     private boolean hasNativeUserId(String url, boolean needAppendUserId, String userIdKey) {
-        if (!needAppendUserId || TextUtils.isEmpty(url) || TextUtils.isEmpty(userIdKey)
-                || isReservedInternalParam(userIdKey)) return false;
-        FSUserInfo userInfo = FSUserInfo.getInstance();
-        String userId = userInfo == null ? null : userInfo.getUserId();
+        String effectiveUserIdKey = resolveUserIdParameterKey(userIdKey);
+        if (!needAppendUserId || TextUtils.isEmpty(url) || TextUtils.isEmpty(effectiveUserIdKey)
+                || isReservedInternalParam(effectiveUserIdKey)) return false;
+        String userId = currentNativeUserId();
         if (TextUtils.isEmpty(userId)) return false;
         try {
-            return TextUtils.equals(userId, Uri.parse(url).getQueryParameter(userIdKey));
+            return TextUtils.equals(userId, Uri.parse(url).getQueryParameter(effectiveUserIdKey));
         } catch (RuntimeException ignored) {
             return false;
         }
@@ -533,13 +536,59 @@ public final class FSH5OverlayView extends FrameLayout {
     }
 
     public void openExternal(String value) {
-        if (destroyed || TextUtils.isEmpty(value)) return;
-        Uri uri = Uri.parse(value);
-        String scheme = uri.getScheme();
-        if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) return;
+        openExternal(value, false, null);
+    }
+
+    /**
+     * 兼容两种 H5 调用方式：userIdKey 既可以是查询参数名，也可以误传为当前用户 ID。
+     * 后者统一使用 userId 作为查询参数名。
+     */
+    private String resolveUserIdParameterKey(String userIdKey) {
+        if (TextUtils.isEmpty(userIdKey)) return "";
+        String currentUserId = currentNativeUserId();
+        return TextUtils.equals(userIdKey, currentUserId) ? "userId" : userIdKey;
+    }
+
+    private String currentNativeUserId() {
+        FSUserInfo userInfo = FSUserInfo.getInstance();
+        if (userInfo != null && !TextUtils.isEmpty(userInfo.getUserId())) {
+            return userInfo.getUserId();
+        }
+        FSLoginResult loginResult = FSLoginResult.getInstance();
+        return loginResult == null ? null : loginResult.getOpenId();
+    }
+
+    /** 打开外部浏览器，可按 H5 请求把当前原生用户 ID 和游戏参数追加到链接。 */
+    public void openExternal(String value, boolean needAppendUserId, String userIdKey) {
+        String url = externalUrl(value, needAppendUserId, userIdKey,
+                needAppendUserId || !TextUtils.isEmpty(userIdKey));
+        if (url == null) return;
         try {
-            activity.startActivity(new Intent(Intent.ACTION_VIEW, uri));
-        } catch (Throwable ignored) { }
+            FoxSdkAppJumpUtils.byWebOpenH5(activity, url);
+        } catch (Throwable failure) {
+            FoxSdkLogger.w(BRIDGE_LOG_TAG, "open external failed: "
+                    + failure.getClass().getSimpleName());
+        }
+    }
+
+    private String externalUrl(String value, boolean needAppendUserId, String userIdKey,
+                               boolean appendGameParams) {
+        if (destroyed || TextUtils.isEmpty(value)) return null;
+        String normalizedValue = normalizeExternalUrl(value);
+        String url = appendNativeInternalParams(normalizedValue, needAppendUserId, userIdKey,
+                appendGameParams);
+        Uri uri = Uri.parse(url);
+        String scheme = uri.getScheme();
+        if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) return null;
+        return url;
+    }
+
+    /** 外链未携带协议时按 HTTPS 处理。 */
+    private String normalizeExternalUrl(String value) {
+        String url = value == null ? "" : value.trim();
+        if (url.isEmpty()) return url;
+        Uri uri = Uri.parse(url);
+        return TextUtils.isEmpty(uri.getScheme()) ? "https://" + url : url;
     }
 
     public void onConfigurationChanged() {
@@ -764,6 +813,17 @@ public final class FSH5OverlayView extends FrameLayout {
         public void openExternal(final String url) {
             long epoch = generation;
             post(() -> { if (valid(epoch)) FSH5OverlayView.this.openExternal(url); });
+        }
+
+        @JavascriptInterface
+        public void openExternal(final String url, final boolean needAppendUserId,
+                                  final String userIdKey) {
+            long epoch = generation;
+            post(() -> {
+                if (valid(epoch)) {
+                    FSH5OverlayView.this.openExternal(url, needAppendUserId, userIdKey);
+                }
+            });
         }
 
         @JavascriptInterface
@@ -1160,8 +1220,10 @@ public final class FSH5OverlayView extends FrameLayout {
                 reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
                 return;
             }
-            if (needAppendUserId && (userIdKey.isEmpty() || userIdKey.length() > 128
-                    || isReservedInternalParam(userIdKey))) {
+            String effectiveUserIdKey = resolveUserIdParameterKey(userIdKey);
+            if (needAppendUserId && (effectiveUserIdKey.isEmpty()
+                    || effectiveUserIdKey.length() > 128
+                    || isReservedInternalParam(effectiveUserIdKey))) {
                 reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
                 return;
             }
@@ -1181,19 +1243,47 @@ public final class FSH5OverlayView extends FrameLayout {
         }
         if ("navigation.openExternal".equals(method)) {
             String url = params.optString("url", "");
-            Uri uri = Uri.parse(url);
-            String scheme = uri.getScheme();
-            if (url.length() < 1 || url.length() > 2048
-                    || (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme))) {
+            boolean extendedOpenExternal = params.has("needAppendUserId")
+                    || params.has("appendUserId") || params.has("userIdKey");
+            Object appendUserIdValue = params.has("needAppendUserId")
+                    ? params.opt("needAppendUserId") : params.opt("appendUserId");
+            boolean needAppendUserId = appendUserIdValue == null
+                    ? false : (appendUserIdValue instanceof Boolean
+                    && (Boolean) appendUserIdValue);
+            String userIdKey = params.optString("userIdKey", "").trim();
+            if (appendUserIdValue != null && !(appendUserIdValue instanceof Boolean)) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
+            String effectiveUserIdKey = resolveUserIdParameterKey(userIdKey);
+            if (needAppendUserId && (effectiveUserIdKey.isEmpty()
+                    || effectiveUserIdKey.length() > 128
+                    || isReservedInternalParam(effectiveUserIdKey))) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
+            if (url.length() < 1 || url.length() > 2048) {
+                reply(bridge, request, epoch, "INVALID_URL", null);
+                return;
+            }
+            String actualUrl = externalUrl(url, needAppendUserId, userIdKey, extendedOpenExternal);
+            if (actualUrl == null) {
                 reply(bridge, request, epoch, "INVALID_URL", null);
                 return;
             }
             try {
-                activity.startActivity(new Intent(Intent.ACTION_VIEW, uri));
-                reply(bridge, request, epoch, "OK", new JSONObject().put("accepted", true));
+                FoxSdkAppJumpUtils.byWebOpenH5(activity, actualUrl);
             } catch (Throwable failure) {
                 reply(bridge, request, epoch, "EXTERNAL_OPEN_FAILED", null);
+                return;
             }
+            reply(bridge, request, epoch, "OK", new JSONObject()
+                    .put("accepted", true)
+                    .put("requestedUrl", url)
+                    .put("actualUrl", actualUrl)
+                    .put("needAppendUserId", needAppendUserId)
+                    .put("userIdAppended", hasNativeUserId(actualUrl, needAppendUserId, userIdKey))
+                    .put("gameParamsAppended", extendedOpenExternal && hasNativeGameParams(actualUrl)));
             return;
         }
         if ("navigation.updateState".equals(method)) {

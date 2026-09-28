@@ -453,6 +453,11 @@ public final class FoxSdkOverlayManager {
                                 FoxSdkLogger.d(H5_LOG_TAG, "login success: h5UrlPresent="
                                         + !TextUtils.isEmpty(data.getH5Url()));
                                 FSLoginResult.save(data);
+                                // 悬浮球默认登录直接打开 H5；H5 auth.login 场景在短 Token
+                                // 交换成功后由 FSH5AuthSession 通知宿主，避免重复回调。
+                                if (callback == null) {
+                                    WishFoxSdk.notifyUserLogin(data.getOpenId(), data.getToken());
+                                }
                                 cancelLoginInternal();
                                 if (callback != null) callback.onSuccess(data);
                                 else showH5Internal();
@@ -1113,14 +1118,25 @@ public final class FoxSdkOverlayManager {
      */
     private void startServerLogout(Activity activity, String token) {
         try {
-            if (TextUtils.isEmpty(token)) return;
+            if (TextUtils.isEmpty(token)) {
+                FoxSdkLogger.w(H5_LOG_TAG, "server logout skipped: token is empty");
+                return;
+            }
             if (logoutRequest != null) logoutRequest.dispose();
             logoutRequest = FoxSdkRepositoryContainer.getHomeRepository().logout(token)
                     .subscribeOn(Schedulers.io())
                     .observeOn(AndroidSchedulers.mainThread())
                     .subscribe(result -> {
                                 logoutRequest = null;
-                                if (result != null && result.isSuccess()) {
+                                boolean success = result != null && (result.isSuccess()
+                                        // 登出接口通常返回 200/0 且 data=null，网络层会将其包装为 EMPTY。
+                                        || (result.isEmpty() && (result.getCode() == 200
+                                        || result.getCode() == 0)));
+                                FoxSdkLogger.d(H5_LOG_TAG, "server logout response: type="
+                                        + (result == null ? "null" : result.getType())
+                                        + ", code=" + (result == null ? "null" : result.getCode())
+                                        + ", success=" + success);
+                                if (success) {
                                     WishFoxSdk.notifyUserLogout();
                                 }
                             },
