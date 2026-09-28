@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.app.Application;
 import android.content.DialogInterface;
 import android.os.Build;
+import android.text.TextUtils;
 import android.os.Bundle;
 import android.view.KeyEvent;
 
@@ -59,6 +60,19 @@ public class FoxSdkLongingPayUtils {
     private long orderTimeFS = 0;
     private String cpOrderIdFS = "";
 
+    private boolean isLoggedIn() {
+        return !TextUtils.isEmpty(FSLoginResult.getTokenEd());
+    }
+
+    private String currentUserId() {
+        FSUserInfo userInfo = FSUserInfo.getInstance();
+        if (userInfo != null && !TextUtils.isEmpty(userInfo.getUserId())) {
+            return userInfo.getUserId();
+        }
+        FSLoginResult loginResult = FSLoginResult.getInstance();
+        return loginResult == null ? "" : loginResult.getOpenId();
+    }
+
     /**
      * 登录弹窗
      *
@@ -66,6 +80,12 @@ public class FoxSdkLongingPayUtils {
      * @param onLoginListener
      */
     public void loginWishFox(Activity mActivity, OnLoginListener onLoginListener) {
+        if (isLoggedIn()) {
+            if (onLoginListener != null) {
+                onLoginListener.onLogin(currentUserId(), FSLoginResult.getTokenEd());
+            }
+            return;
+        }
         loginDialog = new FSLoginDialog(mActivity);
         loginDialog.setOnLoginClickListener((arg1, arg2, type,loadingDialog) -> {
 //            loading = new FSLoadingDialog(mActivity);
@@ -76,7 +96,7 @@ public class FoxSdkLongingPayUtils {
                     .observeOn(AndroidSchedulers.mainThread())
                     .subscribe(success -> {
                         if (success) {
-                            onLoginListener.onLogin(FSUserInfo.getInstance().getUserId(), FSLoginResult.getTokenEd());
+                            onLoginListener.onLogin(currentUserId(), FSLoginResult.getTokenEd());
                             loginDialog.dismiss();
 //                            loading.dismiss();
                             loadingDialog.dismiss();
@@ -115,7 +135,7 @@ public class FoxSdkLongingPayUtils {
         orderTimeFS = orderTime;
         cpOrderIdFS = cpOrderId;
 
-        if (FSUserInfo.getInstance() == null) { // 未登录
+        if (!isLoggedIn()) { // 未登录
             loginDialog = new FSLoginDialog(mActivity);
             loginDialog.setOnLoginClickListener((arg1, arg2, type,loadingDialog) -> {
 //                loading = new FSLoadingDialog(mActivity);
@@ -126,7 +146,7 @@ public class FoxSdkLongingPayUtils {
                         .observeOn(AndroidSchedulers.mainThread())
                         .subscribe(success -> {
                             if (success) {
-                                onLoginListener.onLogin(FSUserInfo.getInstance().getUserId(), FSLoginResult.getTokenEd());
+                                onLoginListener.onLogin(currentUserId(), FSLoginResult.getTokenEd());
                                 loginDialog.dismiss();
 //                                loading.dismiss();
                                 loadingDialog.dismiss();
@@ -146,7 +166,7 @@ public class FoxSdkLongingPayUtils {
             });
             loginDialog.show();
         } else { // 已登录调用支付
-            onLoginListener.onLogin(FSUserInfo.getInstance().getUserId(), FSLoginResult.getTokenEd());
+            onLoginListener.onLogin(currentUserId(), FSLoginResult.getTokenEd());
             getSdkConfig(mActivity, mallId, mallName, price, priceContent,
                     orderTime, cpOrderId);
         }

@@ -67,6 +67,13 @@
             android:layout_marginTop="8dp"
             android:text="@string/switch_orientation" />
 
+        <Button
+            android:id="@+id/btn_login"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="登录" />
+
         <TextView
             android:id="@+id/tv_pay"
             android:layout_width="match_parent"

@@ -50,6 +50,13 @@ public class MainActivity extends AppCompatActivity {
         updateOrientationButton(orientationButton);
         orientationButton.setOnClickListener(v -> toggleOrientation());
 
+        findViewById(R.id.btn_login).setOnClickListener(v ->
+                FoxSdkLongingPayUtilsV1.loginWishFox(
+                        MainActivity.this,
+                        (userId, token) -> ((TextView) findViewById(R.id.tv_info))
+                                .setText("userId: " + userId + "\ntoken: " + token)
+                ));
+
         findViewById(R.id.tv_pay).setOnClickListener(v ->
                 FoxSdkLongingPayUtilsV1.loginPay(
                         MainActivity.this,
