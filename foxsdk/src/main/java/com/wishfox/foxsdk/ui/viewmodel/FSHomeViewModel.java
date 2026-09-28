@@ -7,6 +7,7 @@ import com.wishfox.foxsdk.data.model.entity.FSLoginResult;
 import com.wishfox.foxsdk.data.model.entity.FSUserInfo;
 import com.wishfox.foxsdk.data.model.entity.FSUserProfile;
 import com.wishfox.foxsdk.data.repository.FSHomeRepository;
+import com.wishfox.foxsdk.core.WishFoxSdk;
 import com.wishfox.foxsdk.domain.intent.FSHomeIntent;
 import com.wishfox.foxsdk.ui.base.FoxSdkBaseMviViewModel;
 import com.wishfox.foxsdk.ui.view.dialog.FSLoginDialog;
@@ -75,7 +76,9 @@ public class FSHomeViewModel extends FoxSdkBaseMviViewModel<FSHomeViewState, FSH
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(result -> {
-                    if (result.isSuccess()) {
+                    if (result.isSuccess() && result.getData() != null
+                            && result.getData().getToken() != null
+                            && !result.getData().getToken().trim().isEmpty()) {
                         FSLoginResult.save(result.getData());
                         getUserInfo();
                     } else {
@@ -208,6 +211,9 @@ public class FSHomeViewModel extends FoxSdkBaseMviViewModel<FSHomeViewState, FSH
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(result -> {
+                    if (result.isSuccess()) {
+                        WishFoxSdk.notifyUserLogout();
+                    }
                     // 无论API调用成功与否，都更新本地状态
                     updateStateAfterLogout();
                 }, throwable -> {
@@ -254,6 +260,7 @@ public class FSHomeViewModel extends FoxSdkBaseMviViewModel<FSHomeViewState, FSH
                 .subscribe(result -> {
                     if (result.isSuccess()) {
                         FSUserProfile.save(result.getData());
+                        WishFoxSdk.notifyUserLogin();
 
                         // 获取用户虚拟信息和广告列表
                         Single.zip(

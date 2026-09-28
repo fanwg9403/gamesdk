@@ -1118,7 +1118,12 @@ public final class FoxSdkOverlayManager {
             logoutRequest = FoxSdkRepositoryContainer.getHomeRepository().logout(token)
                     .subscribeOn(Schedulers.io())
                     .observeOn(AndroidSchedulers.mainThread())
-                    .subscribe(result -> logoutRequest = null,
+                    .subscribe(result -> {
+                                logoutRequest = null;
+                                if (result != null && result.isSuccess()) {
+                                    WishFoxSdk.notifyUserLogout();
+                                }
+                            },
                             error -> {
                                 logoutRequest = null;
                                 FoxSdkDiagnostics.record("h5_logout_server_failed", activity,

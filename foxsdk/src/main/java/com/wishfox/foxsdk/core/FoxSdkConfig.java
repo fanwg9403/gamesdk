@@ -30,6 +30,7 @@ public class FoxSdkConfig {
     /** 是否允许 H5 使用明文 HTTP；默认关闭，仅建议开发/内网测试开启。 */
     private boolean allowInsecureH5;
     private H5SessionTokenProvider h5SessionTokenProvider;
+    private WishFoxSdk.OnUserStateListener onUserStateListener;
 
     //快钱支付宝支付配置
     private String kqFusedApplicationScheme;
@@ -58,6 +59,7 @@ public class FoxSdkConfig {
         this.wechatTest = builder.wechatTest;
         this.allowInsecureH5 = builder.allowInsecureH5;
         this.h5SessionTokenProvider = builder.h5SessionTokenProvider;
+        this.onUserStateListener = builder.onUserStateListener;
         this.kqFusedApplicationScheme = builder.kqFusedApplicationScheme;
     }
 
@@ -136,6 +138,11 @@ public class FoxSdkConfig {
         return h5SessionTokenProvider;
     }
 
+    /** 获取宿主用户登录/登出状态回调。 */
+    public WishFoxSdk.OnUserStateListener getOnUserStateListener() {
+        return onUserStateListener;
+    }
+
     /**
      * Builder模式用于创建FoxSdkConfig实例
      */
@@ -155,6 +162,7 @@ public class FoxSdkConfig {
         private boolean wechatTest = false;
         private boolean allowInsecureH5 = false;
         private H5SessionTokenProvider h5SessionTokenProvider;
+        private WishFoxSdk.OnUserStateListener onUserStateListener;
 
         /**
          * 构造Builder，必需参数
@@ -284,6 +292,17 @@ public class FoxSdkConfig {
         public Builder setH5SessionTokenProvider(H5SessionTokenProvider provider) {
             this.h5SessionTokenProvider = provider;
             return this;
+        }
+
+        /** 设置宿主用户登录/登出状态回调，回调在主线程执行。 */
+        public Builder setOnUserStateListener(WishFoxSdk.OnUserStateListener listener) {
+            this.onUserStateListener = listener;
+            return this;
+        }
+
+        /** 设置宿主用户登录/登出状态回调的兼容别名。 */
+        public Builder setUserStateListener(WishFoxSdk.OnUserStateListener listener) {
+            return setOnUserStateListener(listener);
         }
 
         /**

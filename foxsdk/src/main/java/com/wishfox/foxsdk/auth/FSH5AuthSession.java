@@ -6,6 +6,7 @@ import android.text.TextUtils;
 
 import com.wishfox.foxsdk.core.FoxSdkConfig;
 import com.wishfox.foxsdk.core.FoxSdkOverlayManager;
+import com.wishfox.foxsdk.core.WishFoxSdk;
 import com.wishfox.foxsdk.data.model.FoxSdkBaseResponse;
 import com.wishfox.foxsdk.data.model.entity.FSLoginResult;
 import com.wishfox.foxsdk.data.model.entity.FSShortLogin;
@@ -43,6 +44,7 @@ public final class FSH5AuthSession {
         Disposable exchange;
         long revision;
         String nativeToken;
+        boolean loginFlow;
         Operation(Result result) { this.result = result; }
     }
 
@@ -113,6 +115,7 @@ public final class FSH5AuthSession {
         Operation op = new Operation(result);
         pending = op;
         if (TextUtils.isEmpty(FSLoginResult.getTokenEd())) {
+            op.loginFlow = true;
             op.login = new FoxSdkOverlayManager.LoginCallback() {
                 @Override public void onSuccess(FSLoginResult ignored) {
                     if (pending != op) return;
@@ -170,6 +173,12 @@ public final class FSH5AuthSession {
                         expiresAt = value.seconds > 0
                                 ? SystemClock.elapsedRealtime() + value.seconds * 1000
                                 : 0;
+                        if (op.loginFlow) {
+                            FSLoginResult loginResult = FSLoginResult.getInstance();
+                            if (loginResult != null) {
+                                WishFoxSdk.notifyUserLogin(loginResult.getOpenId(), loginResult.getToken());
+                            }
+                        }
                         succeed(op, value.token, value.seconds);
                     }
                 }, error -> {

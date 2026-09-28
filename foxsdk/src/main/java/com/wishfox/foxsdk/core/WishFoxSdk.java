@@ -35,6 +35,8 @@ import com.wishfox.foxsdk.utils.FoxSdkUtils;
 import com.wishfox.foxsdk.utils.FoxSdkViewExt;
 import com.wishfox.foxsdk.utils.FSFloatImageManager;
 import com.wishfox.foxsdk.data.model.entity.FSFloatIcon;
+import com.wishfox.foxsdk.data.model.entity.FSLoginResult;
+import com.wishfox.foxsdk.data.model.entity.FSUserInfo;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -65,6 +67,7 @@ public class WishFoxSdk {
     private static FoxSdkConfig config;
     private static Context context;
     private static Disposable floatImageDisposable;
+    private static OnUserStateListener onUserStateListener;
 
     private static boolean floatMove = false;
     private static boolean floatActive = true;
@@ -111,6 +114,9 @@ public class WishFoxSdk {
 
         WishFoxSdk.context = context.getApplicationContext();
         WishFoxSdk.config = config;
+        if (config.getOnUserStateListener() != null) {
+            WishFoxSdk.onUserStateListener = config.getOnUserStateListener();
+        }
         WishFoxSdk.isInitialized = true;
 
         FoxSdkLogger.setDebug(config.isEnableLog());
@@ -143,6 +149,56 @@ public class WishFoxSdk {
         if (config.isEnableLog()) {
             FoxSdkLogger.d(TAG, "WishFoxSDK 初始化成功！");
         }
+    }
+
+    /** 注册宿主用户状态监听器。登录/登出事件均在主线程回调。 */
+    public static void setOnUserStateListener(@Nullable OnUserStateListener listener) {
+        onUserStateListener = listener;
+    }
+
+    /** SDK 用户登录接口成功并保存凭证后调用。 */
+    public static void notifyUserLogin() {
+        FSUserInfo userInfo = FSUserInfo.getInstance();
+        FSLoginResult loginResult = FSLoginResult.getInstance();
+        notifyUserLogin(userInfo == null ? (loginResult == null ? null : loginResult.getOpenId())
+                        : userInfo.getUserId(),
+                loginResult == null ? null : loginResult.getToken());
+    }
+
+    /** SDK 用户登录接口成功并保存凭证后调用。 */
+    public static void notifyUserLogin(@Nullable String userId, @Nullable String token) {
+        dispatchUserStateChanged(true, userId, token);
+    }
+
+    /** SDK 登出接口成功后调用。 */
+    public static void notifyUserLogout() {
+        dispatchUserStateChanged(false, null, null);
+    }
+
+    private static void dispatchUserStateChanged(boolean loggedIn,
+                                                 @Nullable String userId,
+                                                 @Nullable String token) {
+        OnUserStateListener listener = onUserStateListener;
+        if (listener == null) return;
+        Runnable callback = () -> {
+            try {
+                if (loggedIn) listener.onLogin(userId, token);
+                else listener.onLogout();
+            } catch (RuntimeException exception) {
+                FoxSdkLogger.e(TAG, "宿主用户状态回调执行失败: " + exception.getClass().getSimpleName());
+            }
+        };
+        if (Looper.myLooper() == Looper.getMainLooper()) callback.run();
+        else new Handler(Looper.getMainLooper()).post(callback);
+    }
+
+    /** 宿主应用用户登录状态回调。 */
+    public interface OnUserStateListener {
+        /** SDK 内登录接口成功并取得登录凭证后回调。 */
+        void onLogin(@Nullable String userId, @Nullable String token);
+
+        /** SDK 内登出接口成功后回调。 */
+        void onLogout();
     }
 
     /** 初始化阶段获取悬浮球图片并刷新本地缓存。重复初始化时取消上一次请求。 */

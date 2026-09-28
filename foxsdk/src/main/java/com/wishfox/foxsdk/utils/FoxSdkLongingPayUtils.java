@@ -12,6 +12,7 @@ import com.hjq.toast.Toaster;
 import com.wishfox.foxsdk.R;
 import com.wishfox.foxsdk.data.model.entity.FSCoinInfo;
 import com.wishfox.foxsdk.data.model.entity.FSLoginResult;
+import com.wishfox.foxsdk.core.WishFoxSdk;
 import com.wishfox.foxsdk.data.model.entity.FSPayResult;
 import com.wishfox.foxsdk.data.model.entity.FSSdkConfig;
 import com.wishfox.foxsdk.data.model.entity.FSUserInfo;
@@ -243,6 +244,7 @@ public class FoxSdkLongingPayUtils {
                         FSUserProfile userProfile = userInfoResult.getData();
                         // 保存用户信息
                         FSUserProfile.save(userProfile);
+                        WishFoxSdk.notifyUserLogin();
 
                         // 继续获取虚拟货币信息
                         return getUserVirtualInfoObservable()

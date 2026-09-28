@@ -33,15 +33,26 @@ public class MyApp extends Application {
                         "1",
                         "billcomwishfoxdemoe"
                 )
-                        .setBaseUrl("https://test-api-game.wishfoxs.com")
+//                        .setBaseUrl("https://test-api-game.wishfoxs.com")
                         // 仅 Demo 调试地址允许 HTTP；正式第三方接入保持默认关闭。
                         .setAllowInsecureH5(true)
-//                        .setBaseUrl("https://api-game-pre.wishfoxs.com")
+                        .setBaseUrl("https://api-game-pre.wishfoxs.com")
                         .setEnableLog(true)
                         .setWechatTest(true)
                         .setScreenOrientation(FoxSdkConfig.ORIENTATION_LANDSCAPE)
                         .setFloatXScale(0.5f)
                         .setFloatXxOffset(100)
+                        .setOnUserStateListener(new WishFoxSdk.OnUserStateListener() {
+                            @Override
+                            public void onLogin(String userId, String token) {
+                                // SDK 内部登录成功后回调宿主。
+                            }
+
+                            @Override
+                            public void onLogout() {
+                                // SDK 内部退出登录接口成功后回调宿主。
+                            }
+                        })
                         .build()
         );
     }
