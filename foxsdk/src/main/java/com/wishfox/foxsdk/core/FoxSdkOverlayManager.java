@@ -14,6 +14,7 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.wishfox.foxsdk.data.model.entity.FSGameSchemeData;
 import com.wishfox.foxsdk.data.model.entity.FSPayResult;
+import com.wishfox.foxsdk.data.model.entity.FSUserInfo;
 import com.wishfox.foxsdk.data.network.FoxSdkNetworkExecutor;
 import com.wishfox.foxsdk.data.network.FoxSdkRetrofitManager;
 import com.wishfox.foxsdk.ui.view.activity.FSHomeActivity;
@@ -959,10 +960,11 @@ public final class FoxSdkOverlayManager {
                 return;
             }
 
-            if ("xuyuanhu".equals(appName)
-                    && FoxSdkUtils.isWishFoxInstalled(activity).blockingLast()) {
-                // 如果是许愿狐小程序，则优先判断是否安装了许愿狐 APP；
-                // 已安装时跳转 APP，否则继续走微信小程序分支。
+            // 已安装时跳转 APP，否则继续走微信小程序分支。
+            String oriUrl = map.get("url") == null ? "https://www.wishfosx.com" : map.get("url").toString();
+            String newUrl = externalUrl(oriUrl);
+            if (FoxSdkUtils.isWishFoxInstalled(activity).blockingLast() && ("xuyuanhu".equals(appName) || "shop".equals(appName) ||
+                    ("yougua".equals(appName) && (map.get("typeName") == null || !map.get("typeName").toString().equals("payment"))))) {
                 Gson gson = new Gson();
                 FSGameSchemeData gameSchemeData = new FSGameSchemeData(
                         "wish_game",
@@ -977,17 +979,21 @@ public final class FoxSdkOverlayManager {
                 FoxSdkAppJumpUtils.launchByDeepLink(
                         activity,
                         "sohugloba://app/game_sdk?gameData=" + json,
-                        map.get("url") == null ? "https://www.wishfosx.com" : map.get("url").toString()
+                        newUrl
                 );
                 finish.complete("OK", miniProgramResult(requestId, "accepted_to_launch"));
             } else {
                 Pair<Boolean, String> pair = FoxSdkWxPay.wXMiniProgramAllinpayPayment(activity, map);
                 if (pair != null && Boolean.TRUE.equals(pair.first)) {
-                    String scene = map.get("typeName") == null ? "payment" : (map.get("typeName").toString().equals("通用") || map.get("typeName").toString().equals("流量")) ? "Task" : map.get("typeName").toString().equals("服务") ? "Service" : "Wish";
-                    startWechatForSchemeEncrypted(activity, pair.second, appName, scene, requestId, finish);
+                    String scene = map.get("typeName") == null ? "payment" : (map.get("typeName").toString().equals("通用") || map.get("typeName").toString().equals("流量")) ? "Task" : map.get("typeName").toString().equals("服务") ? "Service" : map.get("typeName").toString().equals("心愿") ? "Wish" : map.get("typeName").toString().equals("商品详情") ? "goods_detail" : map.get("typeName").toString().equals("小说详情") ? "novel_detail" : "";
+                    if (TextUtils.isEmpty(scene)) {
+                        FoxSdkAppJumpUtils.byWebOpenH5(activity, newUrl);
+                        finish.complete("OK", miniProgramResult(requestId, "accepted_to_launch"));
+                    } else {
+                        startWechatForSchemeEncrypted(activity, pair.second, appName, scene, requestId, finish);
+                    }
                 } else {
-                    FoxSdkAppJumpUtils.byWebOpenH5(activity,
-                            map.get("url") == null ? "https://www.wishfosx.com" : map.get("url").toString());
+                    FoxSdkAppJumpUtils.byWebOpenH5(activity, newUrl);
                     finish.complete("OK", miniProgramResult(requestId, "accepted_to_launch"));
                 }
             }
@@ -1261,5 +1267,86 @@ public final class FoxSdkOverlayManager {
         webShowTitle = false;
         webShowReport = false;
         FoxSdkDiagnostics.record("overlay_host_destroyed", activityReference.get(), ROUTE_HOME);
+    }
+
+    private String externalUrl(String value) {
+        if (destroyed || TextUtils.isEmpty(value)) return null;
+        String normalizedValue = normalizeExternalUrl(value);
+        String url = appendNativeInternalParams(normalizedValue);
+        Uri uri = Uri.parse(url);
+        String scheme = uri.getScheme();
+        if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) return null;
+        return url;
+    }
+
+    /**
+     * 外链未携带协议时按 HTTPS 处理。
+     */
+    private String normalizeExternalUrl(String value) {
+        String url = value == null ? "" : value.trim();
+        if (url.isEmpty()) return url;
+        Uri uri = Uri.parse(url);
+        return TextUtils.isEmpty(uri.getScheme()) ? "https://" + url : url;
+    }
+
+    private String appendNativeInternalParams(String url) {
+        if (TextUtils.isEmpty(url)) return url;
+        try {
+            String effectiveUserIdKey = resolveUserIdParameterKey("userId");
+            Uri source = Uri.parse(url);
+            Uri.Builder builder = source.buildUpon().clearQuery();
+
+            // 保留 H5 原有查询参数，但移除由原生负责的固定参数，防止 H5 伪造或产生重复值。
+            for (String key : source.getQueryParameterNames()) {
+                if (("gameId".equals(key) || "gameChannel".equals(key))
+                        || TextUtils.equals(key, effectiveUserIdKey)) {
+                    continue;
+                }
+                for (String value : source.getQueryParameters(key)) {
+                    builder.appendQueryParameter(key, value);
+                }
+            }
+
+            FoxSdkConfig config = com.wishfox.foxsdk.core.WishFoxSdk.getConfig();
+            String appId = config.getAppId();
+            String channelId = config.getChannelId();
+            builder.appendQueryParameter("gameId", appId == null ? "" : appId);
+            builder.appendQueryParameter("gameChannel", channelId == null ? "" : channelId);
+
+            if (!TextUtils.isEmpty(effectiveUserIdKey)
+                    && !isReservedInternalParam(effectiveUserIdKey)) {
+                String userId = currentNativeUserId();
+                if (!TextUtils.isEmpty(userId)) {
+                    builder.appendQueryParameter(effectiveUserIdKey, userId);
+                }
+            }
+            return builder.build().toString();
+        } catch (RuntimeException failure) {
+            FoxSdkLogger.w(H5_LOG_TAG, "openInternal native params append failed: invalid url/key");
+            return url;
+        }
+    }
+
+    private boolean isReservedInternalParam(String key) {
+        return "gameId".equals(key) || "gameChannel".equals(key);
+    }
+
+    /**
+     * 兼容两种 H5 调用方式：userIdKey 既可以是查询参数名，也可以误传为当前用户 ID。
+     * 后者统一使用 userId 作为查询参数名。
+     */
+    private String resolveUserIdParameterKey(String userIdKey) {
+        if (TextUtils.isEmpty(userIdKey)) return "";
+        String currentUserId = currentNativeUserId();
+        return TextUtils.equals(userIdKey, currentUserId) ? "userId" : userIdKey;
+    }
+
+    private String currentNativeUserId() {
+        FSUserInfo userInfo = FSUserInfo.getInstance();
+        if (userInfo != null && !TextUtils.isEmpty(userInfo.getUserId())) {
+            return userInfo.getUserId();
+        }
+        FSLoginResult loginResult = FSLoginResult.getInstance();
+        return loginResult == null ? null : loginResult.getOpenId();
     }
 }

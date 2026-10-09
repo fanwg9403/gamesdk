@@ -11,7 +11,7 @@ public class FSGameSchemeData {
 
     private String type;
     private String taskNumer;
-    private String tsaskType;
+    private String taskType;
     private boolean isNeedCheckTaskNumber = true;
     private String expand = "";
     private String gameId = "";
@@ -19,19 +19,19 @@ public class FSGameSchemeData {
 
     public FSGameSchemeData() {}
 
-    public FSGameSchemeData(String type, String taskNumer, String tsaskType,
+    public FSGameSchemeData(String type, String taskNumer, String taskType,
                             boolean isNeedCheckTaskNumber, String expand) {
         this.type = type;
         this.taskNumer = taskNumer;
-        this.tsaskType = tsaskType;
+        this.taskType = taskType;
         this.isNeedCheckTaskNumber = isNeedCheckTaskNumber;
         this.expand = expand;
     }
 
-    public FSGameSchemeData(String type, String taskNumer, String tsaskType, boolean isNeedCheckTaskNumber, String expand, String gameId, String gameChannel) {
+    public FSGameSchemeData(String type, String taskNumer, String taskType, boolean isNeedCheckTaskNumber, String expand, String gameId, String gameChannel) {
         this.type = type;
         this.taskNumer = taskNumer;
-        this.tsaskType = tsaskType;
+        this.taskType = taskType;
         this.isNeedCheckTaskNumber = isNeedCheckTaskNumber;
         this.expand = expand;
         this.gameId = gameId;
@@ -45,8 +45,8 @@ public class FSGameSchemeData {
     public String getTaskNumer() { return taskNumer; }
     public void setTaskNumer(String taskNumer) { this.taskNumer = taskNumer; }
 
-    public String getTsaskType() { return tsaskType; }
-    public void setTsaskType(String tsaskType) { this.tsaskType = tsaskType; }
+    public String getTaskType() { return taskType; }
+    public void setTaskType(String taskType) { this.taskType = taskType; }
 
     public boolean isNeedCheckTaskNumber() { return isNeedCheckTaskNumber; }
     public void setNeedCheckTaskNumber(boolean needCheckTaskNumber) { isNeedCheckTaskNumber = needCheckTaskNumber; }
