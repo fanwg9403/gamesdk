@@ -14,6 +14,7 @@ import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import com.wishfox.foxsdk.data.model.entity.FSGameSchemeData;
 import com.wishfox.foxsdk.data.model.entity.FSPayResult;
+import com.wishfox.foxsdk.data.model.entity.FSSchemeData;
 import com.wishfox.foxsdk.data.model.entity.FSUserInfo;
 import com.wishfox.foxsdk.data.network.FoxSdkNetworkExecutor;
 import com.wishfox.foxsdk.data.network.FoxSdkRetrofitManager;
@@ -950,7 +951,8 @@ public final class FoxSdkOverlayManager {
 
         showMiniProgramLoading(activity);
         try {
-            Map<String, Object> map = new Gson().fromJson(
+            Gson gson = new Gson();
+            Map<String, Object> map = gson.fromJson(
                     params.toString(),
                     new TypeToken<Map<String, Object>>() {
                     }.getType()
@@ -963,38 +965,67 @@ public final class FoxSdkOverlayManager {
             // 已安装时跳转 APP，否则继续走微信小程序分支。
             String oriUrl = map.get("url") == null ? "https://www.wishfosx.com" : map.get("url").toString();
             String newUrl = externalUrl(oriUrl);
-            if (FoxSdkUtils.isWishFoxInstalled(activity).blockingLast() && ("xuyuanhu".equals(appName) || "shop".equals(appName) ||
-                    ("yougua".equals(appName) && (map.get("typeName") == null || !map.get("typeName").toString().equals("payment"))))) {
-                Gson gson = new Gson();
-                FSGameSchemeData gameSchemeData = new FSGameSchemeData(
-                        "wish_game",
-                        map.get("taskNumber") == null ? "" : map.get("taskNumber").toString(),
-                        map.get("typeName") == null ? "" : map.get("typeName").toString(),
-                        true,
-                        "",
-                        WishFoxSdk.getConfig().getAppId(),
-                        WishFoxSdk.getConfig().getChannelId()
-                );
-                String json = gson.toJson(gameSchemeData);
-                FoxSdkAppJumpUtils.launchByDeepLink(
-                        activity,
-                        "sohugloba://app/game_sdk?gameData=" + json,
-                        newUrl
-                );
+
+            Object extValue = map.get("ext");
+            if (extValue == null) {
+                FoxSdkAppJumpUtils.byWebOpenH5(activity, newUrl);
                 finish.complete("OK", miniProgramResult(requestId, "accepted_to_launch"));
             } else {
-                Pair<Boolean, String> pair = FoxSdkWxPay.wXMiniProgramAllinpayPayment(activity, map);
-                if (pair != null && Boolean.TRUE.equals(pair.first)) {
-                    String scene = map.get("typeName") == null ? "payment" : (map.get("typeName").toString().equals("通用") || map.get("typeName").toString().equals("流量")) ? "Task" : map.get("typeName").toString().equals("服务") ? "Service" : map.get("typeName").toString().equals("心愿") ? "Wish" : map.get("typeName").toString().equals("商品详情") ? "goods_detail" : map.get("typeName").toString().equals("小说详情") ? "novel_detail" : "";
-                    if (TextUtils.isEmpty(scene)) {
-                        FoxSdkAppJumpUtils.byWebOpenH5(activity, newUrl);
-                        finish.complete("OK", miniProgramResult(requestId, "accepted_to_launch"));
-                    } else {
-                        startWechatForSchemeEncrypted(activity, pair.second, appName, scene, requestId, finish);
-                    }
+                // 新协议的 ext 是 JSON 对象；旧协议可能仍传 JSON 字符串。
+                // 统一转成 Map，避免对 LinkedTreeMap.toString() 再做 JSON 解析。
+                Map<String, Object> ext;
+                if (extValue instanceof Map) {
+                    ext = (Map<String, Object>) extValue;
                 } else {
+                    ext = gson.fromJson(String.valueOf(extValue),
+                            new TypeToken<Map<String, Object>>() {
+                            }.getType());
+                }
+                if (ext == null || ext.get("scene") == null) {
                     FoxSdkAppJumpUtils.byWebOpenH5(activity, newUrl);
                     finish.complete("OK", miniProgramResult(requestId, "accepted_to_launch"));
+                } else {
+                    if (FoxSdkUtils.isWishFoxInstalled(activity).blockingLast() && (!"payment".equals(ext.get("scene").toString()))) {
+                        String gameId = miniProgramString(map.get("gameId"));
+                        String gameChannel = miniProgramString(map.get("gameChannel"));
+                        Object infoValue = ext.get("info");
+                        if (infoValue instanceof Map) {
+                            Map<?, ?> info = (Map<?, ?>) infoValue;
+                            if (TextUtils.isEmpty(gameId)) {
+                                gameId = miniProgramString(info.get("gameId"));
+                            }
+                            if (TextUtils.isEmpty(gameChannel)) {
+                                gameChannel = miniProgramString(info.get("gameChannel"));
+                            }
+                        }
+                        if (TextUtils.isEmpty(gameId)) {
+                            gameId = WishFoxSdk.getConfig().getAppId();
+                        }
+                        if (TextUtils.isEmpty(gameChannel)) {
+                            gameChannel = WishFoxSdk.getConfig().getChannelId();
+                        }
+                        FSSchemeData fsSchemeData = new FSSchemeData(
+                                gson.toJson(ext),
+                                gameId,
+                                gameChannel
+                        );
+                        String json = gson.toJson(fsSchemeData);
+                        FoxSdkLogger.d(H5_LOG_TAG, "跳转APP的参数: " + json);
+                        FoxSdkAppJumpUtils.launchByDeepLink(
+                                activity,
+                                "sohugloba://app/game_sdk?gameData=" + json,
+                                newUrl
+                        );
+                        finish.complete("OK", miniProgramResult(requestId, "accepted_to_launch"));
+                    } else {
+                        Pair<Boolean, String> pair = FoxSdkWxPay.wXMiniProgramAllinpayPayment(activity, map);
+                        if (pair != null && Boolean.TRUE.equals(pair.first)) {
+                            startWechatForSchemeEncrypted(activity, pair.second, requestId, finish);
+                        } else {
+                            FoxSdkAppJumpUtils.byWebOpenH5(activity, newUrl);
+                            finish.complete("OK", miniProgramResult(requestId, "accepted_to_launch"));
+                        }
+                    }
                 }
             }
         } catch (Throwable failure) {
@@ -1003,6 +1034,10 @@ public final class FoxSdkOverlayManager {
             finish.complete("INTERNAL_ERROR",
                     miniProgramResult(requestId, "launch_failed"));
         }
+    }
+
+    private String miniProgramString(Object value) {
+        return value == null ? "" : String.valueOf(value).trim();
     }
 
     private JSONObject miniProgramResult(String requestId, String status) {
@@ -1043,18 +1078,11 @@ public final class FoxSdkOverlayManager {
     private void startWechatForSchemeEncrypted(
             Activity activity,
             String query,
-            String app_name,
-            String scene,
             String requestId,
             FSH5OverlayView.MiniProgramCompletion completion
     ) {
         FoxSdkNetworkExecutor.execute(() ->
-                FoxSdkRetrofitManager.getApiService().getWechatSchemeEncrypted(
-                        query,
-                        WishFoxSdk.getConfig().isWechatTest() ? "trial" : "release",
-                        app_name,
-                        scene
-                ).blockingGet()
+                FoxSdkRetrofitManager.getApiService().getWechatSchemeEncryptedV2(query).blockingGet()
         )
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())

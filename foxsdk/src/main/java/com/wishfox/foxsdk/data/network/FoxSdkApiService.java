@@ -182,6 +182,14 @@ public interface FoxSdkApiService {
     );
 
     /**
+     * 获取微信密文URL Scheme
+     */
+    @GET("/api/wechat/encrypted_scheme_v2")
+    Single<FoxSdkBaseResponse<FSWechatScheme>> getWechatSchemeEncryptedV2(
+            @Query("query") String query
+    );
+
+    /**
      * 订单查询接口
      */
     @GET("/api/user/order_detail")

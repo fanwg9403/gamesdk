@@ -42,7 +42,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
-import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -377,7 +376,9 @@ final class WindowLifecycleControl
 
     private static final String SDK_PACKAGE_PREFIX = "com.wishfox.foxsdk.";
     private static final AtomicBoolean REGISTERED = new AtomicBoolean(false);
-    private static final Map<Activity, WeakReference<FSSemiStealthWindow>> WINDOWS = new WeakHashMap<>();
+    // Keep the window alive while its host Activity is alive. The weak Activity keys
+    // are removed explicitly from every lifecycle/recycle path below.
+    private static final Map<Activity, FSSemiStealthWindow> WINDOWS = new WeakHashMap<>();
 
     static void with(Application application) {
         if (application != null && REGISTERED.compareAndSet(false, true)) {
@@ -408,6 +409,12 @@ final class WindowLifecycleControl
                 !(activity instanceof FoxSdkBaseMviActivity) &&
                 WishFoxSdk.isFloatActive()) {
             showWindow(activity);
+            // Some hosts (notably game launchers) resume before their decor is attached.
+            // Retry after the decor has had a chance to attach; showWindow is idempotent.
+            View decorView = activity.getWindow() == null ? null : activity.getWindow().getDecorView();
+            if (decorView != null) {
+                decorView.post(() -> showWindow(activity));
+            }
         }
         if (FoxSdkOverlayManager.isShowing(activity)) {
             FoxSdkDiagnostics.record("host_resumed_with_overlay", activity, null);
@@ -440,10 +447,7 @@ final class WindowLifecycleControl
 
         FSSemiStealthWindow window = null;
         synchronized (WINDOWS) {
-            WeakReference<FSSemiStealthWindow> reference = WINDOWS.remove(activity);
-            if (reference != null) {
-                window = reference.get();
-            }
+            window = WINDOWS.remove(activity);
         }
         if (window != null) {
             try {
@@ -476,10 +480,7 @@ final class WindowLifecycleControl
 
         FSSemiStealthWindow window = null;
         synchronized (WINDOWS) {
-            WeakReference<FSSemiStealthWindow> reference = WINDOWS.remove(activity);
-            if (reference != null) {
-                window = reference.get();
-            }
+            window = WINDOWS.remove(activity);
         }
         if (window != null) {
             try {
@@ -500,18 +501,35 @@ final class WindowLifecycleControl
                 !WishFoxSdk.isFloatActive()) {
             return;
         }
+        FSSemiStealthWindow existing;
         synchronized (WINDOWS) {
-            WeakReference<FSSemiStealthWindow> reference = WINDOWS.get(activity);
-            if (reference != null && reference.get() != null) {
+            existing = WINDOWS.get(activity);
+            if (existing != null && existing.isShowing()) {
                 return;
+            }
+            if (existing != null) {
+                WINDOWS.remove(activity);
+            }
+        }
+        if (existing != null) {
+            try {
+                existing.cancel();
+                existing.recycle();
+            } catch (Throwable throwable) {
+                FoxSdkDiagnostics.reportFailure(activity, "floating_ball", "stale_window_cleanup_failed", throwable);
             }
         }
 
         try {
             FSSemiStealthWindow window = new FSSemiStealthWindow(activity);
             window.show();
+            if (!window.isShowing()) {
+                window.recycle();
+                FoxSdkDiagnostics.record("float_show_not_visible", activity, null);
+                return;
+            }
             synchronized (WINDOWS) {
-                WINDOWS.put(activity, new WeakReference<>(window));
+                WINDOWS.put(activity, window);
             }
             FoxSdkDiagnostics.record("float_show", activity, null);
         } catch (Throwable throwable) {
@@ -526,8 +544,7 @@ final class WindowLifecycleControl
         }
         List<FSSemiStealthWindow> windows = new ArrayList<>();
         synchronized (WINDOWS) {
-            for (WeakReference<FSSemiStealthWindow> reference : WINDOWS.values()) {
-                FSSemiStealthWindow window = reference == null ? null : reference.get();
+            for (FSSemiStealthWindow window : WINDOWS.values()) {
                 if (window != null) {
                     windows.add(window);
                 }
@@ -551,8 +568,7 @@ final class WindowLifecycleControl
         }
         List<FSSemiStealthWindow> windows = new ArrayList<>();
         synchronized (WINDOWS) {
-            for (WeakReference<FSSemiStealthWindow> reference : WINDOWS.values()) {
-                FSSemiStealthWindow window = reference == null ? null : reference.get();
+            for (FSSemiStealthWindow window : WINDOWS.values()) {
                 if (window != null) windows.add(window);
             }
         }

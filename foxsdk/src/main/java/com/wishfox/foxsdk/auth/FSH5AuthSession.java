@@ -10,6 +10,7 @@ import com.wishfox.foxsdk.core.WishFoxSdk;
 import com.wishfox.foxsdk.data.model.FoxSdkBaseResponse;
 import com.wishfox.foxsdk.data.model.entity.FSLoginResult;
 import com.wishfox.foxsdk.data.model.entity.FSShortLogin;
+import com.wishfox.foxsdk.data.model.entity.FSUserInfo;
 import com.wishfox.foxsdk.data.network.FoxSdkRetrofitManager;
 import com.wishfox.foxsdk.utils.FoxSdkLogger;
 
@@ -86,6 +87,13 @@ public final class FSH5AuthSession {
 
     public void handle(String method, JSONObject params, Result result) throws JSONException {
         if ("auth.getState".equals(method)) { result.complete("OK", state()); return; }
+        if ("auth.getUserId".equals(method)) {
+            FSUserInfo userInfo = FSUserInfo.getInstance();
+            String userId = userInfo == null ? null : userInfo.getUserId();
+            result.complete("OK", new JSONObject().put("userId",
+                    TextUtils.isEmpty(userId) ? JSONObject.NULL : userId));
+            return;
+        }
         boolean login = "auth.login".equals(method);
         boolean refresh = "auth.refreshSession".equals(method);
         if (refresh) {

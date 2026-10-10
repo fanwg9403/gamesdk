@@ -2,6 +2,7 @@ package com.wishfox.demo;
 
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
@@ -39,6 +40,11 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (!getIntent().getBooleanExtra(DemoSplashActivity.EXTRA_ENTERED_FROM_SPLASH, false)) {
+            startActivity(new Intent(this, DemoSplashActivity.class));
+            finish();
+            return;
+        }
         enableImmersiveMode();
         setContentView(R.layout.activity_main);
 

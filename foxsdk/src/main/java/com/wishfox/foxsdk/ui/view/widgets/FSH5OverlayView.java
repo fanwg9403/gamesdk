@@ -1131,6 +1131,21 @@ public final class FSH5OverlayView extends FrameLayout {
             }
             String appName = params.optString("appName",
                     params.optString("name", params.optString("miniProgramName", ""))).trim();
+            JSONObject extObject = params.optJSONObject("ext");
+            boolean newMiniProgramShape = params.has("url") || extObject != null;
+            if (extObject != null && TextUtils.isEmpty(appName)) {
+                appName = extObject.optString("appName", "").trim();
+            }
+            if (newMiniProgramShape && params.has("ext")
+                    && !(params.opt("ext") instanceof JSONObject)) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
+            if (newMiniProgramShape && params.has("url")
+                    && !(params.opt("url") instanceof String)) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
             JSONObject arguments = params.optJSONObject("params");
             if (arguments == null) arguments = params.optJSONObject("query");
             if (arguments == null) arguments = params.optJSONObject("map");
@@ -1144,6 +1159,11 @@ public final class FSH5OverlayView extends FrameLayout {
             if (appName.isEmpty() || appName.length() > 128) {
                 reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
                 return;
+            }
+            // 新协议把 url/ext/gameId/gameChannel 放在 params 顶层，完整透传，
+            // 旧协议仍只透传 params/query/map 对象，保持兼容。
+            if (newMiniProgramShape) {
+                arguments = params;
             }
             final String finalRequestId = requestId;
             final JSONObject finalArguments = arguments;
