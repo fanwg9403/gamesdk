@@ -42,6 +42,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -379,6 +380,7 @@ final class WindowLifecycleControl
     // Keep the window alive while its host Activity is alive. The weak Activity keys
     // are removed explicitly from every lifecycle/recycle path below.
     private static final Map<Activity, FSSemiStealthWindow> WINDOWS = new WeakHashMap<>();
+    private static WeakReference<Activity> lastResumedActivity;
 
     static void with(Application application) {
         if (application != null && REGISTERED.compareAndSet(false, true)) {
@@ -404,17 +406,13 @@ final class WindowLifecycleControl
 
     @Override
     public void onActivityResumed(@NonNull Activity activity) {
+        lastResumedActivity = new WeakReference<>(activity);
         FoxSdkOverlayManager.onHostResumed(activity);
         if (!isSdkActivity(activity) &&
                 !(activity instanceof FoxSdkBaseMviActivity) &&
                 WishFoxSdk.isFloatActive()) {
             showWindow(activity);
-            // Some hosts (notably game launchers) resume before their decor is attached.
-            // Retry after the decor has had a chance to attach; showWindow is idempotent.
-            View decorView = activity.getWindow() == null ? null : activity.getWindow().getDecorView();
-            if (decorView != null) {
-                decorView.post(() -> showWindow(activity));
-            }
+            postWindowRecoveryChecks(activity);
         }
         if (FoxSdkOverlayManager.isShowing(activity)) {
             FoxSdkDiagnostics.record("host_resumed_with_overlay", activity, null);
@@ -444,6 +442,10 @@ final class WindowLifecycleControl
     @Override
     public void onActivityDestroyed(@NonNull Activity activity) {
         FoxSdkOverlayManager.onActivityDestroyed(activity);
+        Activity resumed = lastResumedActivity == null ? null : lastResumedActivity.get();
+        if (resumed == activity) {
+            lastResumedActivity = null;
+        }
 
         FSSemiStealthWindow window = null;
         synchronized (WINDOWS) {
@@ -466,6 +468,10 @@ final class WindowLifecycleControl
     @Override
     public void onConfigurationChanged(@NonNull Configuration newConfig) {
         FoxSdkOverlayManager.onConfigurationChanged();
+        Activity activity = lastResumedActivity == null ? null : lastResumedActivity.get();
+        if (activity != null) {
+            postWindowRecoveryChecks(activity);
+        }
     }
 
     @Override
@@ -504,7 +510,7 @@ final class WindowLifecycleControl
         FSSemiStealthWindow existing;
         synchronized (WINDOWS) {
             existing = WINDOWS.get(activity);
-            if (existing != null && existing.isShowing()) {
+            if (isWindowAttached(existing)) {
                 return;
             }
             if (existing != null) {
@@ -579,6 +585,62 @@ final class WindowLifecycleControl
                 FoxSdkDiagnostics.reportFailure(null, "floating_ball", "image_reload_failed", throwable);
             }
         }
+    }
+
+    /**
+     * Activity 恢复或屏幕配置变化后，给 WindowManager 留出完成 token/尺寸更新的时间，
+     * 再检查一次真实挂载状态。仅在窗口失效时重建，正常设备不会重复创建悬浮球。
+     */
+    private static void postWindowRecoveryChecks(Activity activity) {
+        if (activity == null || activity.getWindow() == null) {
+            return;
+        }
+        View decorView = activity.getWindow().getDecorView();
+        if (decorView == null) {
+            return;
+        }
+        decorView.post(() -> showWindow(activity));
+        decorView.postDelayed(() -> refreshOrShowWindow(activity), 180L);
+        decorView.postDelayed(() -> refreshOrShowWindow(activity), 420L);
+    }
+
+    private static void refreshOrShowWindow(Activity activity) {
+        if (activity == null || !isActivityUsable(activity)
+                || isSdkActivity(activity)
+                || activity instanceof FoxSdkBaseMviActivity
+                || !WishFoxSdk.isFloatActive()) {
+            return;
+        }
+        FSSemiStealthWindow window;
+        synchronized (WINDOWS) {
+            window = WINDOWS.get(activity);
+        }
+        if (isWindowAttached(window)) {
+            try {
+                window.refreshForConfiguration();
+                return;
+            } catch (Throwable throwable) {
+                FoxSdkDiagnostics.reportFailure(
+                        activity, "floating_ball", "configuration_refresh_failed", throwable);
+            }
+        }
+        showWindow(activity);
+    }
+
+    /**
+     * EasyWindow.isShowing() 只反映 EasyWindow 内部标志；厂商系统可能已经把根 View
+     * 从 WindowManager 移除，但该标志仍为 true。这里同时检查真实 parent/attach 状态。
+     */
+    private static boolean isWindowAttached(FSSemiStealthWindow window) {
+        if (window == null || !window.isShowing()) {
+            return false;
+        }
+        View root = window.getRootLayout();
+        if (root == null || root.getParent() == null) {
+            return false;
+        }
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.KITKAT
+                || root.isAttachedToWindow();
     }
 
     private static boolean isSdkActivity(Activity activity) {

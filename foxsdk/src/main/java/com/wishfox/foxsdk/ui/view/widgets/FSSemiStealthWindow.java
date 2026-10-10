@@ -427,6 +427,139 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
     }
 
     /**
+     * Activity 恢复或屏幕方向变化后刷新当前悬浮球的布局和拖拽边界。
+     * WindowLifecycleControl 会先确认根 View 仍然挂载，再调用此方法；
+     * 如果系统已经移除了窗口，则由 WindowLifecycleControl 负责重新创建。
+     */
+    public void refreshForConfiguration() {
+        if (!isShowing()) {
+            return;
+        }
+        configureFloatingWindowLayout();
+        syncDragSafeAreaPolicy();
+        normalizeWindowLocation();
+        refreshDragMetrics();
+        View rootLayout = getWindowRootLayout();
+        if (rootLayout != null) {
+            rootLayout.requestLayout();
+        }
+        update();
+    }
+
+    /**
+     * EasyWindow 的默认旋转换算依赖 WindowVisibleDisplayFrame。荣耀设备在沉浸式
+     * 横屏切换期间可能返回一个临时的超大高度，导致 y 坐标被算成屏幕外的值。
+     * 悬浮球只允许沿水平方向半隐藏，因此 y 坐标始终按真实屏幕高度限制。
+     */
+    private void normalizeWindowLocation() {
+        WindowManager.LayoutParams windowParams = getWindowParams();
+        if (windowParams == null) {
+            return;
+        }
+
+        int screenWidth = getPhysicalScreenWidth();
+        int screenHeight = getPhysicalScreenHeight();
+        int viewWidth = getWindowViewWidth();
+        int viewHeight = getWindowViewHeight();
+        if (screenWidth <= 0 || screenHeight <= 0) {
+            return;
+        }
+
+        if (viewWidth <= 0) {
+            viewWidth = getAvailableViewWidth(getWindowRootLayout());
+        }
+        if (viewHeight <= 0) {
+            viewHeight = getAvailableViewHeight(getWindowRootLayout());
+        }
+
+        boolean changed = false;
+        if (viewHeight > 0) {
+            int maxY = Math.max(0, screenHeight - viewHeight);
+            int safeY = clamp(windowParams.y, 0, maxY);
+            if (safeY != windowParams.y) {
+                windowParams.y = safeY;
+                changed = true;
+            }
+        }
+
+        // x 允许小范围负数用于半隐藏，但不能落到完全不可见的屏幕外。
+        if (viewWidth > 0) {
+            int minX = -viewWidth;
+            int maxX = Math.max(0, screenWidth - viewWidth);
+            int safeX = clamp(windowParams.x, minX, maxX);
+            if (safeX != windowParams.x) {
+                windowParams.x = safeX;
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            windowParams.gravity = Gravity.LEFT | Gravity.TOP;
+            update();
+        }
+    }
+
+    private int getPhysicalScreenWidth() {
+        DisplayMetrics metrics = getPhysicalDisplayMetrics();
+        return metrics == null ? 0 : metrics.widthPixels;
+    }
+
+    private int getPhysicalScreenHeight() {
+        DisplayMetrics metrics = getPhysicalDisplayMetrics();
+        return metrics == null ? 0 : metrics.heightPixels;
+    }
+
+    /** 获取当前旋转后的真实显示尺寸，不使用 EasyWindow 的安全区缓存。 */
+    private DisplayMetrics getPhysicalDisplayMetrics() {
+        DisplayMetrics metrics = new DisplayMetrics();
+        View rootLayout = getWindowRootLayout();
+        if (rootLayout != null && rootLayout.getDisplay() != null) {
+            rootLayout.getDisplay().getRealMetrics(metrics);
+        } else {
+            Activity activity = hostActivity.get();
+            if (activity == null || activity.getWindowManager() == null ||
+                    activity.getWindowManager().getDefaultDisplay() == null) {
+                return null;
+            }
+            activity.getWindowManager().getDefaultDisplay().getRealMetrics(metrics);
+        }
+        if (metrics.widthPixels <= 0 || metrics.heightPixels <= 0) {
+            return null;
+        }
+
+        // 部分厂商在旋转动画中仍返回物理面板的竖向顺序，按当前配置纠正。
+        boolean landscape = isLandscape();
+        if ((landscape && metrics.widthPixels < metrics.heightPixels) ||
+                (!landscape && metrics.widthPixels > metrics.heightPixels)) {
+            int width = metrics.widthPixels;
+            metrics.widthPixels = metrics.heightPixels;
+            metrics.heightPixels = width;
+        }
+        return metrics;
+    }
+
+    /**
+     * EasyWindow 的默认旋转回调会再次执行有问题的比例换算。改为只在旋转完成后
+     * 重新配置窗口并校正坐标，避免荣耀设备产生屏外 y 坐标。
+     */
+    @Override
+    public void onScreenOrientationChange(int newOrientation) {
+        if (!isShowing()) {
+            return;
+        }
+        sendTask(() -> {
+            if (!isShowing()) {
+                return;
+            }
+            configureFloatingWindowLayout();
+            syncDragSafeAreaPolicy();
+            normalizeWindowLocation();
+            refreshDragMetrics();
+            update();
+        }, 360);
+    }
+
+    /**
      * 刷新 EasyWindow 拖拽规则缓存的窗口和屏幕尺寸。
      */
     private void refreshDragMetrics() {
@@ -548,6 +681,7 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
         if (mInitialPositionPending) {
             alignToInitialLandscapeEdge();
         }
+        normalizeWindowLocation();
         cancelTask(mSettleInitialPositionRunnable);
         sendTask(mSettleInitialPositionRunnable, 120);
         postStayEdgeRunnable();
@@ -614,6 +748,12 @@ public final class FSSemiStealthWindow extends EasyWindow<FSSemiStealthWindow>
         }
 
         try {
+            int screenHeight = getPhysicalScreenHeight();
+            int viewHeight = getWindowViewHeight();
+            if (screenHeight > 0 && viewHeight > 0 &&
+                    (windowParams.y < -viewHeight || windowParams.y > screenHeight)) {
+                return;
+            }
             SharedPreferences preferences = activity.getApplicationContext()
                     .getSharedPreferences(POSITION_PREFERENCES_NAME, Context.MODE_PRIVATE);
             String keyPrefix = getPositionKeyPrefix(activity);
