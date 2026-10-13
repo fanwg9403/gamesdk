@@ -14,6 +14,11 @@ public class FoxSdkConfig {
     private String appId;
     // 游戏key
     private String channelId;
+    /**
+     * 由 APK Signing Block 携带的动态业务参数。SDK 将其作为不透明字符串透传，
+     * 不解析、不改写，也不参与配置对象的身份比较。
+     */
+    private volatile String dynamicParam;
     // 接口域名
     private String baseUrl = "https://api-game.wishfoxs.com";
     // 是否开启log日志
@@ -70,6 +75,16 @@ public class FoxSdkConfig {
 
     public String getChannelId() {
         return channelId;
+    }
+
+    /** 获取当前安装 APK 携带的动态 JSON 字符串；无参数时返回 null，不回退到历史缓存。 */
+    public String getDynamicParam() {
+        return dynamicParam;
+    }
+
+    /** 仅由 SDK 初始化流程设置，宿主无需也不能通过 Builder 传入。 */
+    void setDynamicParam(String dynamicParam) {
+        this.dynamicParam = dynamicParam;
     }
 
     public String getBaseUrl() {

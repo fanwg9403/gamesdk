@@ -308,7 +308,7 @@ public class FoxSdkLoggingInterceptor implements Interceptor {
         String normalized = name.toLowerCase(Locale.US);
         return normalized.contains("token") || normalized.contains("password")
                 || "authorization".equals(normalized) || "cookie".equals(normalized)
-                || "set-cookie".equals(normalized);
+                || "set-cookie".equals(normalized) || "dynamicparam".equals(normalized);
     }
 
     private static void redact(JSONObject value) throws Exception {

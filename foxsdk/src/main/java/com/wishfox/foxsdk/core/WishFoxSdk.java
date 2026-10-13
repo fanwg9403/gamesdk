@@ -114,12 +114,15 @@ public class WishFoxSdk {
 
         WishFoxSdk.context = context.getApplicationContext();
         WishFoxSdk.config = config;
+        // 先设置日志开关，保证动态参数首次读取过程也能被 DEMO 观察到。
+        FoxSdkLogger.setDebug(config.isEnableLog());
+        // 在网络组件创建前读取当前 APK 参数；母包无参数时不携带 DynamicParam。
+        FoxSdkDynamicParamManager.initialize(WishFoxSdk.context, config);
         if (config.getOnUserStateListener() != null) {
             WishFoxSdk.onUserStateListener = config.getOnUserStateListener();
         }
         WishFoxSdk.isInitialized = true;
 
-        FoxSdkLogger.setDebug(config.isEnableLog());
         FoxSdkLogger.d(TAG, "用户状态回调注册: " + (WishFoxSdk.onUserStateListener != null));
 
         // 初始化网络组件
