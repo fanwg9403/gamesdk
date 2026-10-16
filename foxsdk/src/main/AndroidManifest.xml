@@ -23,6 +23,16 @@
         android:requestLegacyExternalStorage="true"
         android:supportsRtl="true">
 
+        <provider
+            android:name="com.wishfox.foxsdk.media.FSShareFileProvider"
+            android:authorities="${applicationId}.wishfox.share.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/wishfox_share_paths" />
+        </provider>
+
         <!--适配华为（huawei）刘海屏-->
         <meta-data
             android:name="android.notch_support"
@@ -109,6 +119,9 @@
     <queries>
         <package android:name="com.sohuglobal.world" />
         <package android:name="com.tencent.mm" />  <!-- // 指定微信包名-->
+        <package android:name="com.tencent.mobileqq" />
+        <package android:name="com.ss.android.ugc.aweme" />
+        <package android:name="com.xingin.xhs" />
         <package android:name="com.eg.android.AlipayGphone" /> <!-- 支付宝 -->
         <package android:name="hk.alipay.wallet" /> <!-- AlipayHK -->
     </queries>

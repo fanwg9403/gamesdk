@@ -22,6 +22,9 @@ import android.widget.Toast;
 import android.util.DisplayMetrics;
 import com.wishfox.foxsdk.media.FSMediaPolicy;
 import com.wishfox.foxsdk.media.FSMediaSaveCoordinator;
+import com.wishfox.foxsdk.media.FSMediaShareCoordinator;
+import com.wishfox.foxsdk.media.FSMediaFeedback;
+import com.wishfox.foxsdk.media.FSShareTargetResolver;
 import com.wishfox.foxsdk.R;
 import com.wishfox.foxsdk.utils.FoxSdkLogger;
 import com.wishfox.foxsdk.utils.FoxSdkUtils;
@@ -102,6 +105,11 @@ public final class FSH5OverlayView extends FrameLayout {
     private NavigationBridge previewOwner;
     private boolean hostResumed = true;
     private final FSMediaSaveCoordinator mediaSaveCoordinator;
+    private final FSMediaShareCoordinator mediaShareCoordinator;
+    private final Map<String, String> pendingImageSaves = new HashMap<>();
+    private final java.util.Set<String> pendingImageShares = new java.util.HashSet<>();
+    private View mediaBusyView;
+    private Toast mediaToast;
 
     public FSH5OverlayView(Activity activity, Callback callback, String homeUrl) {
         super(activity);
@@ -117,6 +125,7 @@ public final class FSH5OverlayView extends FrameLayout {
         if (trustedOrigin == null) throw new IllegalArgumentException("Invalid H5 trusted origin");
         if (!isTrusted(homeUrl)) throw new IllegalArgumentException("Untrusted H5 home URL");
         this.mediaSaveCoordinator = new FSMediaSaveCoordinator(activity);
+        this.mediaShareCoordinator = new FSMediaShareCoordinator(activity);
         setClickable(true);
         setFocusable(true);
         // 外层覆盖宿主窗口但保持透明；loading 和 WebView 都只占实际 H5 面板区域。
@@ -629,6 +638,11 @@ public final class FSH5OverlayView extends FrameLayout {
     public void destroy() {
         closeMediaPreview("host_destroyed");
         mediaSaveCoordinator.destroy();
+        mediaShareCoordinator.destroy();
+        pendingImageSaves.clear();
+        pendingImageShares.clear();
+        if (mediaToast != null) mediaToast.cancel();
+        mediaBusyView = null;
         destroyed = true;
         WebView oldPrimary = primary;
         WebView oldSecondary = secondary;
@@ -835,11 +849,14 @@ public final class FSH5OverlayView extends FrameLayout {
 
     public void onHostPaused() {
         hostResumed = false;
+        mediaShareCoordinator.onHostPaused();
+        refreshMediaBusy();
         if (preview != null) preview.onHostPaused();
     }
 
     public void onHostResumed() {
         hostResumed = true;
+        refreshMediaBusy();
         if (preview != null) preview.onHostResumed();
     }
 
@@ -855,6 +872,8 @@ public final class FSH5OverlayView extends FrameLayout {
         return new JSONObject().put("mediaPreviewImage", true).put("mediaPreviewVideo", isHardwareAccelerated())
                 .put("mediaPreviewClose", true).put("mediaPreviewMode", "streaming_native")
                 .put("mediaSaveImage", true).put("mediaCancel", true)
+                .put("mediaShareImage", true).put("mediaGetShareCapabilities", true)
+                .put("mediaShareMode", "explicit_intent").put("mediaNativeFeedback", true)
                 .put("mediaRemoveSandboxImage", true).put("mediaSandbox", true)
                 .put("mediaGalleryDirect", android.os.Build.VERSION.SDK_INT >= 29
                         ? "api29_no_permission" : "unsupported_no_permission")
@@ -867,6 +886,7 @@ public final class FSH5OverlayView extends FrameLayout {
                 .put("environmentGet", true)
                 .put("clipboardCopyText", true)
                 .put("authGetState", true).put("authLogin", true).put("authLogout", true)
+                .put("authGetUserId", true).put("authGetDynamicParam", true)
                 .put("authRefreshSession", true)
                 .put("uiToast", true).put("uiClose", true)
                 .put("navigationOpenInternal", true).put("navigationOpenExternal", true)
@@ -878,9 +898,18 @@ public final class FSH5OverlayView extends FrameLayout {
     }
 
     private void reply(NavigationBridge bridge, JSONObject request, long epoch, String code, JSONObject data) throws JSONException {
+        String method = request.optString("method");
+        if ("auth.getUserId".equals(method) || "auth.getDynamicParam".equals(method)) {
+            String field = "auth.getUserId".equals(method) ? "userId" : "dynamicParam";
+            FoxSdkLogger.d(BRIDGE_LOG_TAG, "auth read replying: method=" + method
+                    + ", requestId=" + request.optString("id") + ", code=" + code
+                    + ", valuePresent=" + (data != null && !data.isNull(field))
+                    + ", bridgeValid=" + bridge.valid(epoch));
+        }
         JSONObject result = new JSONObject().put("version", "1.0").put("type", "response")
                 .put("id", request.getString("id")).put("method", request.optString("method"))
-                .put("success", "OK".equals(code)).put("code", code).put("message", code)
+                .put("success", "OK".equals(code)).put("code", code)
+                .put("message", data == null ? code : data.optString("message", code))
                 .put("timestamp", System.currentTimeMillis()).put("data", data == null ? JSONObject.NULL : data);
         if (request.optString("method").startsWith("auth.")) {
             // 认证响应可能包含凭证：只记录已完成 ID，不进入普通响应重放缓存。
@@ -915,6 +944,76 @@ public final class FSH5OverlayView extends FrameLayout {
                     .put("event", event).put("timestamp", System.currentTimeMillis())
                     .put("webViewId", bridge.owner == primary ? "primary" : "secondary")
                     .put("data", data), epoch);
+        } catch (JSONException ignored) { }
+    }
+
+    private boolean canUseMedia(NavigationBridge bridge, long epoch) {
+        return bridge.valid(epoch) && hostResumed && isShown()
+                && !activity.isFinishing() && !activity.isDestroyed();
+    }
+
+    private boolean showMediaMessage(NavigationBridge bridge, long epoch, String message) {
+        if (!canUseMedia(bridge, epoch)) return false;
+        if (mediaToast != null) mediaToast.cancel();
+        mediaToast = Toast.makeText(activity, message, Toast.LENGTH_LONG);
+        mediaToast.show();
+        return true;
+    }
+
+    private void mediaFailure(NavigationBridge bridge, JSONObject request, long epoch,
+                              String code, String appName) throws JSONException {
+        String message = FSMediaFeedback.message(code, appName);
+        FoxSdkLogger.w("media.shareImage".equals(request.optString("method"))
+                        ? "FoxSdk[H5Share]" : "FoxSdk[H5MediaSave]",
+                "request rejected: method=" + request.optString("method") + ", code=" + code);
+        boolean notified = showMediaMessage(bridge, epoch, message);
+        reply(bridge, request, epoch, code, new JSONObject().put("message", message)
+                .put("userNotified", notified));
+    }
+
+    /** 常驻处理提示，不弹新窗口；不阻挡 H5 的取消按钮，也不依赖 H5 自己实现 loading。 */
+    private void refreshMediaBusy() {
+        if (destroyed) return;
+        boolean busy = hostResumed && (!pendingImageSaves.isEmpty() || !pendingImageShares.isEmpty());
+        if (!busy) {
+            if (mediaBusyView != null) mediaBusyView.setVisibility(GONE);
+            return;
+        }
+        if (mediaBusyView == null) {
+            mediaBusyView = LayoutInflater.from(activity).inflate(R.layout.fs_dialog_loading, this, false);
+            mediaBusyView.setClickable(true);
+            TextView message = mediaBusyView.findViewById(R.id.fs_tv_message);
+            message.setVisibility(VISIBLE);
+            message.setText("正在处理图片，请稍候…");
+            FrameLayout.LayoutParams layout = new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                    Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+            layout.bottomMargin = Math.round(24 * getResources().getDisplayMetrics().density);
+            addView(mediaBusyView, layout);
+        }
+        mediaBusyView.setVisibility(VISIBLE);
+        mediaBusyView.bringToFront();
+    }
+
+    private void reportMediaResult(NavigationBridge bridge, long epoch, String event, JSONObject data) {
+        if (!bridge.valid(epoch)) return;
+        try {
+            JSONObject error = data.optJSONObject("error");
+            boolean notified = false;
+            if (error != null) {
+                FSShareTargetResolver.Target target = FSShareTargetResolver.find(data.optString("target"));
+                String message = FSMediaFeedback.message(error.optString("code"), target == null ? null : target.appName);
+                error.put("message", message);
+                notified = showMediaMessage(bridge, epoch, message);
+            } else if ("media.saveResult".equals(event)) {
+                if ("saved".equals(data.optString("galleryStatus"))) {
+                    notified = showMediaMessage(bridge, epoch, "图片已保存到相册");
+                } else if ("user_selected".equals(data.optString("galleryStatus"))) {
+                    notified = showMediaMessage(bridge, epoch, "图片已保存到选择的位置");
+                }
+            }
+            data.put("userNotified", notified);
+            mediaSaveEvent(bridge, epoch, event, data);
         } catch (JSONException ignored) { }
     }
 
@@ -985,6 +1084,10 @@ public final class FSH5OverlayView extends FrameLayout {
     private void handleAuthRequest(NavigationBridge bridge, JSONObject request, long epoch) throws JSONException {
         String id = request.getString("id");
         String method = request.optString("method");
+        if ("auth.getUserId".equals(method) || "auth.getDynamicParam".equals(method)) {
+            FoxSdkLogger.d(BRIDGE_LOG_TAG, "auth read received: method=" + method + ", requestId=" + id
+                    + ", hostResumed=" + hostResumed + ", viewShown=" + isShown());
+        }
         if ("auth.refreshSession".equals(method)) {
             FoxSdkLogger.d(BRIDGE_LOG_TAG, "refresh received: requestId=" + id
                     + ", webViewId=" + (bridge.owner == primary ? "primary" : "secondary")
@@ -1055,7 +1158,8 @@ public final class FSH5OverlayView extends FrameLayout {
             }
             try { reply(bridge, request, epoch, code, data); }
             catch (JSONException ignored) { }
-            if (!"auth.getState".equals(method)) authChanged();
+            // 只读查询不改变认证状态，避免 H5 在 auth.changed 中读取参数时形成循环。
+            if ("auth.login".equals(method) || "auth.refreshSession".equals(method)) authChanged();
         });
     }
 
@@ -1386,7 +1490,51 @@ public final class FSH5OverlayView extends FrameLayout {
             reply(bridge, request, epoch, "OK", new JSONObject().put("accepted", true));
             closeMediaPreview("js_close"); return;
         }
+        if ("media.getShareCapabilities".equals(method)) {
+            reply(bridge, request, epoch, "OK", FSShareTargetResolver.capabilities(activity));
+            return;
+        }
+        if ("media.shareImage".equals(method)) {
+            if (!(params.opt("requestId") instanceof String) || !(params.opt("target") instanceof String)
+                    || !(params.opt("assetId") instanceof String)) {
+                mediaFailure(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
+            String shareRequestId = params.optString("requestId").trim();
+            String targetId = params.optString("target");
+            FSShareTargetResolver.Target target = FSShareTargetResolver.find(targetId);
+            String appName = target == null ? null : target.appName;
+            if (mediaSaveCoordinator.contains(shareRequestId)) {
+                mediaFailure(bridge, request, epoch, "DUPLICATE_REQUEST", appName);
+                return;
+            }
+            String error = mediaShareCoordinator.start(shareRequestId, targetId, params.optString("assetId"),
+                    new FSMediaShareCoordinator.Callback() {
+                        @Override public boolean canLaunch() { return canUseMedia(bridge, epoch); }
+                        @Override public void onProgress(JSONObject data) {
+                            mediaSaveEvent(bridge, epoch, "media.shareProgress", data);
+                        }
+                        @Override public void onResult(JSONObject data) {
+                            pendingImageShares.remove(shareRequestId);
+                            refreshMediaBusy();
+                            reportMediaResult(bridge, epoch, "media.shareResult", data);
+                        }
+                    });
+            if (error != null) {
+                mediaFailure(bridge, request, epoch, error, appName);
+                return;
+            }
+            pendingImageShares.add(shareRequestId);
+            refreshMediaBusy();
+            reply(bridge, request, epoch, "OK", new JSONObject()
+                    .put("requestId", shareRequestId).put("status", "accepted"));
+            return;
+        }
         if ("media.saveImage".equals(method)) {
+            if (!canUseMedia(bridge, epoch)) {
+                mediaFailure(bridge, request, epoch, "HOST_NOT_RESUMED", null);
+                return;
+            }
             String saveRequestId = params.optString("requestId", "").trim();
             JSONObject source = params.optJSONObject("source");
             String sourceType = source == null ? "" : source.optString("type", "");
@@ -1402,18 +1550,23 @@ public final class FSH5OverlayView extends FrameLayout {
                     + ", saveToGallery=" + params.opt("saveToGallery")
                     + ", legacyGalleryMode=" + params.optString("legacyGalleryMode", "none"));
             if (saveRequestId.isEmpty() || saveRequestId.length() > 64) {
-                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                mediaFailure(bridge, request, epoch, "INVALID_ARGUMENT", null);
                 return;
             }
-            if (mediaSaveCoordinator.contains(saveRequestId)) {
-                reply(bridge, request, epoch, "DUPLICATE_REQUEST", null);
+            if (mediaSaveCoordinator.contains(saveRequestId) || pendingImageShares.contains(saveRequestId)) {
+                mediaFailure(bridge, request, epoch, "DUPLICATE_REQUEST", null);
+                return;
+            }
+            String sourceKey = sourceType + ":" + sourceValue;
+            if (pendingImageSaves.containsValue(sourceKey)) {
+                mediaFailure(bridge, request, epoch, "BUSY", null);
                 return;
             }
             String validationError = mediaSaveCoordinator.validate(params);
             if (validationError != null) {
                 FoxSdkLogger.w(BRIDGE_LOG_TAG, "saveImage rejected: requestId=" + saveRequestId
                         + ", code=" + validationError);
-                reply(bridge, request, epoch, validationError, null);
+                mediaFailure(bridge, request, epoch, validationError, null);
                 return;
             }
             boolean accepted = mediaSaveCoordinator.start(saveRequestId, params,
@@ -1423,13 +1576,17 @@ public final class FSH5OverlayView extends FrameLayout {
                         }
 
                         @Override public void onResult(JSONObject data) {
-                            mediaSaveEvent(bridge, epoch, "media.saveResult", data);
+                            pendingImageSaves.remove(saveRequestId);
+                            refreshMediaBusy();
+                            reportMediaResult(bridge, epoch, "media.saveResult", data);
                         }
                     });
             if (!accepted) {
-                reply(bridge, request, epoch, "DUPLICATE_REQUEST", null);
+                mediaFailure(bridge, request, epoch, "DUPLICATE_REQUEST", null);
                 return;
             }
+            pendingImageSaves.put(saveRequestId, sourceKey);
+            refreshMediaBusy();
             reply(bridge, request, epoch, "OK",
                     new JSONObject().put("requestId", saveRequestId).put("status", "accepted"));
             return;
@@ -1442,7 +1599,8 @@ public final class FSH5OverlayView extends FrameLayout {
             }
             reply(bridge, request, epoch, "OK", new JSONObject()
                     .put("requestId", saveRequestId)
-                    .put("cancelRequested", mediaSaveCoordinator.cancel(saveRequestId)));
+                    .put("cancelRequested", mediaSaveCoordinator.cancel(saveRequestId)
+                            | mediaShareCoordinator.cancel(saveRequestId)));
             return;
         }
         if ("media.removeSandboxImage".equals(method)) {

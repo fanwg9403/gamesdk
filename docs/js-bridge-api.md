@@ -545,6 +545,8 @@ H5建议：
 | 字段 | 类型 | 当前意义 |
 |---|---|---|
 | authGetState | boolean | true，支持查询 |
+| authGetUserId | boolean | true，支持读取原生 userId |
+| authGetDynamicParam | boolean | true，支持读取当前安装包的原始动态 JSON 字符串 |
 | authLogin | boolean | true，支持原生登录 |
 | h5SessionExchange | boolean | true，SDK 已内置短时 Token 接口；不代表网络或服务端当前一定可用 |
 | authRefreshSession | boolean | true，支持主动刷新短时 Token |
@@ -706,6 +708,18 @@ off();                                     // 解除监听
 ```
 
 辅助库内部为 login/refresh 分别合并在途 Promise，不跨 WebView 合并，不缓存 Token。包含响应/事件分发，可与 wishfox-media-bridge.js 组合，任一加载顺序均可；重复加载不重复安装。旧 WebView 必须先加载 Promise polyfill；下方 async/await 示例需要构建转译。若已有完整 Bridge，请统一其方法命名和超时语义，避免再覆盖这些认证方法。
+
+### 10.8 `auth.getDynamicParam` / `auth.getUserId` 只读参数
+
+请求参数均为 `{}`，沿用受信任 H5 页面与宿主前台检查，不弹登录框，不触发 `auth.changed`。`auth.getDynamicParam` 无需登录、不请求网络；`auth.getUserId` 未登录时返回 null，已登录但缺少当前账号资料时会请求现有用户信息接口。
+
+`auth.getDynamicParam` 返回 `OK`，data 为 `{ "dynamicParam": "原始 JSON 字符串" }`；当前母包无参数时为 `{ "dynamicParam": null }`。读取来源与原生请求头一致，均为 `WishFoxSdk.getConfig().getDynamicParam()`。不 trim、不解析重组、不转对象、不读旧安装包缓存。JSON 响应传输时的转义不改变 H5 最终拿到的字符串。
+
+`auth.getUserId` 返回 `{ "userId": "..." }`，当前未登录时为 `{ "userId": null }`。资料缺失时原生补取最多15秒，H5 为此方法配置至少20秒请求超时；补取失败返回错误，不将失败伪装为成功的 null。支持 `NETWORK_ERROR`、`TIMEOUT`、`USER_INFO_UNAVAILABLE`、`AUTH_REQUIRED`、`AUTH_STATE_CHANGED`、`RATE_LIMITED`。该 ID 是用户信息接口 `user_info.id`，不能以登录 openId 或 dynamicParam 中分享人的 ID 替代。详见 [获取原生用户 ID](h5-auth-get-user-id.md)。
+
+H5 每次调用使用新的 Bridge 消息 id。读取失败应处理错误，不能当作母包的 null；旧 SDK 返回 `METHOD_NOT_SUPPORTED` 时提供降级提示，不沿用历史缓存。
+
+H5 增量接入清单见 [图片分享与动态参数读取](h5-share-and-dynamic-param.md)。已有完整 H5 Bridge 的工程只需新增方法映射与分享事件监听，无需加载或同步本章提到的历史辅助脚本。
 
 ## 11. Toast
 
@@ -1551,6 +1565,38 @@ API 21～28无权限：
 - `UNSUPPORTED_NO_PERMISSION`
 - `USER_CANCELLED`
 - `DUPLICATE_REQUEST`
+
+### 17.7 图片直接分享（新增）
+
+本节于 2026-10-16 按当前 SDK 同步。完整参数、结果示例和页面生命周期处理见 [H5 图片直接分享接入](h5-image-sharing.md)；新增业务方法总清单见 [图片分享与原生 dynamicParam](h5-share-and-dynamic-param.md)。继续使用 H5 已有 Bridge，无需复制 SDK assets 中的 JS 文件。
+
+| target | 分享入口 |
+| --- | --- |
+| `wechat_friend` | 微信好友 |
+| `wechat_timeline` | 微信朋友圈 |
+| `qq_friend` | QQ好友 |
+| `douyin` | 抖音图片接收入口 |
+| `xiaohongshu` | 小红书图片接收入口 |
+
+QQ空间能力已移除：删除 H5 按钮和旧 `qzone` 调用。当前 SDK 传入该 target 会返回 `INVALID_ARGUMENT`，不会唤端。
+
+- `media.getShareCapabilities()`：查询五个固定目标的入口可用性。
+- `media.shareImage({requestId,target,assetId})`：使用 `media.saveResult` 返回的 assetId，显式唤起目标，无系统选择器。
+- Promise 仅返回 `accepted`；监听 `media.shareProgress` / `media.shareResult`。
+- `media.cancel` 同时支持尚未交接的分享准备任务。
+- `media.saveResult` / `media.shareResult` 与即时拒绝的 data 新增 `userNotified`；为 true 时原生已提示，H5不重复 Toast。
+- 保存/分享原生均显示处理提示；相同图片在途保存会返回 `BUSY`。
+- `bridge.getCapabilities` 增加 `mediaShareImage`、`mediaGetShareCapabilities`、`mediaShareMode`、`mediaNativeFeedback`。
+- 分享结果 `launched` 只表示已发起启动，不代表图片已导入、好友收到或作品发布成功。
+
+对接约束：
+
+1. `media.saveImage` 使用 `source:{type:'https_url',value:图片地址}`，`fileName` 和 `mimeType` 按实际图片填写。分享前保存传 `saveToGallery:false`，不必先写入相册。
+2. 先订阅 `media.saveResult` 再保存；收到 `sandboxStatus:'saved'` 后取 assetId。先订阅 `media.shareResult` 再分享；两个阶段使用不同的唯一 requestId（最多64字符）。图片 URL、sandboxUri、文件路径均不能替代 assetId。
+3. 立即拒绝走 Bridge 错误响应，不再等结果事件；已接受任务的结果通过事件返回。`media.shareResult.data` 包含 `requestId`、`target`、`status`（`launched`/`failed`/`cancelled`）、`mode:'explicit_intent'`、`publicationStatus:'unknown'`、`error`（null 或 `{code,message}`）、`userNotified`。
+4. 能力查询返回 `targets`，各项包含 `appName`、`available`、`mode`、`code`、`message`、`packageName`、`versionName`、`publicationResultAvailable:false`。查询自身不弹提示，H5 展示不可用目标的 message；能力通过不保证实际图片分享成功。
+5. `TARGET_DISABLED`、`TARGET_UNSUPPORTED`、`TARGET_ACCESS_DENIED` 分别表示入口禁用、无匹配入口、拒绝外部访问。直接使用返回 message，不统一引导升级 App。其他分享错误包括 `APP_NOT_INSTALLED`、`APP_DISABLED`、`IMAGE_NOT_FOUND`、`IMAGE_URI_FAILED`、`CACHE_FAILED`、`SHARE_CACHE_FULL`、`PREPARE_TIMEOUT`、`HOST_NOT_RESUMED`、`LAUNCH_FAILED`、`CANCELLED`。
+6. 页面离开时取消在途任务、移除事件监听、阻止后续唤端；不要在页面销毁后等超时才清理。已打开外部 App 的操作无法通过 `media.cancel` 撤销，也没有可靠的发布成功/取消回调。
 
 ## 18. 诊断
 

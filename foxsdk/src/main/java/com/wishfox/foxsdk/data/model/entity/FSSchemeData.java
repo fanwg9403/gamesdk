@@ -5,11 +5,19 @@ public class FSSchemeData {
     private String ext;
     private String gameId = "";
     private String gameChannel = "";
+    private String dynamicParam = "";
 
     public FSSchemeData(String ext, String gameId, String gameChannel) {
         this.ext = ext;
         this.gameId = gameId;
         this.gameChannel = gameChannel;
+    }
+
+    public FSSchemeData(String ext, String gameId, String gameChannel, String dynamicParam) {
+        this.ext = ext;
+        this.gameId = gameId;
+        this.gameChannel = gameChannel;
+        this.dynamicParam = dynamicParam;
     }
 
     public String getExt() {
@@ -34,5 +42,13 @@ public class FSSchemeData {
 
     public void setGameChannel(String gameChannel) {
         this.gameChannel = gameChannel;
+    }
+
+    public String getDynamicParam() {
+        return dynamicParam;
+    }
+
+    public void setDynamicParam(String dynamicParam) {
+        this.dynamicParam = dynamicParam;
     }
 }

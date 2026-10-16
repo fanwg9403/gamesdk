@@ -1,5 +1,7 @@
 package com.wishfox.foxsdk.data.network.interceptor;
 
+import android.text.TextUtils;
+
 import com.wishfox.foxsdk.core.FoxSdkConfig;
 import com.wishfox.foxsdk.data.model.entity.FSLoginResult;
 import com.wishfox.foxsdk.utils.FoxSdkLogger;
@@ -46,7 +48,7 @@ public class FoxSdkHeaderInterceptor implements okhttp3.Interceptor {
         // 清除原请求可能携带的旧值，确保母包无参数或新值非法时不会残留旧 Header。
         requestBuilder.removeHeader("DynamicParam");
         String dynamicParam = config.getDynamicParam();
-        if (dynamicParam != null && !dynamicParam.isEmpty()) {
+        if (dynamicParam != null && !TextUtils.isEmpty(dynamicParam)) {
             try {
                 requestBuilder.header("DynamicParam", dynamicParam);
                 if (dynamicHeaderLogReported.compareAndSet(false, true)) {

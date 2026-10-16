@@ -287,7 +287,7 @@ public final class FSMediaSaveCoordinator {
             return file;
         } catch (Exception failure) {
             deleteQuietly(file);
-            throw new SaveException("DOWNLOAD_FAILED", "data URL 写入失败");
+            throw new SaveException("SANDBOX_WRITE_FAILED", "data URL 写入失败");
         }
     }
 
@@ -299,6 +299,9 @@ public final class FSMediaSaveCoordinator {
         try {
             for (int redirect = 0; redirect <= MAX_REDIRECTS; redirect++) {
                 checkCancelled(task);
+                if (android.os.SystemClock.elapsedRealtime() > deadline) {
+                    throw new SaveException("DOWNLOAD_TIMEOUT", "图片下载超时");
+                }
                 if (!validRemoteImageUrl(next)) {
                     throw new SaveException("INVALID_IMAGE_URL", "图片地址无效");
                 }
@@ -327,7 +330,7 @@ public final class FSMediaSaveCoordinator {
                     }
                     long total = connection.getContentLength();
                     if (total > MAX_IMAGE_BYTES) throw new SaveException("FILE_TOO_LARGE", "图片超过大小限制");
-                    try (InputStream input = connection.getInputStream(); FileOutputStream output = new FileOutputStream(file)) {
+                    try (InputStream input = connection.getInputStream(); FileOutputStream output = openDownloadOutput(file)) {
                         byte[] buffer = new byte[32768];
                         long count = 0;
                         int read;
@@ -338,7 +341,10 @@ public final class FSMediaSaveCoordinator {
                             }
                             count += read;
                             if (count > MAX_IMAGE_BYTES) throw new SaveException("FILE_TOO_LARGE", "图片超过大小限制");
-                            output.write(buffer, 0, read);
+                            try { output.write(buffer, 0, read); }
+                            catch (java.io.IOException storageFailure) {
+                                throw new SaveException("SANDBOX_WRITE_FAILED", "图片临时文件写入失败");
+                            }
                             emitProgress(task, "downloading", count, total > 0 ? total : null);
                         }
                         if (count == 0) throw new SaveException("DOWNLOAD_FAILED", "图片内容为空");
@@ -353,6 +359,10 @@ public final class FSMediaSaveCoordinator {
         } catch (SaveException failure) {
             deleteQuietly(file);
             throw failure;
+        } catch (java.net.SocketTimeoutException timeout) {
+            deleteQuietly(file);
+            if (task.cancelled.get()) throw new SaveException("CANCELLED", "用户取消保存");
+            throw new SaveException("DOWNLOAD_TIMEOUT", "图片下载超时");
         } catch (Exception failure) {
             deleteQuietly(file);
             if (task.cancelled.get()) throw new SaveException("CANCELLED", "用户取消保存");
@@ -585,9 +595,21 @@ public final class FSMediaSaveCoordinator {
     private File createTemporary(String requestId) throws SaveException {
         File directory = new File(activity.getCacheDir(), "wishfox_sdk/images");
         if (!directory.isDirectory() && !directory.mkdirs()) {
-            throw new SaveException("DOWNLOAD_FAILED", "临时目录创建失败");
+            throw new SaveException("SANDBOX_WRITE_FAILED", "临时目录创建失败");
         }
-        return new File(directory, requestId.replaceAll("[^A-Za-z0-9._-]", "_") + ".tmp");
+        try {
+            // requestId 清洗后可能重名，使用唯一临时文件避免并发请求互相覆盖。
+            return File.createTempFile("image-", ".tmp", directory);
+        } catch (java.io.IOException failure) {
+            throw new SaveException("SANDBOX_WRITE_FAILED", "临时文件创建失败");
+        }
+    }
+
+    private FileOutputStream openDownloadOutput(File file) throws SaveException {
+        try { return new FileOutputStream(file); }
+        catch (java.io.IOException failure) {
+            throw new SaveException("SANDBOX_WRITE_FAILED", "图片临时文件无法写入");
+        }
     }
 
     private void checkCancelled(Task task) throws SaveException {

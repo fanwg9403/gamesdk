@@ -1004,11 +1004,22 @@ public final class FoxSdkOverlayManager {
                         if (TextUtils.isEmpty(gameChannel)) {
                             gameChannel = WishFoxSdk.getConfig().getChannelId();
                         }
-                        FSSchemeData fsSchemeData = new FSSchemeData(
-                                gson.toJson(ext),
-                                gameId,
-                                gameChannel
-                        );
+                        FSSchemeData fsSchemeData = null;
+                        String dynamicParam = WishFoxSdk.getConfig().getDynamicParam();
+                        if (dynamicParam != null && !TextUtils.isEmpty(dynamicParam)) {
+                            fsSchemeData = new FSSchemeData(
+                                    gson.toJson(ext),
+                                    gameId,
+                                    gameChannel,
+                                    dynamicParam
+                            );
+                        } else {
+                            fsSchemeData = new FSSchemeData(
+                                    gson.toJson(ext),
+                                    gameId,
+                                    gameChannel
+                            );
+                        }
                         String json = gson.toJson(fsSchemeData);
                         FoxSdkLogger.d(H5_LOG_TAG, "跳转APP的参数: " + json);
                         FoxSdkAppJumpUtils.launchByDeepLink(

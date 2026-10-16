@@ -5,8 +5,19 @@
     <string name="switch_to_portrait">切换为竖屏</string>
     <string name="switch_to_landscape">切换为横屏</string>
     <string name="test_payment">测试支付</string>
+    <string name="dynamic_param_title">分包动态参数 dynamicParam（原始 JSON，可长按复制）</string>
+    <string name="dynamic_param_empty">无动态参数（SDK 未读取到 dynamicParam）</string>
+    <string name="dynamic_param_not_initialized">SDK 尚未初始化，暂无法读取动态参数</string>
     <string name="h5_url_dialog_title">输入 H5 调试地址</string>
     <string name="h5_url_hint">例如：http://192.168.1.10:5173/</string>
     <string name="h5_url_invalid">请输入有效的 HTTP 或 HTTPS 地址</string>
     <string name="open_h5">打开</string>
+    <string name="share_test_title">图片分享测试</string>
+    <string name="share_test_description">使用指定的在线 JPG 图片，下载后直接打开目标分享入口。同一页面复用已下载图片，不写入相册。</string>
+    <string name="share_test_idle">点击上方对应按钮进行测试；请在目标应用检查图片是否带入正确页面。</string>
+    <string name="share_wechat">微信分享</string>
+    <string name="share_wechat_timeline">微信朋友圈分享</string>
+    <string name="share_qq">QQ分享</string>
+    <string name="share_douyin">抖音分享</string>
+    <string name="share_xiaohongshu">小红书分享</string>
 </resources>

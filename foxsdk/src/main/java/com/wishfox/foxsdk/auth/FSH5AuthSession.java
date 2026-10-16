@@ -11,6 +11,8 @@ import com.wishfox.foxsdk.data.model.FoxSdkBaseResponse;
 import com.wishfox.foxsdk.data.model.entity.FSLoginResult;
 import com.wishfox.foxsdk.data.model.entity.FSShortLogin;
 import com.wishfox.foxsdk.data.model.entity.FSUserInfo;
+import com.wishfox.foxsdk.data.model.entity.FSUserProfile;
+import com.wishfox.foxsdk.data.repository.FSHomeRepository;
 import com.wishfox.foxsdk.data.network.FoxSdkRetrofitManager;
 import com.wishfox.foxsdk.utils.FoxSdkLogger;
 
@@ -19,6 +21,8 @@ import org.json.JSONObject;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.ArrayList;
+import java.util.List;
 
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers;
 import io.reactivex.rxjava3.core.Single;
@@ -36,8 +40,17 @@ public final class FSH5AuthSession {
     private final FoxSdkConfig.H5SessionTokenProvider provider;
     private final String sessionId;
     private Operation pending;
+    private UserIdOperation pendingUserId;
     private long expiresAt;
     private long sessionRevision = -1;
+
+    private static final class UserIdOperation {
+        final List<Result> results = new ArrayList<>();
+        final long revision = FSLoginResult.getSessionRevision();
+        final String token = FSLoginResult.getTokenEd();
+        final FoxSdkConfig config = WishFoxSdk.getConfig();
+        Disposable request;
+    }
 
     private static final class Operation {
         final Result result;
@@ -88,10 +101,16 @@ public final class FSH5AuthSession {
     public void handle(String method, JSONObject params, Result result) throws JSONException {
         if ("auth.getState".equals(method)) { result.complete("OK", state()); return; }
         if ("auth.getUserId".equals(method)) {
-            FSUserInfo userInfo = FSUserInfo.getInstance();
-            String userId = userInfo == null ? null : userInfo.getUserId();
-            result.complete("OK", new JSONObject().put("userId",
-                    TextUtils.isEmpty(userId) ? JSONObject.NULL : userId));
+            readUserId(result);
+            return;
+        }
+        if ("auth.getDynamicParam".equals(method)) {
+            // 与原生请求头读取同一份运行时配置。保留原始 JSON 字符串，不解析、格式化或回退缓存。
+            String dynamicParam = WishFoxSdk.getConfig().getDynamicParam();
+            FoxSdkLogger.d(TAG, "getDynamicParam: source=sdk_config, present=" + (dynamicParam != null)
+                    + ", length=" + (dynamicParam == null ? 0 : dynamicParam.length()));
+            result.complete("OK", new JSONObject().put("dynamicParam",
+                    dynamicParam == null ? JSONObject.NULL : dynamicParam));
             return;
         }
         boolean login = "auth.login".equals(method);
@@ -136,6 +155,98 @@ public final class FSH5AuthSession {
             FoxSdkOverlayManager.requestLogin(host, op.login);
         } else if (exchange) exchange(op);
         else succeed(op, null, 0);
+    }
+
+    private void readUserId(Result result) throws JSONException {
+        FSLoginResult login = FSLoginResult.getInstance();
+        if (login == null || TextUtils.isEmpty(login.getToken())) {
+            FoxSdkLogger.d(TAG, "getUserId: source=anonymous, present=false");
+            result.complete("OK", new JSONObject().put("userId", JSONObject.NULL));
+            return;
+        }
+        FSUserProfile profile = FSUserProfile.getInstance();
+        FSUserInfo user = profile == null ? null : profile.getUserInfo();
+        // 缓存必须能确认属于当前账号；不能用 openId 代替业务 userId。
+        if (user != null && !TextUtils.isEmpty(user.getUserId())
+                && !TextUtils.isEmpty(login.getOpenId())
+                && TextUtils.equals(login.getOpenId(), profile.getOpenId())) {
+            FoxSdkLogger.d(TAG, "getUserId: source=user_profile, present=true");
+            result.complete("OK", new JSONObject().put("userId", user.getUserId()));
+            return;
+        }
+        if (pendingUserId != null && !sameUserIdAccount(pendingUserId)) {
+            completeUserId(pendingUserId, "AUTH_STATE_CHANGED", null);
+        }
+        if (pendingUserId != null) {
+            pendingUserId.results.add(result);
+            return;
+        }
+        UserIdOperation op = new UserIdOperation();
+        op.results.add(result);
+        pendingUserId = op;
+        FoxSdkLogger.d(TAG, "getUserId: source=fetch_user_profile, cachedUserIdPresent="
+                + (user != null && !TextUtils.isEmpty(user.getUserId())));
+        op.request = new FSHomeRepository().getUserInfo()
+                .subscribeOn(Schedulers.io()).timeout(15, TimeUnit.SECONDS)
+                .observeOn(AndroidSchedulers.mainThread()).subscribe(response -> {
+                    if (pendingUserId != op) return;
+                    if (!sameUserIdAccount(op)) {
+                        completeUserId(op, "AUTH_STATE_CHANGED", null);
+                        return;
+                    }
+                    if (!response.isSuccess()) {
+                        String code = response.getCode() == 401 ? "AUTH_REQUIRED"
+                                : response.getCode() == 429 ? "RATE_LIMITED"
+                                : response.getThrowable() != null ? userInfoError(response.getThrowable())
+                                : "USER_INFO_UNAVAILABLE";
+                        completeUserId(op, code, null);
+                        return;
+                    }
+                    FSUserProfile fetched = response.getData();
+                    FSUserInfo fetchedUser = fetched == null ? null : fetched.getUserInfo();
+                    if (fetchedUser == null || TextUtils.isEmpty(fetchedUser.getUserId())) {
+                        completeUserId(op, "USER_INFO_UNAVAILABLE", null);
+                        return;
+                    }
+                    FSLoginResult current = FSLoginResult.getInstance();
+                    if (!TextUtils.isEmpty(fetched.getOpenId()) && current != null
+                            && !TextUtils.isEmpty(current.getOpenId())
+                            && !TextUtils.equals(fetched.getOpenId(), current.getOpenId())) {
+                        completeUserId(op, "AUTH_STATE_CHANGED", null);
+                        return;
+                    }
+                    FSUserProfile.save(fetched);
+                    completeUserId(op, "OK", fetchedUser.getUserId());
+                }, error -> {
+                    if (pendingUserId != op) return;
+                    completeUserId(op, sameUserIdAccount(op) ? userInfoError(error) : "AUTH_STATE_CHANGED", null);
+                });
+    }
+
+    private boolean sameUserIdAccount(UserIdOperation op) {
+        return op.config == WishFoxSdk.getConfig()
+                && op.revision == FSLoginResult.getSessionRevision()
+                && TextUtils.equals(op.token, FSLoginResult.getTokenEd());
+    }
+
+    private static String userInfoError(Throwable error) {
+        String code = exchangeError(error);
+        return "SESSION_EXCHANGE_FAILED".equals(code) ? "USER_INFO_UNAVAILABLE" : code;
+    }
+
+    private void completeUserId(UserIdOperation op, String code, String userId) {
+        if (pendingUserId != op) return;
+        pendingUserId = null;
+        if (op.request != null) op.request.dispose();
+        FoxSdkLogger.d(TAG, "getUserId complete: source=fetch_user_profile, code=" + code
+                + ", present=" + !TextUtils.isEmpty(userId));
+        JSONObject data = null;
+        if ("OK".equals(code)) {
+            try { data = new JSONObject().put("userId", userId); }
+            catch (JSONException ignored) { code = "USER_INFO_UNAVAILABLE"; }
+        }
+        for (Result callback : op.results) callback.complete(code, data);
+        op.results.clear();
     }
 
     private void exchange(Operation op) {
@@ -320,6 +431,12 @@ public final class FSH5AuthSession {
 
     /** 换文档、关闭 WebView、宿主销毁：取消回调与本调用方登录，不把结果发给下一页。 */
     public void reset() {
+        UserIdOperation previousUserId = pendingUserId;
+        pendingUserId = null;
+        if (previousUserId != null) {
+            if (previousUserId.request != null) previousUserId.request.dispose();
+            previousUserId.results.clear();
+        }
         Operation previous = pending;
         pending = null;
         expiresAt = 0;
