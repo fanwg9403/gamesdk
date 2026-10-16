@@ -55,8 +55,8 @@ public class MyApp extends Application {
         WishFoxSdk.initialize(
                 this,
                 new FoxSdkConfig.Builder(
-                        "1",
-                        "1",
+                        "2022",
+                        "5",
                         "billcomwishfoxdemoe"
                 )
                         .setBaseUrl(environment.baseUrl)
