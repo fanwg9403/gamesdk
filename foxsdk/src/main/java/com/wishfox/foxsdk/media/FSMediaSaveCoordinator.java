@@ -1,14 +1,12 @@
 package com.wishfox.foxsdk.media;
 
 import android.app.Activity;
-import android.content.ContentValues;
 import android.content.Intent;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
-import android.provider.MediaStore;
 import android.text.TextUtils;
 import android.util.Base64;
 import android.webkit.WebResourceResponse;
@@ -409,39 +407,13 @@ public final class FSMediaSaveCoordinator {
 
     private GalleryResult saveToMediaStore(File source, String fileName, String mimeType, Task task)
             throws SaveException {
-        ContentValues values = new ContentValues();
-        values.put(MediaStore.Images.Media.DISPLAY_NAME, fileName);
-        values.put(MediaStore.Images.Media.MIME_TYPE, mimeType);
-        values.put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/WishFox");
-        values.put(MediaStore.Images.Media.IS_PENDING, 1);
-        Uri uri;
         try {
-            uri = activity.getContentResolver().insert(
-                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
-        } catch (Throwable failure) {
-            return new GalleryResult("failed", null,
-                    error("GALLERY_WRITE_FAILED", "相册记录创建失败"));
-        }
-        if (uri == null) {
-            return new GalleryResult("failed", null,
-                    error("GALLERY_WRITE_FAILED", "相册记录创建失败"));
-        }
-        try (InputStream input = new FileInputStream(source);
-             OutputStream output = activity.getContentResolver().openOutputStream(uri)) {
-            if (output == null) throw new SaveException("GALLERY_WRITE_FAILED", "相册文件打开失败");
-            copy(input, output, task);
-            ContentValues ready = new ContentValues();
-            ready.put(MediaStore.Images.Media.IS_PENDING, 0);
-            activity.getContentResolver().update(uri, ready, null, null);
+            Uri uri = FSGalleryWriter.save(activity, source, fileName, mimeType,
+                    () -> task.cancelled.get() || destroyed);
             return new GalleryResult("saved", uri.toString(), null);
         } catch (SaveException failure) {
-            activity.getContentResolver().delete(uri, null, null);
             if ("CANCELLED".equals(failure.code)) throw failure;
             return new GalleryResult("failed", null, error(failure.code, failure.getMessage()));
-        } catch (Exception failure) {
-            activity.getContentResolver().delete(uri, null, null);
-            return new GalleryResult("failed", null,
-                    error("GALLERY_WRITE_FAILED", "相册保存失败"));
         }
     }
 

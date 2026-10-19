@@ -1,6 +1,6 @@
 # H5 增量接入：图片分享与原生 dynamicParam
 
-更新日期：2026-10-16。本清单与当前 SDK 的五个分享目标保持一致；完整图片分享协议及示例见 [H5 图片直接分享接入](h5-image-sharing.md)。
+更新日期：2026-10-19。本清单与当前 SDK 的五个分享目标保持一致；完整图片分享协议及示例见 [H5 图片直接分享接入](h5-image-sharing.md)。
 
 ## 一、本次只增加两个业务方法
 
@@ -127,7 +127,7 @@ SDK 使用 `ACTION_SEND` + 显式 `ComponentName` 传递图片，不弹系统分
 2. 可选调用 `media.getShareCapabilities()`；target 缺失时隐藏入口，`available:false` 时展示对应 message。查询失败不等于未安装。查询结果不长期缓存，实际分享仍可能失败。
 3. 若没有可复用 assetId，先监听 `media.saveResult`，再调用 `media.saveImage`。
 4. 等待 `sandboxStatus === 'saved'`，取 `assetId`；保存失败立即结束，不能继续分享。
-5. 先监听 `media.shareResult`，再调用 `media.shareImage`。
+5. 先监听 `media.shareResult`，再调用 `media.shareImage`；Android 10+ 原生先写入相册再唤端，Android 9 及以下静默跳过无权限的相册步骤，继续通过沙盒图片 URI 分享。无需申请权限，也不弹相册提示。
 6. 收到终态或错误时取消监听、解除 busy；超时主动 `media.cancel`。
 7. 页面卸载/SPA 路由离开时取消在途任务、移除订阅，不在旧页面继续唤端。
 
@@ -139,7 +139,7 @@ await bridge.request({ method: 'media.saveImage', params: {
   source: { type: 'https_url', value: posterUrl },
   fileName: posterFileName, // 例如 poster.jpg
   mimeType: posterMimeType, // JPEG 为 image/jpeg；PNG 为 image/png；WebP 为 image/webp
-  saveToGallery: false,
+  saveToGallery: false, // 此步骤仅下载；media.shareImage 内部统一完成相册保存
   legacyGalleryMode: 'none'
 }});
 // 上面的 await 只等待 accepted，assetId 必须从后续 media.saveResult 事件获取。
@@ -158,7 +158,9 @@ await bridge.request({ method: 'media.shareImage', params: {
 
 包含事件等待、超时取消、错误提示和 finally 恢复按钮的完整示例见 [图片直接分享文档第6节](h5-image-sharing.md#6-可直接改造的-h5-示例)。按页面实例集成该节代码，补充页面自己的 `showError` 与 `setShareButtonBusy`，并在组件卸载/路由离开时调用 `disposePosterSharing()`。调用示例：`sharePoster('wechat_friend', posterUrl, 'image/jpeg', 'poster.jpg')`。
 
-图片地址须能被手机原生网络访问，不能依赖 H5 Cookie 或额外浏览器请求头。MIME 须与图片内容一致，不能把 JPEG 固定填为 PNG。保存到沙盒不等于保存到相册；“保存图片后手动发布”须使用已有 `saveToGallery:true` 的保存入口。
+图片地址须能被手机原生网络访问，不能依赖 H5 Cookie 或额外浏览器请求头。MIME 须与图片内容一致，不能把 JPEG 固定填为 PNG。`media.shareImage` 内部复用保存逻辑，按系统版本处理相册后唤端，不需要 H5 额外再保存一次。独立“保存图片”按钮继续用 `saveToGallery:true`。必须升级原生 SDK 才能获得新行为。
+
+分享进度新增 `saving_gallery`；结果新增 `galleryStatus` 和 `galleryUri`。以 `status:'launched'` 判断已发起唤端，不额外要求 `galleryStatus:'saved'`，也不代表发布成功。Android 10+ 自动写入 `Pictures/WishFox`；Android 9 及以下可返回 `galleryStatus:'unsupported_no_permission'`、`galleryUri:null`、`error:null` 并正常唤端，H5 不弹相册提示、不阻断流程。旧系统的沙盒图片不保证出现在相册中。
 
 ### 4.3 错误与结果展示
 
@@ -183,4 +185,4 @@ await bridge.request({ method: 'media.shareImage', params: {
 - 两个阶段使用不同唯一 requestId，先订阅再调用。
 - 接受前拒绝、接受后失败、超时、取消均恢复 UI。
 - 保留 `userNotified`、不重复提示、不把 launched 当作发布成功。
-- 原生 DEMO 的五个目标已获用户可用反馈；H5 仍须验证自己的事件、异常、离页取消与参数传递。
+- 小红书可能进入图片/视频选择页，抖音也需兼容手动选图；检查 Android 10+ 相册写入、Android 9 及以下静默降级后继续唤端、无权限弹窗、无相册 Toast，以及目标应用的照片访问权限。

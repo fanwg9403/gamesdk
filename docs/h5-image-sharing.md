@@ -1,21 +1,26 @@
 # H5 图片直接分享接入
 
-更新日期：2026-10-16。本文对应当前 Android SDK 实现，是图片分享的完整对接说明；两项新增功能的总清单见 [图片分享与原生 dynamicParam](h5-share-and-dynamic-param.md)。
+更新日期：2026-10-19。本文对应当前 Android SDK 实现，是图片分享的完整对接说明；两项新增功能的总清单见 [图片分享与原生 dynamicParam](h5-share-and-dynamic-param.md)。
 
 ## 本次同步要点
 
 - 分享目标固定为微信好友、微信朋友圈、QQ好友、抖音、小红书，共五项。
+- 五个入口复用原生保存逻辑：Android 10+ 先写系统相册再携图唤端；Android 9 及以下无存储权限时静默跳过相册步骤，继续分享沙盒图片。整个分享流程不弹存储权限请求、不弹相册成功或不支持提示，H5 无需增加第二次保存调用。
 - QQ空间能力已移除。H5 删除对应按钮、`qzone` 映射及调用分支，不再显示“升级 QQ 后使用”的提示。继续传 `target:'qzone'` 会被拒绝并返回 `INVALID_ARGUMENT`，不会唤起应用。
 - 沿用现有 Bridge 与 `media.saveImage`；新增分享方法为 `media.shareImage`，不需要复制 `wishfox-auth-bridge.js` 或 `wishfox-media-bridge.js`。
 - 图片分享采用 Android `ACTION_SEND` + 显式 `ComponentName`，图片通过临时授权的 `content://` URI 交接。H5 不拼接 Scheme，也不向目标应用传网络 URL。
 
 ## 1. 调用链路
 
-`media.saveImage` 保存至 SDK 沙盒 → 等待 `media.saveResult` → 使用返回的 `assetId` 调用 `media.shareImage` → 等待 `media.shareResult`。
+`media.saveImage` 下载并保存至 SDK 沙盒 → 等待 `media.saveResult` → 用 `assetId` 调用 `media.shareImage` → Android 10+ 写入系统相册 / Android 9 及以下跳过相册 → 通过 FileProvider 携图唤端 → 等待 `media.shareResult`。
 
 SDK 使用显式 Intent 指定组件，不弹系统分享选择器，不增加第三方开放 SDK，不要求新增后端接口。平台可能在自己的应用内要求登录、选择好友或确认发布。
 
-保存图片的 `source.type` 沿用现有协议 **`https_url`**，不是 `url`。`saveToGallery:false` 即可分享，不需要相册权限；单独的保存按钮才传 `true`。
+保存图片的 `source.type` 沿用现有协议 **`https_url`**，不是 `url`。分享前的下载步骤继续传 `saveToGallery:false`，相册写入由后续 `media.shareImage` 完成；单独“保存图片”按钮仍传 `true`。须升级原生 SDK 才能获得新的保存后分享行为。
+
+Android 10（API 29）及以上直接写入 MediaStore 的 `Pictures/WishFox`，关闭输出流并发布相册记录后跳转，不申请存储或读取相册权限。Android 9 及以下当前无存储权限模式静默跳过公共相册，继续用沙盒副本及临时 URI 授权分享，不弹权限请求或相册提示，也不自动打开系统文件保存选择器。应用私有沙盒不能直接扫描为公共相册图片，旧系统不承诺相册中存在海报；目标应用仍可接收 URI 或供用户自行选择已有图片。[Android 存储说明](https://developer.android.com/training/data-storage/shared/media)
+
+下载、校验、沙盒保存继续使用 `FSMediaSaveCoordinator`；其 MediaStore 写入与分享共用 `FSGalleryWriter`，不重复下载海报。独立“保存图片”按钮保持原有结果提示与低版本系统文件保存流程，和分享过程的静默处理分开。
 
 ## 2. 沿用 H5 现有 Bridge
 
@@ -47,7 +52,7 @@ H5 已有完整 Bridge，本次只增加 `media.shareImage` 方法映射和分�
 
 组件表封装在原生内，H5不传包名或 Activity。目标组件必须已安装、启用、对外开放且声明支持相应图片的 `ACTION_SEND`；检查通过也不等于图片导入或发布成功。
 
-测试反馈：用户已在 DEMO 中反馈以上五项分享均可用；H5 页面仍需联调自身的参数、事件订阅和生命周期。该结果仅覆盖当时测试环境，不代表所有客户端版本。SDK 每次分享仍检查组件启用状态、导出属性、权限及图片 Intent 声明。
+测试反馈：五个目标均能唤起；最新反馈发现小红书会打开图片/视频选择页，未直接导入传入图片。因此不能把唤起成功等同于携图成功。新流程先将海报保存到相册，用户可在小红书或抖音选择海报。第三方应用自身的相册授权、照片范围、刷新与筛选仍由其管理；若只授权部分照片，用户可能需要在目标应用内允许访问该海报。
 
 ## 4. 协议
 
@@ -78,7 +83,7 @@ H5 已有完整 Bridge，本次只增加 `media.shareImage` 方法映射和分�
 {"requestId":"share-unique-001","target":"wechat_friend","stage":"preparing"}
 ```
 
-stage 为 `preparing` 或 `launching`。
+stage 按顺序为 `preparing`、`saving_gallery`、`launching`，进度同时携带 `galleryStatus`。Android 10+ 相册保存或复用成功后进入 `launching`；Android 9 及以下以 `unsupported_no_permission` 状态继续唤端。H5 不根据此状态弹相册提示。
 
 结果事件 `media.shareResult` 的 data：
 
@@ -89,12 +94,16 @@ stage 为 `preparing` 或 `launching`。
   "status": "launched",
   "mode": "explicit_intent",
   "publicationStatus": "unknown",
+  "galleryStatus": "saved",
+  "galleryUri": "content://media/external/images/media/12345",
   "error": null,
   "userNotified": false
 }
 ```
 
 status 为 `launched` / `failed` / `cancelled`。`launched` 只表示启动调用返回，不证明图片导入、发送或发布成功。不弹“分享成功”，不据此发奖励。
+
+`galleryStatus` 为 `not_started` / `saving` / `saved` / `unsupported_no_permission` / `failed`；`galleryUri` 未写入相册时为 null，成功时为 MediaStore URI。`unsupported_no_permission` 是旧系统正常降级状态，不是分享错误：可以同时返回 `status:'launched'`、`error:null`，H5 不应阻止分享或弹提示。仅用 `status` 判断是否发起唤端，不要求 `galleryStatus:'saved'`。Android 10+ 真正写入失败仍通过错误处理；取消/超时不回滚已经保存的图片，未完成记录会尽力清理。
 
 失败时 error 为 `{code,message}`。接受前失败通过 Promise reject 返回，不再产生结果事件；接受后失败通过结果事件返回。拒绝响应 data 包含 `message` 和 `userNotified`。
 
@@ -127,7 +136,7 @@ if (!capability) {
 }
 ```
 
-`available` 是查询时按 `image/png` 检查的入口状态；分享时 SDK 会按图片实际 MIME 再次检查，因此预检通过后也必须处理失败。不要长期缓存能力结果。旧 SDK 若不支持查询方法，应按已有 Bridge 错误机制降级，不能把查询失败当成“未安装应用”。
+`available` 是查询时按 `image/png` 检查的入口状态，不以旧系统是否可写相册作为拒绝条件，也不检查剩余磁盘空间。分享时 SDK 会按实际 MIME 再次检查，预检通过后仍需处理失败。不要长期缓存能力结果。旧 SDK 若不支持查询方法，应按已有 Bridge 错误机制降级，不能把查询失败当成“未安装应用”。
 
 ## 5. 用户提示与重复点击
 
@@ -230,7 +239,7 @@ async function sharePoster(target, imageUrl, mimeType, fileName) {
         source: { type: 'https_url', value: imageUrl },
         fileName,
         mimeType, // image/png、image/jpeg 或 image/webp，必须与图片实际内容一致
-        saveToGallery: false,
+        saveToGallery: false, // 此步骤仅下载；media.shareImage 内部统一完成相册保存
         legacyGalleryMode: 'none'
       }), saveId, 150000);
     requireResult(saved, saved.sandboxStatus === 'saved');
@@ -241,6 +250,7 @@ async function sharePoster(target, imageUrl, mimeType, fileName) {
       request('media.shareImage', { requestId: shareId, target, assetId: saved.assetId }),
       shareId, 45000);
     requireResult(shared, shared.status === 'launched');
+    // galleryStatus=unsupported_no_permission 时仍然正常唤端，不弹相册提示。
     // 已发起目标入口，不显示“发布成功”。
     // 可缓存 saved.assetId 供同一海报再次分享；释放时再调用 removeSandboxImage。
   } catch (error) {
@@ -269,7 +279,7 @@ function disposePosterSharing() {
 
 网络图片由 Android 原生下载，不继承 H5 浏览器的 Cookie、登录请求头或代理设置。使用手机当前网络可访问的 HTTPS 图片地址；不要传 HTML 页面地址。`DOWNLOAD_TIMEOUT` 表示这次原生下载超时，不代表手机完全没有网络。PNG、JPEG、WebP 均按实际图片内容传 MIME，不要只根据 URL 后缀判断，也不要把所有图片固定填为 PNG。
 
-相同图片可复用 `media.saveResult.assetId`；图片改变时重新保存。`IMAGE_NOT_FOUND` 时清空旧 assetId，由用户重试触发重新保存。若不再复用，分享结果返回后调用 `media.removeSandboxImage({assetId})`；不要在分享准备阶段删除原图。`saveToGallery:false` 只保存到 SDK 沙盒，用户看不到相册图片；手动发布的“保存图片”按钮须沿用已有 `saveToGallery:true` 流程及低版本相册处理。
+相同图片可复用 `media.saveResult.assetId`；每次分享都会执行相册保存/复用检查。同一进程内按图片内容去重，10分钟内已保存且仍可读取的同一图片可复用（最多记录128项）；图片被删除、超过时段或进程重启后会重新写入。`IMAGE_NOT_FOUND` 时清空旧 assetId，由用户重试保存沙盒。若不再复用，分享结果返回后调用 `media.removeSandboxImage({assetId})`，此操作不删除系统相册图片。
 
 ## 7. 错误码
 

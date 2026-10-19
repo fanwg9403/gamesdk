@@ -984,7 +984,7 @@ public final class FSH5OverlayView extends FrameLayout {
             mediaBusyView.setClickable(true);
             TextView message = mediaBusyView.findViewById(R.id.fs_tv_message);
             message.setVisibility(VISIBLE);
-            message.setText("正在处理图片，请稍候…");
+            message.setText("正在处理并保存图片，请稍候…");
             FrameLayout.LayoutParams layout = new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
                     Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);

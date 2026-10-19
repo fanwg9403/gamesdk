@@ -217,13 +217,14 @@ public class MainActivity extends AppCompatActivity {
     private void launchSavedImage(FSShareTargetResolver.Target target, String assetId) {
         final String shareId = "demo-share-" + UUID.randomUUID();
         activeShareId = shareId;
-        setShareStatus("正在准备图片并打开" + target.appName + "…");
+        setShareStatus("正在准备分享图片…");
         String error = demoImageSharer.start(shareId, target.id, assetId, new FSMediaShareCoordinator.Callback() {
             @Override public boolean canLaunch() { return canShareNow() && shareId.equals(activeShareId); }
 
             @Override public void onProgress(JSONObject data) {
                 if (!shareId.equals(activeShareId)) return;
-                setShareStatus("launching".equals(data.optString("stage"))
+                String stage = data.optString("stage");
+                setShareStatus("launching".equals(stage)
                         ? "正在打开" + target.appName + "…" : "正在准备分享图片…");
             }
 
@@ -232,8 +233,9 @@ public class MainActivity extends AppCompatActivity {
                 activeShareId = null;
                 if ("launched".equals(data.optString("status"))) {
                     setShareBusy(false);
+                    Log.d(SHARE_TAG, "share launched: galleryStatus=" + data.optString("galleryStatus"));
                     setShareStatus("已发起 " + target.id + " 分享（" + target.appName + "）。\n"
-                            + "请在目标应用检查页面和图片；此状态不代表发送或发布成功。");
+                            + "请在目标应用检查图片或自行选图；此状态不代表发送或发布成功。");
                 } else {
                     JSONObject error = data.optJSONObject("error");
                     showShareError(target, error == null ? "LAUNCH_FAILED" : error.optString("code"));

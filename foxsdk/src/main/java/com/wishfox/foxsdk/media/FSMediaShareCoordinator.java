@@ -115,12 +115,27 @@ public final class FSMediaShareCoordinator {
             if (!"image/png".equals(mime) && !"image/jpeg".equals(mime) && !"image/webp".equals(mime)) {
                 throw new ShareFailure("UNSUPPORTED_IMAGE_TYPE");
             }
+            task.galleryStatus = "saving";
+            main.post(() -> { if (!task.finished && active == task) progress(task, "saving_gallery"); });
+            String galleryName = "wishfox-poster-" + System.currentTimeMillis() + extension;
+            try {
+                task.galleryUri = FSGalleryWriter.save(activity, snapshot, galleryName, mime, () -> task.finished).toString();
+                task.galleryStatus = "saved";
+            } catch (FSMediaSaveCoordinator.SaveException failure) {
+                if (!"UNSUPPORTED_NO_PERMISSION".equals(failure.code)) throw failure;
+                // 旧系统无权限写公共相册时，继续通过 FileProvider 分享沙盒副本。
+                task.galleryStatus = "unsupported_no_permission";
+            }
+            FoxSdkLogger.d(TAG, "gallery prepared: target=" + task.target.id
+                    + ", status=" + task.galleryStatus + ", bytes=" + size);
             File ready = snapshot;
             main.post(() -> launch(task, ready, mime));
         } catch (Exception failure) {
             if (snapshot != null) snapshot.delete();
             String code = failure instanceof ShareFailure ? ((ShareFailure) failure).code
+                    : failure instanceof FSMediaSaveCoordinator.SaveException ? ((FSMediaSaveCoordinator.SaveException) failure).code
                     : failure instanceof IOException ? "CACHE_FAILED" : "IMAGE_VALIDATION_FAILED";
+            if ("saving".equals(task.galleryStatus)) task.galleryStatus = "failed";
             main.post(() -> finish(task, "failed", code));
         }
     }
@@ -182,7 +197,8 @@ public final class FSMediaShareCoordinator {
 
     private void progress(Task task, String stage) {
         try { task.callback.onProgress(new JSONObject().put("requestId", task.id)
-                .put("target", task.target.id).put("stage", stage)); }
+                .put("target", task.target.id).put("stage", stage)
+                .put("galleryStatus", task.galleryStatus)); }
         catch (JSONException ignored) { }
     }
 
@@ -196,6 +212,8 @@ public final class FSMediaShareCoordinator {
         try {
             JSONObject result = new JSONObject().put("requestId", task.id).put("target", task.target.id)
                     .put("status", status).put("mode", "explicit_intent")
+                    .put("galleryStatus", task.galleryStatus)
+                    .put("galleryUri", task.galleryUri == null ? JSONObject.NULL : task.galleryUri)
                     .put("publicationStatus", "unknown");
             result.put("error", code == null ? JSONObject.NULL : new JSONObject().put("code", code)
                     .put("message", FSMediaFeedback.message(code, task.target.appName)));
@@ -226,6 +244,8 @@ public final class FSMediaShareCoordinator {
         final String assetId;
         final Callback callback;
         volatile boolean finished;
+        volatile String galleryStatus = "not_started";
+        volatile String galleryUri;
         Runnable timeout;
         Task(String id, FSShareTargetResolver.Target target, String assetId, Callback callback) {
             this.id = id; this.target = target; this.assetId = assetId; this.callback = callback;

@@ -1568,7 +1568,7 @@ API 21～28无权限：
 
 ### 17.7 图片直接分享（新增）
 
-本节于 2026-10-16 按当前 SDK 同步。完整参数、结果示例和页面生命周期处理见 [H5 图片直接分享接入](h5-image-sharing.md)；新增业务方法总清单见 [图片分享与原生 dynamicParam](h5-share-and-dynamic-param.md)。继续使用 H5 已有 Bridge，无需复制 SDK assets 中的 JS 文件。
+本节于 2026-10-19 按当前 SDK 同步。完整参数、结果示例和页面生命周期处理见 [H5 图片直接分享接入](h5-image-sharing.md)；新增业务方法总清单见 [图片分享与原生 dynamicParam](h5-share-and-dynamic-param.md)。继续使用 H5 已有 Bridge，无需复制 SDK assets 中的 JS 文件。
 
 | target | 分享入口 |
 | --- | --- |
@@ -1591,7 +1591,7 @@ QQ空间能力已移除：删除 H5 按钮和旧 `qzone` 调用。当前 SDK 传
 
 对接约束：
 
-1. `media.saveImage` 使用 `source:{type:'https_url',value:图片地址}`，`fileName` 和 `mimeType` 按实际图片填写。分享前保存传 `saveToGallery:false`，不必先写入相册。
+1. `media.saveImage` 使用 `source:{type:'https_url',value:图片地址}`，`fileName` 和 `mimeType` 按实际图片填写。下载步骤传 `saveToGallery:false`；后续 `media.shareImage` 复用原生保存逻辑：Android 10+ 无权限弹窗写入 MediaStore 后唤端，Android 9 及以下静默跳过相册并继续分享沙盒图片，不弹相册提示。进度新增 `saving_gallery`，结果新增 `galleryStatus`（`not_started`/`saving`/`saved`/`unsupported_no_permission`/`failed`）和 `galleryUri`（null 或 MediaStore URI）。仅用 `status:'launched'` 判断发起唤端，不额外要求相册保存成功；旧系统降级状态不是分享错误。
 2. 先订阅 `media.saveResult` 再保存；收到 `sandboxStatus:'saved'` 后取 assetId。先订阅 `media.shareResult` 再分享；两个阶段使用不同的唯一 requestId（最多64字符）。图片 URL、sandboxUri、文件路径均不能替代 assetId。
 3. 立即拒绝走 Bridge 错误响应，不再等结果事件；已接受任务的结果通过事件返回。`media.shareResult.data` 包含 `requestId`、`target`、`status`（`launched`/`failed`/`cancelled`）、`mode:'explicit_intent'`、`publicationStatus:'unknown'`、`error`（null 或 `{code,message}`）、`userNotified`。
 4. 能力查询返回 `targets`，各项包含 `appName`、`available`、`mode`、`code`、`message`、`packageName`、`versionName`、`publicationResultAvailable:false`。查询自身不弹提示，H5 展示不可用目标的 message；能力通过不保证实际图片分享成功。

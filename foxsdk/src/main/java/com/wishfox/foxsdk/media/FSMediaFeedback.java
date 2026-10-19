@@ -14,8 +14,8 @@ public final class FSMediaFeedback {
             case "TARGET_ACCESS_DENIED": return app + "不允许外部应用打开此分享页面，请保存图片后在应用内手动发布";
             case "DOWNLOAD_FAILED":
             case "DOWNLOAD_TIMEOUT": return "图片下载失败，请检查网络或稍后重试";
+            case "GALLERY_WRITE_FAILED": return "图片保存到相册失败，请检查手机剩余空间后重试";
             case "SANDBOX_WRITE_FAILED":
-            case "GALLERY_WRITE_FAILED":
             case "CACHE_FAILED": return "图片保存失败，请检查手机剩余空间后重试";
             case "IMAGE_NOT_FOUND": return "图片已失效，请重新加载图片后再分享";
             case "INVALID_IMAGE_URL": return "图片地址已失效，请刷新页面后重试";
