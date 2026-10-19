@@ -85,6 +85,8 @@ public class FSPayDialog extends Dialog {
         binding = FsDialogPayBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         if (sdkConfig != null) {
+            binding.fsCheckRadioFoxCoin.setVisibility(
+                    sdkConfig.getHu_coin_pay_open_status() == 0 ? View.GONE : View.VISIBLE);
             if (sdkConfig.getWechat_pay_open_status() == 0) {//未开启
                 binding.fsCheckRadioWechat.setVisibility(View.GONE);
             } else {
@@ -113,13 +115,12 @@ public class FSPayDialog extends Dialog {
             binding.fsTvInfo.setText(payInfo);
         }
 
-        if (payType != null) {
-            setPayTypeInternal(payType);
-        }
-
         if (disableFoxCoinPay) {
             binding.fsCheckRadioFoxCoin.setEnabled(false);
         }
+
+        // The XML defaults to selecting Fox Coin; choose a valid option after applying server flags.
+        setPayTypeInternal(payType != null ? payType : getCheckedPayType());
 
         setupConfirmButton();
         updateFoxCoinBalance();
@@ -639,23 +640,61 @@ public class FSPayDialog extends Dialog {
     }
 
     private void setPayTypeInternal(FoxSdkPayEnum payType) {
-        int position;
-        switch (payType) {
-            case FOX_COIN:
-                position = 0;
-                break;
-            case ALI_PAY:
-                position = 1;
-                break;
-            case WECHAT:
-                position = 2;
-                break;
-            default:
-                position = -1;
+        FoxSdkPayEnum selectedPayType = isPayTypeAvailable(payType) ? payType : null;
+        if (selectedPayType == null) {
+            FoxSdkPayEnum[] fallbackOrder = {
+                    FoxSdkPayEnum.FOX_COIN,
+                    FoxSdkPayEnum.ALI_PAY,
+                    FoxSdkPayEnum.WECHAT
+            };
+            for (FoxSdkPayEnum candidate : fallbackOrder) {
+                if (isPayTypeAvailable(candidate)) {
+                    selectedPayType = candidate;
+                    break;
+                }
+            }
         }
 
-        if (position >= 0) {
-            binding.fsCheckRadioGroup.setCheckedItem(position);
+        int position = getPayTypePosition(selectedPayType);
+        binding.fsCheckRadioGroup.setCheckedItem(position);
+    }
+
+    private FoxSdkPayEnum getCheckedPayType() {
+        return getPayTypeFromPosition(binding.fsCheckRadioGroup.getCheckedItemPosition());
+    }
+
+    private boolean isPayTypeAvailable(FoxSdkPayEnum payType) {
+        if (payType == null) {
+            return false;
+        }
+        switch (payType) {
+            case FOX_COIN:
+                return binding.fsCheckRadioFoxCoin.getVisibility() == View.VISIBLE
+                        && binding.fsCheckRadioFoxCoin.isEnabled();
+            case ALI_PAY:
+                return binding.fsCheckRadioAli.getVisibility() == View.VISIBLE
+                        && binding.fsCheckRadioAli.isEnabled();
+            case WECHAT:
+                return binding.fsCheckRadioWechat.getVisibility() == View.VISIBLE
+                        && binding.fsCheckRadioWechat.isEnabled();
+            default:
+                return false;
+        }
+    }
+
+    private int getPayTypePosition(FoxSdkPayEnum payType) {
+        if (payType == null) {
+            return -1;
+        }
+        switch (payType) {
+            case FOX_COIN:
+                return 0;
+            case ALI_PAY:
+                return 1;
+            case WECHAT:
+                return 2;
+            default:
+                return -1;
         }
     }
 
@@ -664,6 +703,8 @@ public class FSPayDialog extends Dialog {
         this.disableFoxCoinPay = disable;
         if (binding != null) {
             binding.fsCheckRadioFoxCoin.setEnabled(!disable);
+            setPayTypeInternal(getCheckedPayType());
+            updateConfirmButtonState();
         }
         return this;
     }

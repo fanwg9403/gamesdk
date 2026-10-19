@@ -5,6 +5,7 @@ public class FSSdkConfig {
     private int pay_type;
     private int wechat_pay_open_status;
     private int ali_pay_open_status;
+    private int hu_coin_pay_open_status;
     private String wechat_scheme;
 
     public int getPay_type() {
@@ -29,6 +30,14 @@ public class FSSdkConfig {
 
     public void setAli_pay_open_status(int ali_pay_open_status) {
         this.ali_pay_open_status = ali_pay_open_status;
+    }
+
+    public int getHu_coin_pay_open_status() {
+        return hu_coin_pay_open_status;
+    }
+
+    public void setHu_coin_pay_open_status(int hu_coin_pay_open_status) {
+        this.hu_coin_pay_open_status = hu_coin_pay_open_status;
     }
 
     public String getWechat_scheme() {
