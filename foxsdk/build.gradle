@@ -10,8 +10,8 @@ android {
     defaultConfig {
         minSdkVersion 21
         targetSdkVersion 30
-        versionCode 16
-        versionName "1.5.1"
+        versionCode 18
+        versionName "1.6.1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         // Export to every AAR variant; host R8/ProGuard applies these rules.

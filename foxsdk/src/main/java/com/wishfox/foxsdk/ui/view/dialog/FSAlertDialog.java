@@ -1,10 +1,11 @@
 package com.wishfox.foxsdk.ui.view.dialog;
 
-import android.annotation.SuppressLint;
 import android.app.Dialog;
 import android.content.Context;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.text.Spanned;
+import android.text.method.LinkMovementMethod;
 import android.view.LayoutInflater;
 import android.view.View;
 
@@ -21,8 +22,7 @@ import com.wishfox.foxsdk.utils.FoxSdkViewExt;
  */
 public class FSAlertDialog extends Dialog {
 
-    @SuppressLint("StaticFieldLeak")
-    public static FsAlertDialogBinding binding;
+    private final FsAlertDialogBinding binding;
 
     public FSAlertDialog(Context context) {
         super(context, R.style.FSLoadingDialog);
@@ -42,7 +42,7 @@ public class FSAlertDialog extends Dialog {
         private Context ctx;
         private String title;
         private int titleColor = Color.WHITE;
-        private String message;
+        private CharSequence message;
         private int messageColor = Color.WHITE;
         private String positiveButtonText;
         private int positiveButtonTextColor = Color.WHITE;
@@ -95,6 +95,11 @@ public class FSAlertDialog extends Dialog {
         }
 
         public Builder setMessage(String message) {
+            this.message = message;
+            return this;
+        }
+
+        public Builder setMessage(CharSequence message) {
             this.message = message;
             return this;
         }
@@ -193,31 +198,37 @@ public class FSAlertDialog extends Dialog {
             FSAlertDialog dialog = new FSAlertDialog(ctx);
 
             // 标题
-            binding.fsTvAlertTitle.setVisibility(title != null ? View.VISIBLE : View.GONE);
-            binding.fsTvAlertTitle.setText(title);
-            binding.fsTvAlertTitle.setTextColor(titleColor);
+            dialog.binding.fsTvAlertTitle.setVisibility(title != null ? View.VISIBLE : View.GONE);
+            dialog.binding.fsTvAlertTitle.setText(title);
+            dialog.binding.fsTvAlertTitle.setTextColor(titleColor);
 
             // 内容
-            binding.fsTvAlertMessage.setVisibility(message != null ? View.VISIBLE : View.GONE);
-            binding.fsTvAlertMessage.setText(message);
-            binding.fsTvAlertMessage.setTextColor(messageColor);
-
-            if (contentView != null) {
-                binding.fsTvAlertTitle.setVisibility(View.INVISIBLE);
-                binding.fsTvAlertMessage.setVisibility(View.INVISIBLE);
-                binding.fsLlAlertContainer.setVisibility(View.VISIBLE);
-                binding.fsLlAlertContainer.removeAllViews();
-                binding.fsLlAlertContainer.addView(contentView);
+            dialog.binding.fsTvAlertMessage.setVisibility(message != null ? View.VISIBLE : View.GONE);
+            dialog.binding.fsTvAlertMessage.setText(message);
+            dialog.binding.fsTvAlertMessage.setTextColor(messageColor);
+            if (message instanceof Spanned) {
+                dialog.binding.fsTvAlertMessage.setMovementMethod(LinkMovementMethod.getInstance());
+                dialog.binding.fsTvAlertMessage.setHighlightColor(Color.TRANSPARENT);
+            } else {
+                dialog.binding.fsTvAlertMessage.setMovementMethod(null);
             }
 
-            FoxSdkViewExt.setOnClickListener(binding.fsIvAlertClose, v -> dialog.dismiss());
-            binding.fsIvAlertClose.setVisibility(openClose ? View.VISIBLE : View.GONE);
+            if (contentView != null) {
+                dialog.binding.fsTvAlertTitle.setVisibility(View.INVISIBLE);
+                dialog.binding.fsTvAlertMessage.setVisibility(View.INVISIBLE);
+                dialog.binding.fsLlAlertContainer.setVisibility(View.VISIBLE);
+                dialog.binding.fsLlAlertContainer.removeAllViews();
+                dialog.binding.fsLlAlertContainer.addView(contentView);
+            }
+
+            FoxSdkViewExt.setOnClickListener(dialog.binding.fsIvAlertClose, v -> dialog.dismiss());
+            dialog.binding.fsIvAlertClose.setVisibility(openClose ? View.VISIBLE : View.GONE);
 
             // 确定按钮
-            binding.fsTvConfirm.setVisibility(positiveButtonText != null ? View.VISIBLE : View.GONE);
-            binding.fsTvConfirm.setText(positiveButtonText);
-            binding.fsTvConfirm.setTextColor(positiveButtonTextColor);
-            FoxSdkViewExt.setOnClickListener(binding.fsTvConfirm, v -> {
+            dialog.binding.fsTvConfirm.setVisibility(positiveButtonText != null ? View.VISIBLE : View.GONE);
+            dialog.binding.fsTvConfirm.setText(positiveButtonText);
+            dialog.binding.fsTvConfirm.setTextColor(positiveButtonTextColor);
+            FoxSdkViewExt.setOnClickListener(dialog.binding.fsTvConfirm, v -> {
                 if (positiveButtonClickListener != null) {
                     positiveButtonClickListener.onClick();
                 }
@@ -225,17 +236,17 @@ public class FSAlertDialog extends Dialog {
             });
 
             // 取消按钮
-            binding.fsTvCancel.setVisibility(negativeButtonText != null ? View.VISIBLE : View.GONE);
-            binding.fsTvCancel.setText(negativeButtonText);
-            binding.fsTvCancel.setTextColor(negativeButtonTextColor);
+            dialog.binding.fsTvCancel.setVisibility(negativeButtonText != null ? View.VISIBLE : View.GONE);
+            dialog.binding.fsTvCancel.setText(negativeButtonText);
+            dialog.binding.fsTvCancel.setTextColor(negativeButtonTextColor);
 
             if ("outline".equals(negativeButtonTheme)) {
-                binding.fsTvCancel.setBackgroundColor(Color.TRANSPARENT);
+                dialog.binding.fsTvCancel.setBackgroundColor(Color.TRANSPARENT);
                 // 注意：这里需要根据实际的shape drawable builder来设置
                 // binding.fsTvCancel.shapeDrawableBuilder...
             }
 
-            FoxSdkViewExt.setOnClickListener(binding.fsTvCancel, v -> {
+            FoxSdkViewExt.setOnClickListener(dialog.binding.fsTvCancel, v -> {
                 if (negativeButtonClickListener != null) {
                     negativeButtonClickListener.onClick();
                 }

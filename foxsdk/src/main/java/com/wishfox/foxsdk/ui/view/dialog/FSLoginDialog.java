@@ -7,10 +7,15 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.SpannableString;
+import android.text.TextPaint;
 import android.text.TextUtils;
 import android.text.TextWatcher;
+import android.text.style.ClickableSpan;
 import android.view.LayoutInflater;
 import android.view.View;
+
+import androidx.core.content.ContextCompat;
 
 import com.hjq.toast.Toaster;
 import com.wishfox.foxsdk.R;
@@ -50,6 +55,9 @@ import retrofit2.adapter.rxjava3.HttpException;
  */
 public class FSLoginDialog extends Dialog {
 
+    private static final String USER_AGREEMENT_URL = "https://world.wishfoxs.com/gameOfUser.html";
+    private static final String PRIVACY_AGREEMENT_URL = "https://world.wishfoxs.com/gaemOfPrivacy.html";
+
     private static FSLoginDialog _instance;
 
     private Context ctx;
@@ -64,6 +72,7 @@ public class FSLoginDialog extends Dialog {
     private String verifyCodeValue = "";
     private String passwordValue = "";
     private FSLoginAgreementView agreementView;
+    private FSAlertDialog agreementConfirmDialog;
     private boolean dismissed;
     private boolean agreementDimmed;
     private io.reactivex.rxjava3.disposables.Disposable smsRequest;
@@ -134,18 +143,12 @@ public class FSLoginDialog extends Dialog {
         FoxSdkViewExt.setOnClickListener(binding.fsTvLogin, v -> {
             if (binding.fsTvLogin.getAlpha() != 1.0f) return;
 
-            loading = new FSLoadingDialog(ctx);
-            loading.show();
-
-            if (binding.fsLlVerifyCode.getVisibility() == View.VISIBLE) {
-                if (mListener != null) {
-                    mListener.onLoginClick(phoneValue, verifyCodeValue, 2, loading);
-                }
-            } else {
-                if (mListener != null) {
-                    mListener.onLoginClick(phoneValue, passwordValue, 1, loading);
-                }
+            if (!binding.fsCtvAgree.isChecked()) { // 未勾选协议、弹窗提示用户
+                showAgreementConfirmDialog();
+                return;
             }
+
+            performLogin();
         });
 
         // 发送验证码
@@ -187,11 +190,98 @@ public class FSLoginDialog extends Dialog {
 
         // 用户协议
         FoxSdkViewExt.setOnClickListener(binding.fsTvUserAgreement, v ->
-                openAgreement("https://world.wishfoxs.com/gameOfUser.html"));
+                openAgreement(USER_AGREEMENT_URL));
 
         // 隐私协议
         FoxSdkViewExt.setOnClickListener(binding.fsTvPrivacyAgreement, v ->
-                openAgreement("https://world.wishfoxs.com/gaemOfPrivacy.html"));
+                openAgreement(PRIVACY_AGREEMENT_URL));
+    }
+
+    private void showAgreementConfirmDialog() {
+        Activity host = hostActivity();
+        if (dismissed || !isHostUsable(host)) return;
+        if (agreementConfirmDialog != null && agreementConfirmDialog.isShowing()) return;
+
+        final FSAlertDialog[] dialogHolder = new FSAlertDialog[1];
+        FSAlertDialog dialog = new FSAlertDialog.Builder(host)
+                .setTitle(R.string.fs_agreement_privacy_title)
+                .setMessage(createAgreementMessage(host))
+                .setPositive(R.string.fs_agree_and_login, () -> {
+                    if (dismissed || binding == null || hostActivity() != host || !isHostUsable(host)) {
+                        return;
+                    }
+                    binding.fsCtvAgree.setChecked(true);
+                    checkCanLogin();
+                    performLogin();
+                })
+                .setNegative(R.string.fs_abandon_login, null)
+                .withClose()
+                .setOnDismissListener(() -> {
+                    if (agreementConfirmDialog == dialogHolder[0]) {
+                        agreementConfirmDialog = null;
+                    }
+                })
+                .build();
+        dialogHolder[0] = dialog;
+        agreementConfirmDialog = dialog;
+        try {
+            dialog.show();
+        } catch (RuntimeException failure) {
+            if (agreementConfirmDialog == dialog) agreementConfirmDialog = null;
+            dialog.dismiss();
+        }
+    }
+
+    private SpannableString createAgreementMessage(Activity host) {
+        SpannableString message = new SpannableString(
+                host.getString(R.string.fs_agreement_privacy_message));
+        addAgreementLink(message, host, host.getString(R.string.fs_user_agreement), USER_AGREEMENT_URL);
+        addAgreementLink(message, host, host.getString(R.string.fs_privacy_agreement), PRIVACY_AGREEMENT_URL);
+        return message;
+    }
+
+    private void addAgreementLink(SpannableString message, Activity host, String linkText, String url) {
+        int start = message.toString().indexOf(linkText);
+        if (start < 0) return;
+        message.setSpan(new ClickableSpan() {
+            @Override
+            public void onClick(View widget) {
+                dismissAgreementConfirmDialog();
+                openAgreement(url);
+            }
+
+            @Override
+            public void updateDrawState(TextPaint drawState) {
+                drawState.setColor(ContextCompat.getColor(host, R.color.fs_primary));
+                drawState.setUnderlineText(true);
+            }
+        }, start, start + linkText.length(), SpannableString.SPAN_EXCLUSIVE_EXCLUSIVE);
+    }
+
+    private void dismissAgreementConfirmDialog() {
+        if (agreementConfirmDialog == null) return;
+        FSAlertDialog dialog = agreementConfirmDialog;
+        agreementConfirmDialog = null;
+        dialog.dismiss();
+    }
+
+    private void performLogin() {
+        Activity host = hostActivity();
+        if (dismissed || binding == null || !isHostUsable(host)) return;
+        if (loading != null && loading.isShowing()) return;
+
+        loading = new FSLoadingDialog(host);
+        loading.show();
+
+        if (mListener == null) {
+            loading.dismiss();
+            return;
+        }
+        if (binding.fsLlVerifyCode.getVisibility() == View.VISIBLE) {
+            mListener.onLoginClick(phoneValue, verifyCodeValue, 2, loading);
+        } else {
+            mListener.onLoginClick(phoneValue, passwordValue, 1, loading);
+        }
     }
 
     private void openAgreement(String url) {
@@ -234,6 +324,10 @@ public class FSLoginDialog extends Dialog {
             value = base;
         }
         return value instanceof Activity ? (Activity) value : null;
+    }
+
+    private boolean isHostUsable(Activity host) {
+        return host != null && !host.isFinishing() && !host.isDestroyed();
     }
 
     private void restoreLogin() {
@@ -359,13 +453,12 @@ public class FSLoginDialog extends Dialog {
         boolean phonePass = phoneValue.length() == 11;
         boolean verifyCodePass = verifyCodeValue.length() > 3;
         boolean passwordPass = passwordValue.length() > 5;
-        boolean isAgreement = binding.fsCtvAgree.isChecked();
 
         boolean canLogin;
         if (binding.fsLlVerifyCode.getVisibility() == View.VISIBLE) {
-            canLogin = phonePass && verifyCodePass && isAgreement;
+            canLogin = phonePass && verifyCodePass;
         } else {
-            canLogin = phonePass && passwordPass && isAgreement;
+            canLogin = phonePass && passwordPass;
         }
 
         binding.fsTvLogin.setEnabled(canLogin);
@@ -392,6 +485,7 @@ public class FSLoginDialog extends Dialog {
     @Override
     public void show() {
         Activity host = hostActivity();
+        if (dismissed || !isHostUsable(host)) return;
         WishFoxSdk.hideFloatingWindow(host);
         try {
             super.show();
@@ -407,6 +501,7 @@ public class FSLoginDialog extends Dialog {
         dismissed = true;
         if (smsRequest != null) { smsRequest.dispose(); smsRequest = null; }
         mainHandler.removeCallbacksAndMessages(null);
+        dismissAgreementConfirmDialog();
         if (agreementView != null) { agreementView.close(false); agreementView = null; }
         super.dismiss();
         if (loading != null) {

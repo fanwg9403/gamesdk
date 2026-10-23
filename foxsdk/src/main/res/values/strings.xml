@@ -48,6 +48,10 @@
     <string name="fs_str_empty">暂无内容，去别处逛逛吧 ~</string>
     <string name="fs_prompt">提示</string>
     <string name="fs_confirm">确认</string>
+    <string name="fs_agreement_privacy_title">用户协议及隐私政策</string>
+    <string name="fs_agreement_privacy_message">请阅读并同意《用户协议》和《隐私政策》</string>
+    <string name="fs_agree_and_login">同意并登录</string>
+    <string name="fs_abandon_login">放弃登录</string>
     <string name="fs_my_message">我的消息</string>
     <string name="fs_show_latest_100">（只显示最近100条消息）</string>
     <string name="fs_back">返回</string>
