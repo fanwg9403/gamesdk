@@ -1059,7 +1059,27 @@ H5收到后应在 deadline内调用 `navigation.resolveBack`。
 }
 ```
 
-### 14.2 `layout.closeSecondary`
+### 14.2 `layout.setPanelRatios`
+
+H5 可先检查 `bridge.getCapabilities()` 返回的 `layoutSetPanelRatios`，再按业务动态调整各方向 WebView 面板宽度。比例以 Overlay 宽度为基准，取值范围为 `(0, 1]`。横屏主面板与副面板的比例和不得大于 `1`，避免面板重叠。请求成功后会立即重新布局，并在屏幕旋转后继续使用。
+
+```javascript
+await window.WishFoxSDK.invoke('layout.setPanelRatios', {
+  landscapePrimary: 0.39,
+  landscapeSecondary: 0.61,
+  portrait: 0.8
+});
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `landscapePrimary` | number | 是 | 横屏主内容面板宽度比例 |
+| `landscapeSecondary` | number | 是 | 横屏副内容面板宽度比例 |
+| `portrait` | number | 是 | 竖屏内容面板宽度比例 |
+
+成功响应的 `data` 返回当前生效比例；无效值、字符串参数或横屏比例和大于 `1` 时返回 `INVALID_ARGUMENT`。未调用时使用默认值：横屏主面板 `0.39`、副面板 `0.61`、竖屏面板 `0.8`。
+
+### 14.3 `layout.closeSecondary`
 
 请求参数：
 
@@ -1071,7 +1091,7 @@ H5收到后应在 deadline内调用 `navigation.resolveBack`。
 
 成功后原生销毁 Secondary WebView，并回到 single模式。
 
-### 14.3 事件 `layout.changed`
+### 14.4 事件 `layout.changed`
 
 ```json
 {
@@ -1087,7 +1107,7 @@ H5收到后应在 deadline内调用 `navigation.resolveBack`。
 
 H5必须监听该事件，不能只依赖 `layout.setMode` 的同步结果，因为屏幕旋转也可能改变布局。
 
-### 14.4 事件 `layout.secondaryClosed`
+### 14.5 事件 `layout.secondaryClosed`
 
 ```json
 {
@@ -1690,6 +1710,7 @@ class WishFoxBridgeError extends Error {
 | `navigation.openInternal` | 10秒 |
 | `navigation.openExternal` | 10秒 |
 | `layout.setMode` | 10秒 |
+| `layout.setPanelRatios` | 10秒 |
 | `auth.getState` | 5秒 |
 | `auth.login` | 不设置普通超时，由用户交互结束 |
 | `auth.refreshSession` | 原生交换15秒，JS等待20秒 |
@@ -2086,6 +2107,7 @@ navigation.openInternal
 navigation.openExternal
 navigation.resolveBack
 layout.setMode
+layout.setPanelRatios
 layout.closeSecondary
 payment.start
 payment.query

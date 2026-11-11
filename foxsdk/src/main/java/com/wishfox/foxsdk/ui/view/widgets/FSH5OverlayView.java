@@ -54,6 +54,9 @@ import com.wishfox.foxsdk.data.model.entity.FSUserInfo;
 public final class FSH5OverlayView extends FrameLayout {
     private static final String BRIDGE_LOG_TAG = "FoxSdk[H5]";
     private static final int PORTRAIT_TOP_SAFE_AREA_EXTRA_CSS_PX = 4;
+    private static final float DEFAULT_LANDSCAPE_PRIMARY_WIDTH_RATIO = 39f / 100f;
+    private static final float DEFAULT_LANDSCAPE_SECONDARY_WIDTH_RATIO = 61f / 100f;
+    private static final float DEFAULT_PORTRAIT_PANEL_WIDTH_RATIO = 4f / 5f;
 
     public interface Callback {
         void onClose();
@@ -98,6 +101,9 @@ public final class FSH5OverlayView extends FrameLayout {
     private boolean initialVisualStateRequested;
     private boolean initialRevealPending = true;
     private boolean destroyed;
+    private float landscapePrimaryWidthRatio = DEFAULT_LANDSCAPE_PRIMARY_WIDTH_RATIO;
+    private float landscapeSecondaryWidthRatio = DEFAULT_LANDSCAPE_SECONDARY_WIDTH_RATIO;
+    private float portraitPanelWidthRatio = DEFAULT_PORTRAIT_PANEL_WIDTH_RATIO;
     private final Map<WebView, NavigationBridge> bridges = new HashMap<>();
     private final String sessionId = UUID.randomUUID().toString();
     private FSMediaPreviewView preview;
@@ -267,7 +273,7 @@ public final class FSH5OverlayView extends FrameLayout {
     }
 
     private int landscapePrimaryWidth(int width) {
-        return width > 0 ? Math.round(width * (73f / 163f)) : LayoutParams.MATCH_PARENT;
+        return width > 0 ? Math.round(width * landscapePrimaryWidthRatio) : LayoutParams.MATCH_PARENT;
     }
 
     private int landscapeSecondaryWidth() {
@@ -275,7 +281,7 @@ public final class FSH5OverlayView extends FrameLayout {
     }
 
     private int landscapeSecondaryWidth(int width) {
-        return width > 0 ? Math.round(width * (90f / 163f)) : LayoutParams.MATCH_PARENT;
+        return width > 0 ? Math.round(width * landscapeSecondaryWidthRatio) : LayoutParams.MATCH_PARENT;
     }
 
     private int portraitPanelWidth() {
@@ -283,7 +289,21 @@ public final class FSH5OverlayView extends FrameLayout {
     }
 
     private int portraitPanelWidth(int width) {
-        return width > 0 ? Math.round(width * (4f / 5f)) : LayoutParams.MATCH_PARENT;
+        return width > 0 ? Math.round(width * portraitPanelWidthRatio) : LayoutParams.MATCH_PARENT;
+    }
+
+    private static boolean isValidPanelWidthRatio(Object value) {
+        if (!(value instanceof Number)) return false;
+        float ratio = ((Number) value).floatValue();
+        return !Float.isNaN(ratio) && !Float.isInfinite(ratio) && ratio > 0f && ratio <= 1f;
+    }
+
+    private void setPanelWidthRatios(float landscapePrimary, float landscapeSecondary, float portrait) {
+        landscapePrimaryWidthRatio = landscapePrimary;
+        landscapeSecondaryWidthRatio = landscapeSecondary;
+        portraitPanelWidthRatio = portrait;
+        updateWebViewPanelParams(getWidth());
+        requestLayout();
     }
 
     private void updateWebViewPanelParams(int width) {
@@ -700,7 +720,7 @@ public final class FSH5OverlayView extends FrameLayout {
         }
 
         @Override public void onReceivedError(WebView view, android.webkit.WebResourceRequest request,
-                                               android.webkit.WebResourceError error) {
+                                              android.webkit.WebResourceError error) {
             if (request == null || request.isForMainFrame()) {
                 FoxSdkLogger.e(BRIDGE_LOG_TAG, "page error: origin="
                         + (request == null || request.getUrl() == null ? "null" : h5Origin(request.getUrl().toString()))
@@ -808,7 +828,7 @@ public final class FSH5OverlayView extends FrameLayout {
 
         @JavascriptInterface
         public void openInternal(final String url, final boolean needAppendUserId,
-                                  final String userIdKey) {
+                                 final String userIdKey) {
             long epoch = generation;
             post(() -> {
                 if (valid(epoch)) {
@@ -831,7 +851,7 @@ public final class FSH5OverlayView extends FrameLayout {
 
         @JavascriptInterface
         public void openExternal(final String url, final boolean needAppendUserId,
-                                  final String userIdKey) {
+                                 final String userIdKey) {
             long epoch = generation;
             post(() -> {
                 if (valid(epoch)) {
@@ -869,7 +889,8 @@ public final class FSH5OverlayView extends FrameLayout {
     }
 
     private JSONObject capabilities() throws JSONException {
-        return new JSONObject().put("mediaPreviewImage", true).put("mediaPreviewVideo", isHardwareAccelerated())
+        return new JSONObject().put("layoutSetPanelRatios", true)
+                .put("mediaPreviewImage", true).put("mediaPreviewVideo", isHardwareAccelerated())
                 .put("mediaPreviewClose", true).put("mediaPreviewMode", "streaming_native")
                 .put("mediaSaveImage", true).put("mediaCancel", true)
                 .put("mediaShareImage", true).put("mediaGetShareCapabilities", true)
@@ -1049,9 +1070,9 @@ public final class FSH5OverlayView extends FrameLayout {
         for (NavigationBridge target : new ArrayList<>(bridges.values())) {
             try {
                 target.send(new JSONObject().put("version", "1.0").put("type", "event")
-                        .put("event", "environment.changed").put("timestamp", System.currentTimeMillis())
-                        .put("webViewId", target.owner == primary ? "primary" : "secondary")
-                        .put("data", environment(target.owner == primary ? "primary" : "secondary")),
+                                .put("event", "environment.changed").put("timestamp", System.currentTimeMillis())
+                                .put("webViewId", target.owner == primary ? "primary" : "secondary")
+                                .put("data", environment(target.owner == primary ? "primary" : "secondary")),
                         target.generation);
             } catch (JSONException ignored) { }
         }
@@ -1481,6 +1502,30 @@ public final class FSH5OverlayView extends FrameLayout {
                         .put("secondaryWebViewId", "secondary"));
             }
             if (!previous.equals(layoutMode())) sendLayoutChanged(previous, "js_request");
+            return;
+        }
+        if ("layout.setPanelRatios".equals(method)) {
+            Object landscapePrimary = params.opt("landscapePrimary");
+            Object landscapeSecondary = params.opt("landscapeSecondary");
+            Object portrait = params.opt("portrait");
+            if (!isValidPanelWidthRatio(landscapePrimary)
+                    || !isValidPanelWidthRatio(landscapeSecondary)
+                    || !isValidPanelWidthRatio(portrait)) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
+            float primaryRatio = ((Number) landscapePrimary).floatValue();
+            float secondaryRatio = ((Number) landscapeSecondary).floatValue();
+            float portraitRatio = ((Number) portrait).floatValue();
+            if (primaryRatio + secondaryRatio > 1f) {
+                reply(bridge, request, epoch, "INVALID_ARGUMENT", null);
+                return;
+            }
+            setPanelWidthRatios(primaryRatio, secondaryRatio, portraitRatio);
+            reply(bridge, request, epoch, "OK", new JSONObject()
+                    .put("landscapePrimary", landscapePrimaryWidthRatio)
+                    .put("landscapeSecondary", landscapeSecondaryWidthRatio)
+                    .put("portrait", portraitPanelWidthRatio));
             return;
         }
         if ("media.closePreview".equals(method)) {
