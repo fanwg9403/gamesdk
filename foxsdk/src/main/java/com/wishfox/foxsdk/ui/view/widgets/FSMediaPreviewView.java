@@ -20,6 +20,7 @@ import android.view.Surface;
 import android.view.TextureView;
 import android.view.View;
 import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -28,6 +29,7 @@ import androidx.annotation.Nullable;
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.request.target.CustomTarget;
 import com.bumptech.glide.request.transition.Transition;
+import com.wishfox.foxsdk.R;
 import com.wishfox.foxsdk.media.FSMediaFetcher;
 import com.wishfox.foxsdk.media.FSMediaPolicy;
 
@@ -120,9 +122,24 @@ public final class FSMediaPreviewView extends FrameLayout implements TextureView
         status.setGravity(Gravity.CENTER);
         status.setText("正在加载…");
         addView(status, new LayoutParams(-1, -2, Gravity.CENTER));
+        //关闭按钮
+        ImageView closeButton = new ImageView(activity);
+        closeButton.setImageResource(R.mipmap.fs_icon_login_close);
+        closeButton.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        closeButton.setPadding(dp(12),dp(12),dp(12),dp(12));
+        closeButton.setContentDescription("关闭媒体预览");
+        closeButton.setClickable(true);
+        closeButton.setFocusable(true);
+        closeButton.setOnClickListener(v-> close("close_button"));
+        LayoutParams closeParams = new LayoutParams(dp(48),dp(48),Gravity.TOP|Gravity.END);
+        closeParams.setMargins(0,dp(8),dp(8),0);
+        addView(closeButton,closeParams);
         content.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> fitVideo());
     }
 
+    private int dp(float value){
+        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    }
     /** Call only after attaching to the host. Video preparation and image loading are asynchronous. */
     public void load(String url) {
         if (closed) return;
